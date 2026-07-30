@@ -8,6 +8,53 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint S3 — Categorias, Clientes e Contratos (backend)** · `specs/implementation-order.md` §4
+
+Escopo acordado: backend de `005-categories`, `003-clients` e `004-contracts` no recorte S3 (CRUD e
+prévia de períodos). O frontend das três features e as dependências `001-authentication` e
+`002-users` permanecem fora — ver "Pendências desta sprint".
+
+Categorias (`005`)
+
+- Migration `V008`, entidade `Category` e catálogo das 9 categorias de sistema de `entities.md`
+  §6.10, com índice único parcial sobre `(tenant_id, lower(name))` (RN-502, INV-CAT-01).
+- `CategoryService` com CRUD, inativação, reordenação atômica e exclusão na ordem normativa da §6.1
+  da spec; `SystemCategoryGuard` (RN-503) e `CategoryReplacementValidator` (`DEVTIME-2605`).
+- `CategorySeedService` exposto por `seedDefaults()`, idempotente (RN-501, CX-14).
+- `DefaultCategoryResolver` com a cadeia ticket → contrato → usuário → primeira ativa (RN-104), que
+  pula origens inativas e é determinística.
+
+Clientes (`003`)
+
+- Migrations `V010` e `V011`, entidades `Client` e `Contact` com o VO `Address` embutido.
+- `DocumentValidator` de CPF e CNPJ por dígitos verificadores, rejeitando sequências repetidas
+  (RN-402, CX-04), e `DocumentNormalizer` removendo máscara antes de validar e comparar (CX-03).
+- CRUD com unicidade de nome e documento por tenant (RN-403, RN-404), busca sem acento e sem caixa,
+  paginação, cor determinística derivada do nome, inativação com confirmação (RN-407) e exclusão
+  restrita por contratos ativos (RN-401).
+- `ContactService` com `PrimaryContactPolicy` (RN-406) e limite de 20 contatos por cliente.
+
+Contratos (`004`)
+
+- Migrations `V012` e `V013`, incluindo a constraint `EXCLUDE USING gist` de INV-PER-02, o índice
+  único parcial de período `OPEN` (INV-PER-07) e as constraints de coerência de tipo
+  (INV-CTR-02/03/04).
+- `PeriodGenerator` e `ProrationCalculator` reproduzindo a tabela normativa de geração e o exemplo
+  de rateio de RN-217 (1.703 minutos), com aritmética inteira — sem ponto flutuante em nenhum passo.
+- `ContractStateMachine` com a matriz completa de `state-machines.md` §4.5 e `availableTransitions`.
+- CRUD com código sequencial `CT-0001` por tenant, prévia de períodos sem persistência, ativação
+  gerando o 1º período `OPEN` na mesma transação (RN-209, INV-CTR-06), suspensão, retomada com
+  geração dos períodos faltantes (CE-ME-09), encerramento e cancelamento com truncamento (RN-214),
+  exclusão restrita a `DRAFT` (RN-205) e histórico de períodos.
+- `ContractChangeGuards` aplicando RN-207 e RN-208.
+
+Transversal
+
+- `AuditService` gravando a trilha na mesma transação da alteração (RN-006), com ator de sistema
+  para a geração de períodos.
+- 44 códigos de erro de domínio registrados em `ErrorCode` (`DEVTIME-22xx`, `24xx` e `26xx`).
+- OpenAPI descrevendo as 21 rotas da sprint, com códigos de erro por resposta.
+
 **Sprint S1 — Fundação técnica (F0)** · `specs/implementation-order.md` §3
 
 Backend
@@ -63,9 +110,40 @@ Documentação
 - `ai/coding-guidelines.md` §5: árvore do repositório corrigida para `devtime-backend/` e
   `devtime-frontend/`, conforme ADR-022.
 
-### Corrigido
+### Verificado — Sprint S3
 
-Defeitos encontrados pelos próprios gates desta sprint, antes de qualquer feature depender deles.
+- Backend: **319 testes verdes** (unitários + integração com Testcontainers em PostgreSQL 16).
+  Cobertura global de 88,6% (gate 80%) e 91,6% em services e validators (meta 90%).
+- Suítes temporais de `004` escritas **antes** do gerador (regra SQ-02): os 5 cenários normativos de
+  geração, 1.120 combinações de `startDate` × `billingDay` verificando contiguidade (INV-PER-03) e a
+  matriz completa de transições, célula a célula, incluindo as proibidas.
+- Constraints estruturais provadas por `INSERT` direto, contornando a aplicação: sobreposição de
+  períodos, segundo período `OPEN` e sequência duplicada são rejeitados pelo banco.
+- Isolamento entre tenants verificado nas três features; recurso de outro tenant responde `404`.
+- Migrations `V008`, `V010`–`V013` aplicam do zero; `ddl-auto=validate` aprovou o mapeamento.
+
+### Pendências — Sprint S3
+
+Reportadas antes do início e confirmadas na entrega.
+
+- **Dependências não implementadas.** `001-authentication` e `002-users` não existem: não há endpoint
+  de login, e o gatilho de criação de tenant que deve chamar `CategoryService.seedDefaults()`
+  (RN-501) pertence a `002`. A sprint foi executada sobre a fundação F0 por decisão explícita.
+- **Frontend das três features** (T-005-12 a 17, T-003-15 a 22, T-004-32 a 46) fora do escopo
+  acordado.
+- **Jobs de S4** de `004`: `GeneratePeriodsJob` (RN-213), `OpenScheduledPeriodsJob`,
+  `AutoEndContractsJob` e `ContractEndingReminderJob`.
+- **Guarda de cronômetro ativo** em `suspend` e `end` (`DEVTIME-2212`): depende de `009-timer`.
+- **Migração de work logs na exclusão de categoria** (RN-505) e estatística de uso: dependem de
+  `008-worklogs`.
+- **Escopo de dados de `MEMBER`** sobre clientes: aplicado na consulta, porém fechado por padrão —
+  a definição de "cliente vinculado" depende de `work_logs` e `tickets`. As subconsultas `EXISTS`
+  entram com `007`/`008`.
+
+### Corrigido — Sprint S1
+
+Defeitos encontrados pelos próprios gates da sprint de fundação, antes de qualquer feature depender
+deles.
 
 - **Isolamento entre tenants em `findById`.** O `@Filter` de Hibernate não é aplicado a
   `EntityManager.find()`, que é o que o `findById` padrão de Spring Data usa — então
@@ -102,7 +180,7 @@ Defeitos encontrados pelos próprios gates desta sprint, antes de qualquer featu
 - **Mensagens de validação de configuração.** O texto padrão do Bean Validation não indicava de onde o
   valor deveria vir; `DEVTIME_JWT_SECRET` agora explica o que definir e como gerar (ER-04).
 
-### Verificado
+### Verificado — Sprint S1
 
 - Backend: 124 testes verdes (88 unitários + 36 de integração com Testcontainers), Spotless e gate de
   cobertura JaCoCo de 80% atendidos.
@@ -115,7 +193,7 @@ Defeitos encontrados pelos próprios gates desta sprint, antes de qualquer featu
   responde `401` (ART-085), health check público, todos os cabeçalhos de §8.2 presentes, roteamento da
   SPA resolvendo `/dashboard` no index (FR-089).
 
-### Pendências desta sprint
+### Pendências — Sprint S1
 
 - Pipeline CI com os gates de `architecture.md` §11 fora do escopo acordado para a sprint.
 - Angular 21.2.19 em vez da última versão estável (22.x) exigida por ART-090: o Angular 22 requer

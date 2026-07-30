@@ -254,9 +254,9 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 |:--:|---|:--:|:--:|:--:|:--:|---|
 | 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ |
+| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_PARTIAL` ² |
+| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ |
 | 006 | Tags | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
@@ -269,6 +269,27 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 
 > Atualizar a coluna **Status** é obrigatório no PR que conclui a feature (MN-03).
+
+**Notas da sprint S3 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹ | `003` — backend completo (CRUD, contatos, inativação, exclusão restrita, busca, paginação, auditoria). Frontend (T-003-15 a T-003-22) e o escopo de dados de `MEMBER` por `EXISTS` sobre work logs e tickets permanecem pendentes; o escopo hoje é fechado por ausência das tabelas de `007`/`008` |
+| ² | `004` — recorte S3 entregue: CRUD, código sequencial, prévia, máquina de estados completa, geração do 1º período na ativação, retomada com períodos faltantes, truncamento e histórico. Pendentes de S4: jobs `GeneratePeriodsJob`, `OpenScheduledPeriodsJob`, `AutoEndContractsJob` e `ContractEndingReminderJob`; guarda de cronômetro ativo (depende de `009`) |
+| ³ | `005` — backend completo exceto a migração de work logs na exclusão (RN-505) e a estatística de uso, ambas dependentes de `008`; o seed é exposto por `CategoryService.seedDefaults` e deve ser acionado por `002` na criação do tenant |
+
+**Interfaces públicas publicadas nesta sprint:**
+
+| Interface | Consumidor previsto |
+|---|---|
+| `ClientService.getActiveForContract(clientId)` | `004` (RN-201, RN-405) |
+| `ClientService.adjustActiveContractsCount(clientId, delta)` | `004` (entities.md §9) |
+| `CategoryService.requireActive(id)` · `listActive()` · `seedDefaults()` | `002`, `004`, `008`, `009`, `012` |
+| `DefaultCategoryResolver.resolveDefault(ticket, contract, user)` | `008` (RN-104) |
+| `ContractService.getActiveForWorkLog(contractId)` | `007`, `008` (RN-306) |
+| `ContractPeriodService.resolveOpenPeriod(contractId, workDate)` | `008` (RN-107) |
+| `ContractPeriodService.getCurrentPeriod(contractId)` | `010`, `011` |
+| `AuditService.record(...)` · `recordSystemAction(...)` | Toda feature com entidade auditável (RN-006) |
 
 ---
 

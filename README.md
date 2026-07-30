@@ -20,12 +20,29 @@ Pré-requisitos: Docker, e — para desenvolvimento fora de contêiner — JDK 2
 cp .env.example .env
 ```
 
-Preencha em `.env` os dois valores obrigatórios (`DEVTIME_DB_PASSWORD` e `DEVTIME_JWT_SECRET`). O
-segredo JWT precisa ter no mínimo 32 caracteres (TK-01 exige 256 bits) — a aplicação recusa iniciar
-com um valor menor:
+Preencha em `.env` os dois valores obrigatórios: `DEVTIME_DB_PASSWORD` e `DEVTIME_JWT_SECRET`.
+
+O segredo JWT precisa ter no mínimo 32 caracteres (TK-01 exige 256 bits) — a aplicação recusa iniciar
+com um valor menor. Gere um e **copie a saída** para o `.env`:
 
 ```bash
 openssl rand -base64 48
+```
+
+No Windows sem `openssl`, o Node serve:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"
+```
+
+Estes dois comandos já gravam o valor direto no `.env`, evitando o passo manual:
+
+```bash
+printf 'DEVTIME_DB_PASSWORD=%s\n' "$(openssl rand -hex 16)" >> .env
+```
+
+```bash
+printf 'DEVTIME_JWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env
 ```
 
 ```bash
@@ -46,8 +63,20 @@ docker compose -f infra/docker-compose.yml --env-file .env up --build
 
 ### Backend
 
+Rodando apenas o banco em contêiner e a aplicação na máquina:
+
+```bash
+docker compose -f infra/docker-compose.yml --env-file .env up -d postgres
+```
+
 ```bash
 cd devtime-backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
+```
+
+O `spring-boot:run` **não** lê o `.env`. Exporte as variáveis antes, na mesma sessão do terminal:
+
+```bash
+set -a && . ./.env && set +a
 ```
 
 | Comando | O que faz |
@@ -56,6 +85,25 @@ cd devtime-backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=local
 | `./mvnw test -DexcludedGroups=integration` | Apenas os testes que não precisam de Docker |
 | `./mvnw verify` | Testes + cobertura mínima de 80% (ART-100) |
 | `./mvnw spotless:apply` | Formata o código (Google Java Format, estilo AOSP) |
+
+#### Executando pela IDE
+
+A configuração de execução precisa de duas coisas, senão a aplicação recusa iniciar (CF-03):
+
+1. **Perfil ativo:** `local`
+2. **Variáveis de ambiente:** as mesmas do `.env`. No IntelliJ, use o botão de pasta ao lado do campo
+   *Environment variables* e aponte para o arquivo `.env`, em vez de digitá-las uma a uma.
+
+Se preencher à mão, cole o **valor gerado** do segredo — não o comando que o gera. Um valor como
+`openssl rand -base64 48` gravado literalmente tem 25 caracteres e a aplicação o rejeita:
+
+```
+Property: devtime.security.jwtSecret
+Reason: DEVTIME_JWT_SECRET precisa de no mínimo 32 caracteres (TK-01 exige 256 bits).
+```
+
+Essa mensagem sempre indica que o valor **efetivamente lido** é curto demais. Para conferir o que
+chegou à aplicação, procure a linha `Value:` que acompanha o erro.
 
 ### Frontend
 

@@ -398,6 +398,18 @@ Especificar os endpoints de gestão do perfil do usuário, dos membros da organi
 
 A lista deve conter **todas** as categorias do tenant; ausências retornam `422`.
 
+### 8.5 Estado da implementação (sprint S3 — backend)
+
+Sincronizado com `devtime-backend/src/main/java/com/devtime/category` (T-005-22).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GET`, `POST`, `PUT`, `DELETE` e `PATCH /reorder` | ✅ Implementado | Ordem de validação da exclusão conforme §6.1 da spec 005 |
+| Seed das 9 categorias (RN-501) | ✅ Implementado | Exposto por `CategoryService.seedDefaults()`, idempotente. O gatilho na criação do tenant pertence a `002-users` e ainda não existe |
+| Bloco `usage` (`workLogsCount`, `totalMinutes`) | ⚠️ Adiado | Depende de `work_logs` (`008`). Omitido em vez de emitir zeros, que seriam lidos como "nenhuma hora registrada" |
+| Migração de registros na exclusão (RN-505) | ⚠️ Parcial | A substituta informada é validada (`DEVTIME-2605`) e a resposta traz `migratedWorkLogs: 0`; a migração em lote entra com `008` |
+| Resolução da categoria padrão (RN-104) | ✅ Implementado | `DefaultCategoryResolver.resolveDefault(ticket, contract, user)` — as origens chegam por parâmetro para não criar ciclo entre features |
+
 ---
 
 ## 9. Tags

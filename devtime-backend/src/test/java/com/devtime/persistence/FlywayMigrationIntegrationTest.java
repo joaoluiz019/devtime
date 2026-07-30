@@ -27,15 +27,21 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("CA-05: todas as migrations de F0 (V001–V007) aplicam em banco limpo")
-    void allFoundationMigrationsMustApply() {
+    @DisplayName("CA-05: todas as migrations aplicam em banco limpo, na ordem de database.md §8.1")
+    void allMigrationsMustApply() {
         List<String> versions =
                 jdbc().queryForList(
                                 "SELECT version FROM flyway_schema_history WHERE success = true"
                                         + " ORDER BY installed_rank",
                                 String.class);
 
-        assertThat(versions).containsExactly("001", "002", "003", "004", "005", "006", "007");
+        // F0 (fundação) seguido de F1: categories, clients, contacts, contracts e contract_periods.
+        // A lacuna em V009 é intencional — a versão está reservada a `tags` em database.md §8.1, e
+        // reaproveitá-la faria a numeração divergir do documento que a define.
+        assertThat(versions)
+                .containsExactly(
+                        "001", "002", "003", "004", "005", "006", "007", "008", "010", "011", "012",
+                        "013");
     }
 
     @Test

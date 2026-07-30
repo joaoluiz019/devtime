@@ -419,7 +419,23 @@ sequenceDiagram
 | CA-07 | Toda operação de escrita é registrada em auditoria |
 | CA-08 | `availableActions` reflete corretamente estado e permissões |
 
-## 15. Dependências e impactos
+## 15. Estado da implementação (sprint S3 — backend)
+
+Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/client` (T-003-28).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GET`/`POST`/`PUT` `/clients`, `activate`, `deactivate`, `DELETE` | ✅ Implementado | Ordem de validação conforme §6.1 da spec |
+| `GET /clients/{id}/contacts` e escrita de contatos | ✅ Implementado | Limite de 20 contatos e RN-406 aplicados |
+| `GET /clients/{id}/contracts` e `GET /clients/{id}/summary` | ✅ Implementado | Servidos pela feature `004` (`ClientContractController`), preservando as rotas desta seção. A implementação do lado do cliente fecharia um ciclo entre pacotes, proibido por AR-09 |
+| `PATCH /clients/{id}` | ⚠️ Não exposto | Apenas `PUT` nesta sprint; `PATCH` entra com a mesma semântica quando houver demanda de cliente |
+| `currentPeriodSummary` na listagem (§5) | ⚠️ Adiado | Depende do saldo apurado por `011-bank-hours` |
+| Bloco `stats` do detalhe (§7) | ⚠️ Adiado | Depende de tickets (`007`) e work logs (`008`) |
+| `summary.byCategory` (§8) | ⚠️ Adiado | Depende de work logs (`008`) |
+| Escopo de dados de `MEMBER` (nota ², CA-05) | ⚠️ Parcial | Aplicado na consulta e fechado por padrão: a definição operacional depende de `work_logs` e `tickets`, então nenhum cliente é vinculado hoje. As subconsultas `EXISTS` entram com `007`/`008` |
+| `address.postalCode` | ✅ Implementado | Mapeado para a coluna `address_zip_code`, nome já existente no VO compartilhado desde V002 |
+
+## 16. Dependências e impactos
 
 | Documento | Relação |
 |---|---|

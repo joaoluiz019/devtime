@@ -27,7 +27,8 @@ class FeatureBoundaryRulesTest {
      * para que criar uma feature seja uma decisão consciente e não um efeito colateral de criar um
      * pacote.
      */
-    private static final List<String> FEATURES = List.of("tenant", "user", "auth", "audit");
+    private static final List<String> FEATURES =
+            List.of("tenant", "user", "auth", "audit", "category", "client", "contract");
 
     private final JavaClasses production =
             new ClassFileImporter()

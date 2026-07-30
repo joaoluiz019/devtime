@@ -691,7 +691,28 @@ Retorna a série histórica para o gráfico de tendência (RF-054):
 | CA-11 | O cálculo do saldo é determinístico em execuções repetidas |
 | CA-12 | Contratos `HOURLY_OPEN` nunca geram alerta de consumo |
 
-## 16. Dependências e impactos
+## 16. Estado da implementação (sprint S3 — backend)
+
+Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/contract` (T-004-54).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `POST /contracts` e `POST /contracts/preview-periods` | ✅ Implementado | Prévia e ativação usam o mesmo `PeriodGenerator` — CA-01 é garantido por construção |
+| `GET /contracts` e `GET /contracts/{id}` | ✅ Implementado | Filtros `clientId`, `status`, `type` e `search` |
+| `PATCH /contracts/{id}` | ✅ Implementado | RN-207 e RN-208 aplicados; `status` e `type` ausentes do DTO |
+| `activate`, `suspend`, `resume`, `end`, `cancel` | ✅ Implementado | Matriz de §4.5 de `state-machines.md` coberta célula a célula |
+| `DELETE /contracts/{id}` | ✅ Implementado | Apenas em `DRAFT` (RN-205) |
+| `GET /contracts/{id}/periods` e `/history` | ✅ Implementado | Histórico reapresenta os valores persistidos; não calcula saldo |
+| Filtros `consumptionRateFrom/To`, `hasOverage`, `endingWithinDays` | ⚠️ Adiado | Derivam do saldo, apurado por `011-bank-hours` |
+| Campos derivados de consumo (`severity`, `burnRate`, `projection`) | ⚠️ Adiado | Idem — `004` nunca calcula saldo (fronteira de §4 da spec) |
+| `POST /contracts/{id}/duplicate` | ⚠️ Não implementado | Fora do recorte acordado para S3 |
+| `/contract-periods/*` — saldo, extrato, ajustes, fechamento e reabertura | ⚠️ Fora do escopo | Pertencem a `011-bank-hours` (S7 e S10) |
+| Geração automática de períodos (RN-213) e jobs | ⚠️ Adiado para S4 | O gerador já suporta a geração encadeada (`generateAfter`), usada na retomada |
+| Guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`) | ⚠️ Pendente | Depende de `009-timer`; a tabela `timers` não existe |
+| `overageRate` ausente | ✅ Implementado | Assume `hourlyRate`, conforme §5 |
+| `status` enviado em `PATCH` | ℹ️ Rejeitado com `400` | O campo não existe no DTO e `fail-on-unknown-properties = true` (F0) rejeita a desserialização — barreira mais forte que ignorar, e mais explícita para quem integra |
+
+## 17. Dependências e impactos
 
 | Documento | Relação |
 |---|---|
