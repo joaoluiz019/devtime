@@ -1,0 +1,39 @@
+.dt-login__title {
+  margin: 0 0 var(--dt-space-2);
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-login__subtitle {
+  margin: 0 0 var(--dt-space-5);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-login__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+}
+
+.dt-login__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-login__field label {
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-sm);
+  font-weight: 500;
+}
+
+.dt-login__field input {
+  width: 100%;
+}
+
+/* DS-07 / FR-103: o erro fica abaixo do campo, com cor e texto — nunca apenas cor (DS-05). */
+.dt-login__error {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+}

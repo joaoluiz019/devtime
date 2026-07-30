@@ -1,0 +1,94 @@
+.dt-sidebar {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: var(--dt-sidebar-width);
+  border-right: 1px solid var(--dt-border);
+  background-color: var(--dt-surface-card);
+  transition: width var(--dt-transition-fast) ease-in-out;
+}
+
+/* SB-03: modo recolhido exibe apenas ícones. */
+.dt-sidebar--collapsed {
+  width: var(--dt-sidebar-width-collapsed);
+}
+
+.dt-sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  height: var(--dt-topbar-height);
+  padding-inline: var(--dt-space-4);
+  border-bottom: 1px solid var(--dt-border);
+  color: var(--dt-color-primary);
+  font-size: var(--dt-text-lg);
+}
+
+.dt-sidebar__brand-name {
+  color: var(--dt-text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dt-sidebar__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+  margin: 0;
+  padding: var(--dt-space-3);
+  list-style: none;
+}
+
+.dt-sidebar__item {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-3);
+  /* WCAG 2.5.5: alvo tocável de no mínimo 44px. */
+  min-height: var(--dt-touch-target-min);
+  padding-inline: var(--dt-space-3);
+  border-radius: var(--dt-radius-md);
+  color: var(--dt-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dt-sidebar__item:hover {
+  background-color: color-mix(in srgb, var(--dt-color-primary) 4%, transparent);
+  color: var(--dt-text-primary);
+}
+
+/**
+ * SB-02: o item ativo é destacado por cor **e** por barra lateral esquerda.
+ *
+ * DS-05 / A11Y-08: nenhuma informação é transmitida apenas por cor — a barra dá o segundo sinal.
+ */
+.dt-sidebar__item--active {
+  box-shadow: inset 3px 0 0 0 var(--dt-color-primary);
+  background-color: color-mix(in srgb, var(--dt-color-primary) 8%, transparent);
+  color: var(--dt-color-primary);
+  font-weight: 600;
+}
+
+/* Breakpoint xs de design-system.md §14: a barra lateral vira menu inferior. */
+@media (width <= 576px) {
+  .dt-sidebar {
+    position: fixed;
+    bottom: 0;
+    z-index: 10;
+    flex-direction: row;
+    width: 100%;
+    height: auto;
+    border-top: 1px solid var(--dt-border);
+    border-right: none;
+  }
+
+  .dt-sidebar__brand {
+    display: none;
+  }
+
+  .dt-sidebar__list {
+    flex-direction: row;
+    justify-content: space-around;
+    width: 100%;
+  }
+}

@@ -1,0 +1,53 @@
+.dt-topbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--dt-space-3);
+  /* layouts.md §6.1: altura fixa de 56px. */
+  height: var(--dt-topbar-height);
+  padding-inline: var(--dt-space-4);
+  border-bottom: 1px solid var(--dt-border);
+  background-color: var(--dt-surface-card);
+}
+
+.dt-topbar__tenant {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-topbar__spacer {
+  flex: 1;
+}
+
+.dt-topbar__user {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+}
+
+/* §17 do design system: substituto com iniciais quando não há avatar. */
+.dt-topbar__avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--dt-radius-full);
+  background-color: var(--dt-color-primary);
+  color: var(--dt-color-primary-contrast);
+  font-size: var(--dt-text-xs);
+  font-weight: 600;
+}
+
+.dt-topbar__user-name {
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-sm);
+}
+
+/* Breakpoint xs: o nome sai e o avatar permanece como identificação. */
+@media (width <= 576px) {
+  .dt-topbar__user-name,
+  .dt-topbar__tenant {
+    display: none;
+  }
+}

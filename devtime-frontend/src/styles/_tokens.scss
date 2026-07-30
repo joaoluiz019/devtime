@@ -1,0 +1,175 @@
+/**
+ * Tokens de design (design-system.md §5 a §7).
+ *
+ * FR-120/FR-121: toda cor, espaçamento e tamanho vem de um token `--dt-*`. Nenhum valor literal é
+ * permitido em componente — CA-01 do design system. Alterar um token semântico afeta toda a interface
+ * e exige revalidar contraste nos dois temas (DK-07).
+ */
+
+:root {
+  /* ── Tokens primitivos · design-system.md §5.1 ───────────────────────────────────────────── */
+  --dt-slate-50: #f8fafc;
+  --dt-slate-100: #f1f5f9;
+  --dt-slate-300: #cbd5e1;
+  --dt-slate-500: #64748b;
+  --dt-slate-700: #334155;
+  --dt-slate-900: #0f172a;
+
+  --dt-indigo-50: #eef2ff;
+  --dt-indigo-100: #e0e7ff;
+  --dt-indigo-300: #a5b4fc;
+  --dt-indigo-500: #6366f1;
+  --dt-indigo-700: #4338ca;
+  --dt-indigo-900: #312e81;
+
+  --dt-emerald-50: #ecfdf5;
+  --dt-emerald-100: #d1fae5;
+  --dt-emerald-300: #6ee7b7;
+  --dt-emerald-500: #10b981;
+  --dt-emerald-700: #047857;
+  --dt-emerald-900: #064e3b;
+
+  --dt-amber-50: #fffbeb;
+  --dt-amber-100: #fef3c7;
+  --dt-amber-300: #fcd34d;
+  --dt-amber-500: #f59e0b;
+  --dt-amber-700: #b45309;
+  --dt-amber-900: #78350f;
+
+  --dt-red-50: #fef2f2;
+  --dt-red-100: #fee2e2;
+  --dt-red-300: #fca5a5;
+  --dt-red-500: #ef4444;
+  --dt-red-700: #b91c1c;
+  --dt-red-900: #7f1d1d;
+
+  --dt-sky-50: #f0f9ff;
+  --dt-sky-100: #e0f2fe;
+  --dt-sky-300: #7dd3fc;
+  --dt-sky-500: #0ea5e9;
+  --dt-sky-700: #0369a1;
+  --dt-sky-900: #0c4a6e;
+
+  /* ── Tipografia · design-system.md §6 ───────────────────────────────────────────────────── */
+  --dt-font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Durações e horários em monoespaçada: em listas longas, o alinhamento vertical dos dígitos
+     torna a diferença entre 01:30 e 11:30 óbvia sem leitura atenta (DS-01). */
+  --dt-font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+
+  --dt-text-xs: 0.75rem;
+  --dt-text-xs-line: 1rem;
+  --dt-text-sm: 0.875rem;
+  --dt-text-sm-line: 1.25rem;
+  --dt-text-base: 1rem;
+  --dt-text-base-line: 1.5rem;
+  --dt-text-lg: 1.125rem;
+  --dt-text-lg-line: 1.75rem;
+  --dt-text-xl: 1.25rem;
+  --dt-text-xl-line: 1.75rem;
+  --dt-text-2xl: 1.5rem;
+  --dt-text-2xl-line: 2rem;
+  --dt-text-3xl: 1.875rem;
+  --dt-text-3xl-line: 2.25rem;
+  --dt-text-timer: 2rem;
+  --dt-text-timer-line: 2.25rem;
+
+  /* ── Espaçamento e dimensões · design-system.md §7 ──────────────────────────────────────── */
+  --dt-space-1: 0.25rem;
+  --dt-space-2: 0.5rem;
+  --dt-space-3: 0.75rem;
+  --dt-space-4: 1rem;
+  --dt-space-5: 1.25rem;
+  --dt-space-6: 1.5rem;
+  --dt-space-7: 2rem;
+  --dt-space-8: 2.5rem;
+  --dt-space-9: 3rem;
+  --dt-space-10: 4rem;
+
+  --dt-radius-sm: 4px;
+  --dt-radius-md: 8px;
+  --dt-radius-lg: 12px;
+  --dt-radius-full: 9999px;
+
+  --dt-topbar-height: 56px;
+  --dt-timerbar-height: 48px;
+  --dt-sidebar-width: 240px;
+  --dt-sidebar-width-collapsed: 64px;
+  /* WCAG 2.5.5: alvo tocável mínimo. */
+  --dt-touch-target-min: 44px;
+  --dt-content-max-width: 1440px;
+  --dt-auth-card-width: 400px;
+
+  --dt-transition-fast: 150ms;
+
+  /* ── Tokens semânticos · tema claro · design-system.md §5.2 ─────────────────────────────── */
+  --dt-color-primary: var(--dt-indigo-500);
+  --dt-color-primary-hover: var(--dt-indigo-700);
+  --dt-color-primary-contrast: #ffffff;
+  --dt-surface-page: var(--dt-slate-50);
+  --dt-surface-card: #ffffff;
+  --dt-surface-raised: #ffffff;
+  --dt-border: var(--dt-slate-300);
+  --dt-text-primary: var(--dt-slate-900);
+  --dt-text-secondary: var(--dt-slate-500);
+  --dt-text-disabled: #94a3b8;
+  --dt-color-success: var(--dt-emerald-500);
+  --dt-color-warning: var(--dt-amber-500);
+  --dt-color-danger: var(--dt-red-500);
+  --dt-color-info: var(--dt-sky-500);
+
+  --dt-shadow-sm: 0 1px 2px rgb(15 23 42 / 8%);
+  --dt-shadow-md: 0 4px 8px rgb(15 23 42 / 10%);
+  --dt-shadow-lg: 0 12px 24px rgb(15 23 42 / 14%);
+}
+
+/**
+ * Tema escuro (design-system.md §15).
+ *
+ * DK-02: nenhum fundo preto puro — `slate-900` reduz fadiga. DK-03: as cores semânticas usam o tom
+ * 300, preservando o contraste sobre fundo escuro. DK-04: a elevação é expressa por diferença de
+ * superfície, não por sombra, que é praticamente invisível no escuro.
+ */
+:root[data-theme='dark'] {
+  --dt-color-primary: var(--dt-indigo-300);
+  --dt-color-primary-hover: var(--dt-indigo-100);
+  --dt-color-primary-contrast: var(--dt-slate-900);
+  --dt-surface-page: var(--dt-slate-900);
+  --dt-surface-card: #1e293b;
+  --dt-surface-raised: #293548;
+  --dt-border: #334155;
+  --dt-text-primary: var(--dt-slate-50);
+  --dt-text-secondary: var(--dt-slate-300);
+  --dt-text-disabled: #64748b;
+  --dt-color-success: var(--dt-emerald-300);
+  --dt-color-warning: var(--dt-amber-300);
+  --dt-color-danger: var(--dt-red-300);
+  --dt-color-info: var(--dt-sky-300);
+
+  --dt-shadow-sm: none;
+  --dt-shadow-md: none;
+  --dt-shadow-lg: none;
+}
+
+/* DK-01: sem escolha explícita do usuário, segue a preferência do sistema operacional. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --dt-color-primary: var(--dt-indigo-300);
+    --dt-color-primary-hover: var(--dt-indigo-100);
+    --dt-color-primary-contrast: var(--dt-slate-900);
+    --dt-surface-page: var(--dt-slate-900);
+    --dt-surface-card: #1e293b;
+    --dt-surface-raised: #293548;
+    --dt-border: #334155;
+    --dt-text-primary: var(--dt-slate-50);
+    --dt-text-secondary: var(--dt-slate-300);
+    --dt-text-disabled: #64748b;
+    --dt-color-success: var(--dt-emerald-300);
+    --dt-color-warning: var(--dt-amber-300);
+    --dt-color-danger: var(--dt-red-300);
+    --dt-color-info: var(--dt-sky-300);
+
+    --dt-shadow-sm: none;
+    --dt-shadow-md: none;
+    --dt-shadow-lg: none;
+  }
+}

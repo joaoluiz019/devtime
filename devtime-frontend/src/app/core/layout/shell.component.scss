@@ -1,0 +1,55 @@
+/**
+ * Estrutura do shell (layouts.md §6.1).
+ *
+ * FR-123: PrimeFlex cobre o layout interno das páginas; o esqueleto de regiões fixas precisa de CSS
+ * próprio porque nenhum utilitário expressa "barra lateral fixa com área de conteúdo rolável".
+ */
+.dt-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--dt-surface-page);
+}
+
+.dt-shell__main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dt-shell__progress {
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--dt-color-primary), transparent);
+  background-size: 40% 100%;
+  animation: dt-progress-slide 1.2s ease-in-out infinite;
+}
+
+@keyframes dt-progress-slide {
+  0% {
+    background-position: -40% 0;
+  }
+
+  100% {
+    background-position: 140% 0;
+  }
+}
+
+.dt-shell__content {
+  flex: 1;
+  padding: var(--dt-space-6);
+  overflow-y: auto;
+}
+
+/* §7 do design system: acima de 1440px o conteúdo é centralizado. */
+.dt-shell__content > * {
+  max-width: var(--dt-content-max-width);
+  margin-inline: auto;
+}
+
+/* Breakpoint xs de design-system.md §14: coluna única; a barra lateral sai do fluxo. */
+@media (width <= 576px) {
+  .dt-shell__content {
+    padding: var(--dt-space-4);
+  }
+}

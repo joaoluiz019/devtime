@@ -1,0 +1,14 @@
+# RE-05: nenhum artefato de build entra na imagem.
+node_modules/
+dist/
+out-tsc/
+coverage/
+
+.angular/
+.idea/
+.vscode/
+
+# RE-02 / ART-083: nenhum arquivo com segredo.
+.env
+.env.*
+!.env.example

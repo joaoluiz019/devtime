@@ -1,0 +1,99 @@
+@use 'tokens';
+
+/**
+ * Folha de estilo global.
+ *
+ * FR-123: o layout usa PrimeFlex; CSS customizado é exceção justificada. O que existe aqui é
+ * exclusivamente o que nenhum utilitário cobre: base do documento, foco visível e as classes de
+ * severidade e duração, que carregam significado fixo no produto.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--dt-font-sans);
+  font-size: var(--dt-text-base);
+  line-height: var(--dt-text-base-line);
+  color: var(--dt-text-primary);
+  background-color: var(--dt-surface-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+/**
+ * AC-03 / A11Y-03 / DS-08.1: o foco visível nunca é suprimido.
+ *
+ * `:focus-visible` em vez de `:focus` para não exibir o anel em clique de mouse, mantendo-o para
+ * navegação por teclado — que é cidadão de primeira classe no produto (DS-09).
+ */
+:focus-visible {
+  outline: 2px solid var(--dt-color-primary);
+  outline-offset: 2px;
+}
+
+/* A11Y-10 / AC-10: respeitar prefers-reduced-motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/**
+ * Duração sempre em HH:MM monoespaçado (ART-035, FR-128, CA-08 do design system).
+ *
+ * `font-variant-numeric: tabular-nums` garante largura fixa de dígito mesmo se a fonte monoespaçada
+ * não carregar, preservando o alinhamento vertical em tabelas.
+ */
+.dt-duration {
+  font-family: var(--dt-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/**
+ * Severidade (design-system.md §5.3).
+ *
+ * DS-04/DS-05: estas cores têm significado único e nunca decoram. Toda aplicação vem acompanhada de
+ * ícone e rótulo textual — nenhuma informação é transmitida apenas por cor.
+ */
+.dt-severity-ok {
+  color: var(--dt-color-success);
+}
+
+.dt-severity-info {
+  color: var(--dt-color-info);
+}
+
+.dt-severity-warning {
+  color: var(--dt-color-warning);
+}
+
+.dt-severity-critical {
+  color: var(--dt-color-danger);
+}
+
+/* Conteúdo visível apenas a leitores de tela, para anúncios de aria-live (A11Y-05). */
+.dt-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

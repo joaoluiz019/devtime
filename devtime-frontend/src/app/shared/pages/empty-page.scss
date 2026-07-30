@@ -1,0 +1,32 @@
+/**
+ * Estado informativo de página inteira (DS-08: o estado vazio ensina).
+ *
+ * Compartilhado por "não encontrado" e "acesso negado": §8.3 do design system exige que todo estado
+ * vazio tenha ícone, título, texto explicativo e ação.
+ */
+.dt-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--dt-space-3);
+  padding-block: var(--dt-space-10);
+  text-align: center;
+}
+
+.dt-empty__icon {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-3xl);
+}
+
+.dt-empty__title {
+  margin: 0;
+  font-size: var(--dt-text-xl);
+  line-height: var(--dt-text-xl-line);
+}
+
+.dt-empty__text {
+  max-width: 40ch;
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}

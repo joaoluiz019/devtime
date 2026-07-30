@@ -49,18 +49,23 @@ devtime/
 │   ├── workflows/            # pipelines
 │   ├── PULL_REQUEST_TEMPLATE.md
 │   └── ISSUE_TEMPLATE/
+├── ai/                       # normas para agentes
 ├── docs/                     # fonte de verdade
-├── backend/
+├── specs/                    # especificação por feature
+├── devtime-backend/
 │   ├── src/main/java/com/devtime/
 │   ├── src/main/resources/
 │   │   ├── db/migration/     # Flyway
 │   │   ├── templates/mail/
-│   │   └── application*.yml
-│   └── src/test/
-├── frontend/
+│   │   └── application.yml
+│   ├── src/test/
+│   └── Dockerfile
+├── devtime-frontend/
 │   ├── src/app/
-│   ├── src/assets/
-│   └── src/styles/
+│   ├── src/environments/
+│   ├── src/styles/
+│   ├── Dockerfile
+│   └── nginx.conf
 ├── infra/
 │   ├── docker/
 │   ├── docker-compose.yml
@@ -69,6 +74,11 @@ devtime/
 ├── README.md
 └── CHANGELOG.md
 ```
+
+> **Nota de nomenclatura.** Os diretórios de código são `devtime-backend/` e `devtime-frontend/`,
+> conforme [ADR-022](../docs/adr/ADR-022-angular.md) §Impacto. O pacote Java raiz permanece
+> `com.devtime` ([ADR-027](../docs/adr/ADR-027-folder-structure.md) FS-02/FS-03), independentemente do
+> nome do diretório.
 
 | # | Regra |
 |---|---|

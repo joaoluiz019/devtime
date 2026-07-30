@@ -1,0 +1,23 @@
+# RE-02 / ART-083 / P-06: nenhum arquivo com segredo é versionado.
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# RE-05: nenhum artefato de build.
+target/
+dist/
+out-tsc/
+coverage/
+node_modules/
+.angular/
+
+# Ambiente de desenvolvimento local.
+.idea/
+*.iml
+.vscode/
+*.log
+
+# Sistema operacional.
+.DS_Store
+Thumbs.db

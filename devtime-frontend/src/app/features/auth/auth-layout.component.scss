@@ -1,0 +1,39 @@
+/** L1 de layouts.md §5: cartão centralizado vertical e horizontalmente. */
+.dt-auth {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--dt-space-6);
+  min-height: 100vh;
+  padding: var(--dt-space-4);
+  /* Fundo sem imagem decorativa (DS-01). */
+  background-color: var(--dt-surface-page);
+}
+
+.dt-auth__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  color: var(--dt-color-primary);
+  font-size: var(--dt-text-xl);
+  font-weight: 600;
+}
+
+.dt-auth__card {
+  /* L1: 400px; em xs, 100% com margem de 16px. */
+  width: 100%;
+  max-width: var(--dt-auth-card-width);
+  padding: var(--dt-space-6);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-lg);
+  background-color: var(--dt-surface-card);
+  box-shadow: var(--dt-shadow-md);
+}
+
+.dt-auth__footer {
+  display: flex;
+  gap: var(--dt-space-2);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}

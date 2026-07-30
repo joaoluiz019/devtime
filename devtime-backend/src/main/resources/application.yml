@@ -1,0 +1,163 @@
+# Configuração base do DevTime.
+#
+# CF-02 / ART-083: nenhum segredo neste arquivo. Todo valor sensível vem de variável de
+# ambiente, sem default. A aplicação falha ao iniciar se estiver ausente (CF-03).
+spring:
+  application:
+    name: devtime-backend
+
+  # ADR-005: MVC + virtual threads em vez de WebFlux (backend.md §4).
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${DEVTIME_DB_URL}
+    username: ${DEVTIME_DB_USERNAME}
+    password: ${DEVTIME_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: ${DEVTIME_DB_POOL_SIZE:10}
+      auto-commit: false
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # ART-054: proibido qualquer valor diferente de validate em qualquer ambiente.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+          batch_size: 50
+        order_inserts: true
+        order_updates: true
+        # QY-03 / DA-05: nenhuma consulta N+1 é aceita; falha em vez de degradar silenciosamente.
+        query:
+          fail_on_pagination_over_collection_fetch: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: false
+    validate-on-migrate: true
+
+  jackson:
+    default-property-inclusion: non_null
+    # ART-075: campos JSON em camelCase.
+    property-naming-strategy: LOWER_CAMEL_CASE
+    serialization:
+      write-dates-as-timestamps: false
+      fail-on-empty-beans: false
+    deserialization:
+      fail-on-unknown-properties: true
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${DEVTIME_SERVER_PORT:8080}
+  error:
+    # EH-01: nenhuma resposta de erro contém stack trace.
+    include-stacktrace: never
+    include-message: never
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Allowlist pública inclui apenas /actuator/health/** (security.md §7.1).
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    # DP-05: readiness só responde OK após a validação do schema.
+    db:
+      enabled: true
+
+devtime:
+  api:
+    # security.md §5.2: iss e aud são validados na verificação do token.
+    issuer: ${DEVTIME_JWT_ISSUER}
+    audience: ${DEVTIME_JWT_AUDIENCE}
+  cors:
+    allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS}
+  security:
+    jwt-secret: ${DEVTIME_JWT_SECRET}
+    access-token-ttl: PT15M # TK-02 / ART-080
+    refresh-token-ttl: P30D # ART-080
+    bcrypt-strength: 12 # ART-081
+    clock-skew: PT30S # CE-S-08: tolerância de 30s na validação de exp/iat
+
+springdoc:
+  api-docs:
+    version: openapi_3_1 # ART-076
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    root: INFO
+    com.devtime: INFO
+
+---
+# Perfil local — desenvolvimento (backend.md §13.1).
+spring:
+  config:
+    activate:
+      on-profile: local
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+logging:
+  level:
+    com.devtime: DEBUG
+    org.hibernate.SQL: DEBUG
+
+---
+# Perfil test — Testcontainers, sem jobs (backend.md §13.1).
+spring:
+  config:
+    activate:
+      on-profile: test
+  datasource:
+    url: ${DEVTIME_DB_URL:jdbc:postgresql://localhost:5432/devtime_test}
+    username: ${DEVTIME_DB_USERNAME:devtime}
+    password: ${DEVTIME_DB_PASSWORD:devtime}
+devtime:
+  api:
+    issuer: ${DEVTIME_JWT_ISSUER:https://api.devtime.test}
+    audience: ${DEVTIME_JWT_AUDIENCE:devtime-web}
+  cors:
+    allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS:http://localhost:4200}
+  security:
+    # Segredo exclusivo do perfil de teste automatizado; nunca usado fora dele.
+    jwt-secret: ${DEVTIME_JWT_SECRET:test-secret-with-at-least-256-bits-of-entropy-for-hs256!!}
+    # BR-164/PW-01 exigem custo 12 em produção; nos testes o custo mínimo evita
+    # somar minutos de BCrypt à suíte sem alterar o comportamento verificado.
+    bcrypt-strength: 4
+
+---
+# Perfil staging — igual à produção, com dados anonimizados (backend.md §13.1).
+spring:
+  config:
+    activate:
+      on-profile: staging
+
+---
+# Perfil prod — Swagger desabilitado (A05 de security.md §8).
+spring:
+  config:
+    activate:
+      on-profile: prod
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false

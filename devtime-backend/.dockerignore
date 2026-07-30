@@ -1,0 +1,16 @@
+# RE-05: nenhum artefato de build entra na imagem.
+target/
+!target/*.jar
+
+# Ambiente de desenvolvimento local.
+.idea/
+*.iml
+.vscode/
+
+# RE-02: nenhum arquivo com segredo é copiado para a imagem (ART-083).
+.env
+.env.*
+!.env.example
+
+# Cache do Maven local; as dependências são resolvidas dentro do estágio de build.
+.mvn/wrapper/maven-wrapper.jar

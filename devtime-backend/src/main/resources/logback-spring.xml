@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Log estruturado (ART-084, architecture.md §12).
+
+  Conteúdo obrigatório de toda linha: traceId, tenantId, userId — publicados no MDC por
+  TraceIdFilter e TenantContextFilter. Nenhuma linha pode conter senha, token, hash, documento
+  completo ou conteúdo de anexo; a máscara é aplicada por MaskingMessageJsonProvider.
+
+  O segundo bloco usa a negação do primeiro, e não uma lista de perfis. Com uma lista
+  (`local,test`), executar sem perfil ativo — o caso de rodar pela IDE — não casava nenhum bloco e
+  o contexto ficava sem appender: a aplicação falhava na inicialização por CF-03 sem imprimir o
+  motivo. Uma configuração de log que esconde por que a aplicação não sobe é a pior falha possível
+  nela, então o caminho padrão precisa ser inescapável.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <springProfile name="staging | prod | scheduler">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+                <providers>
+                    <timestamp>
+                        <timeZone>UTC</timeZone>
+                    </timestamp>
+                    <logLevel/>
+                    <loggerName/>
+                    <threadName/>
+                    <!-- Máscara obrigatória de dados sensíveis (security.md §9.2). -->
+                    <provider class="com.devtime.shared.observability.MaskingMessageJsonProvider"/>
+                    <!-- traceId, tenantId e userId chegam por aqui. -->
+                    <mdc/>
+                    <stackTrace/>
+                    <pattern>
+                        <pattern>{"application":"devtime-backend"}</pattern>
+                    </pattern>
+                </providers>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <!--
+      Padrão para todo o resto, incluindo "nenhum perfil ativo": saída legível. O JSON existe para
+      agregação em staging/prod e em desenvolvimento só dificultaria a leitura. A máscara de dados
+      sensíveis continua verificada pelo teste unitário de SensitiveDataMasker, que é independente
+      do appender.
+    -->
+    <springProfile name="!(staging | prod | scheduler)">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %-5level [%X{traceId:-}] %logger{36} - %msg%n</pattern>
+            </encoder>
+        </appender>
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>

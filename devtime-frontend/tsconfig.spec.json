@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/spec",
+    "module": "commonjs",
+    "target": "ES2022",
+    "types": ["jest", "node", "@angular/localize"]
+  },
+  "include": ["src/**/*.d.ts", "src/**/*.spec.ts", "setup-jest.ts"]
+}
