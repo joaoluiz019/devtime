@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,9 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
  * do sistema; {@code 5xx} em {@code ERROR} com a exceção completa, porque é.
  */
 @RestControllerAdvice
+// Precedência máxima: nenhum outro advice — incluindo os registrados por auto-configuração — pode
+// responder a uma exceção antes deste e produzir um corpo sem `code` e `traceId` (ART-072).
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RequiredArgsConstructor
 @Slf4j
 public class GlobalExceptionHandler {

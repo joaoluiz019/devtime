@@ -65,17 +65,58 @@ Documentação
 
 ### Corrigido
 
-- `JwtService` derivava a chave de assinatura tentando decodificar Base64 antes de recorrer a UTF-8.
+Defeitos encontrados pelos próprios gates desta sprint, antes de qualquer feature depender deles.
+
+- **Isolamento entre tenants em `findById`.** O `@Filter` de Hibernate não é aplicado a
+  `EntityManager.find()`, que é o que o `findById` padrão de Spring Data usa — então
+  `repository.findById()` retornava registros de outro tenant, violando ART-022 e ART-024.
+  `SoftDeleteRepository` passa a sobrescrever `findById` com JPQL, onde o filtro volta a valer. Regra
+  ArchUnit adicional proíbe `getReferenceById`, que carrega um proxy e não pode ser filtrado.
+- **Chave de assinatura do JWT.** `JwtService` tentava decodificar Base64 antes de recorrer a UTF-8.
   Decodificadores Base64 descartam caracteres inválidos em silêncio, então um segredo forte contendo
   `-` ou `!` produzia uma chave muito mais curta que o esperado — fraqueza criptográfica invisível na
   configuração. Passa a usar um único formato: bytes UTF-8.
-- `SensitiveDataMasker` mascarava apenas o esquema `Bearer` do cabeçalho `Authorization` e deixava o
-  token exposto na sequência, violando ART-084.
+- **Máscara de log.** `SensitiveDataMasker` mascarava apenas o esquema `Bearer` do cabeçalho
+  `Authorization` e deixava o token exposto na sequência, violando ART-084.
+- **Formato das respostas de erro.** `spring.mvc.problemdetails.enabled=true` fazia o Spring Boot
+  registrar seu próprio handler, que respondia antes do `GlobalExceptionHandler` e produzia corpo RFC
+  7807 sem as extensões obrigatórias `code`, `traceId` e `errors[]` (ART-072). Desabilitado, e o
+  `GlobalExceptionHandler` passa a declarar precedência máxima.
+- **Tipos `CHAR` no mapeamento JPA.** `tenants.currency`, `memberships.cost_currency` e
+  `address_country` são `CHAR` no schema (database.md §4.2, ART-041), mas o padrão de Hibernate para
+  `String` é `varchar` — `ddl-auto=validate` recusava a inicialização. Declarado
+  `@JdbcTypeCode(SqlTypes.CHAR)`.
+- **Configuração de log que escondia falhas de inicialização.** Os appenders estavam declarados dentro
+  de blocos `<springProfile>` que listavam perfis; sem perfil ativo nenhum bloco casava e o contexto
+  ficava sem appender, descartando a mensagem de por que a aplicação não subia. O bloco padrão passa a
+  usar a negação dos demais.
+- **Build não reprodutível entre plataformas.** Arquivos em CRLF no Windows faziam o mesmo
+  `spotless:check` falhar em Linux (imagem Docker e pipeline). Adicionado `.gitattributes` com
+  `eol=lf` e fixado `<lineEndings>UNIX</lineEndings>` no Spotless.
+- **Imagem do frontend servia a página padrão do nginx.** Com `localize: true`, o Angular emite a
+  saída em subdiretório por locale (`browser/pt-BR/`); o `COPY` apontava um nível acima.
+- **Cabeçalhos de segurança perdidos em rotas estáticas.** `add_header` em bloco `location` substitui
+  os herdados do `server` em vez de somar, então `/index.html` e os assets respondiam sem
+  `X-Content-Type-Options`, `X-Frame-Options` e `Referrer-Policy`. Extraídos para
+  `security-headers.conf`, incluído em cada bloco.
+- **Mensagens de validação de configuração.** O texto padrão do Bean Validation não indicava de onde o
+  valor deveria vir; `DEVTIME_JWT_SECRET` agora explica o que definir e como gerar (ER-04).
+
+### Verificado
+
+- Backend: 124 testes verdes (88 unitários + 36 de integração com Testcontainers), Spotless e gate de
+  cobertura JaCoCo de 80% atendidos.
+- **Regra F0-01 cumprida:** suíte de isolamento entre dois tenants verde.
+- Migrations `V001`–`V007` aplicadas do zero em PostgreSQL 16 limpo; `ddl-auto=validate` aprovou o
+  mapeamento; `audit_logs` criada particionada com 12 partições; extensões `pgcrypto`, `btree_gist` e
+  `pg_trgm` instaladas.
+- Frontend: 36 testes verdes, lint limpo, build de produção em 165,72 kB gzip (limite FR-167: 500 kB).
+- Ambiente completo no Docker Compose: PostgreSQL, backend e frontend saudáveis; endpoint protegido
+  responde `401` (ART-085), health check público, todos os cabeçalhos de §8.2 presentes, roteamento da
+  SPA resolvendo `/dashboard` no index (FR-089).
 
 ### Pendências desta sprint
 
-- Suíte de integração (Testcontainers) **não executada**: o engine Linux do Docker não inicializou no
-  ambiente de desenvolvimento. Os testes estão escritos; a execução é pré-requisito da regra F0-01.
 - Pipeline CI com os gates de `architecture.md` §11 fora do escopo acordado para a sprint.
 - Angular 21.2.19 em vez da última versão estável (22.x) exigida por ART-090: o Angular 22 requer
   Node ≥ 22.22.3 e o ambiente tem 22.19.0.

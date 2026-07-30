@@ -19,8 +19,16 @@ RUN npm run build
 # ── Estágio 2 — execução ──────────────────────────────────────────────────────────────────────
 FROM nginx:1.27-alpine
 
-COPY --from=build /build/dist/devtime-frontend/browser /usr/share/nginx/html
+# O caminho inclui o locale: com `localize: true`, o Angular emite um diretório por locale dentro de
+# `browser/`. Copiar `browser/` inteiro deixaria o conteúdo em `/usr/share/nginx/html/pt-BR/` e o
+# nginx serviria sua própria página padrão na raiz.
+#
+# O locale é explícito porque I18-06 define pt-BR como único idioma agora. Ao adicionar en-US e es-ES
+# em F6, isto passa a exigir uma estratégia de roteamento por locale no nginx — e falhar aqui de
+# forma visível é melhor que servir silenciosamente o idioma errado.
+COPY --from=build /build/dist/devtime-frontend/browser/pt-BR /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY security-headers.conf /etc/nginx/security-headers.conf
 
 EXPOSE 80
 

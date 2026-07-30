@@ -13,7 +13,9 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.Filter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.SQLRestriction;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Vínculo entre {@link com.devtime.user.domain.User} e {@link Tenant}, com papel (entities.md
@@ -62,7 +64,14 @@ public class Membership extends TenantScopedEntity {
     @Column(name = "default_hourly_cost", precision = 19, scale = 4)
     private BigDecimal defaultHourlyCost;
 
-    /** ART-041: nenhuma coluna monetária sem moeda explícita. */
+    /**
+     * ART-041: nenhuma coluna monetária sem moeda explícita.
+     *
+     * <p>{@code SqlTypes.CHAR} é obrigatório aqui: database.md §4.2 fixa moeda como {@code
+     * CHAR(3)}, e o padrão de Hibernate para {@code String} é {@code varchar}. Sem esta declaração,
+     * {@code ddl-auto=validate} recusa a inicialização por divergência de tipo (ART-054).
+     */
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "cost_currency", length = 3)
     private String costCurrency;
 }

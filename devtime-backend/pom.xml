@@ -218,6 +218,13 @@
                 <artifactId>spotless-maven-plugin</artifactId>
                 <version>${spotless.version}</version>
                 <configuration>
+                    <!--
+                      Fim de linha fixado em LF, não derivado da plataforma. Sem isto o build não é
+                      reprodutível: no Windows os arquivos ficam em CRLF e o mesmo `spotless:check`
+                      falha ao executar em Linux (imagem Docker e pipeline), rejeitando arquivos que
+                      passam localmente.
+                    -->
+                    <lineEndings>UNIX</lineEndings>
                     <java>
                         <googleJavaFormat>
                             <style>AOSP</style>

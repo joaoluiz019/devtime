@@ -53,7 +53,11 @@ spring:
 
   mvc:
     problemdetails:
-      enabled: true
+      # Desabilitado de propósito. Habilitado, o Spring Boot registra seu próprio
+      # ProblemDetailsExceptionHandler, que responde antes do GlobalExceptionHandler e produz um
+      # corpo RFC 7807 sem as extensões obrigatórias `code`, `traceId` e `errors[]` (ART-072).
+      # Quem monta toda resposta de erro é ProblemDetailFactory, em um único ponto auditável.
+      enabled: false
 
 server:
   port: ${DEVTIME_SERVER_PORT:8080}

@@ -198,7 +198,21 @@ class TenantIsolationIntegrationTest extends IntegrationTestSupport {
     @Test
     @DisplayName("BR-040: entidade salva sem tenantId recebe o tenant da sessão, não nulo")
     void writeWithoutTenantIdMustInheritSessionTenant() {
-        var membership = FoundationDataBuilder.membership(null, userAId, Role.MEMBER, NOW);
+        // INV-MEM-01 torna (tenantId, userId) único, então o novo membership precisa de outro
+        // usuário: reaproveitar userA violaria a invariante em vez de exercitar a herança do
+        // tenant.
+        UUID newUserId =
+                transactionTemplate.execute(
+                        status ->
+                                userRepository
+                                        .save(
+                                                FoundationDataBuilder.user(
+                                                        "herda-"
+                                                                + UUID.randomUUID()
+                                                                + "@exemplo.com",
+                                                        NOW))
+                                        .getId());
+        var membership = FoundationDataBuilder.membership(null, newUserId, Role.MEMBER, NOW);
 
         var saved = runAs(tenantAId, userAId, () -> membershipRepository.save(membership));
 

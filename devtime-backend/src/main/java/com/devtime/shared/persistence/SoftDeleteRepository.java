@@ -1,6 +1,7 @@
 package com.devtime.shared.persistence;
 
 import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -26,6 +27,22 @@ import org.springframework.data.repository.query.Param;
 @NoRepositoryBean
 public interface SoftDeleteRepository<T extends BaseEntity>
         extends JpaRepository<T, UUID>, JpaSpecificationExecutor<T> {
+
+    /**
+     * Busca por identificador <b>respeitando o filtro de tenant</b>.
+     *
+     * <p>A sobrescrita é obrigatória, não conveniência. O {@code findById} padrão de Spring Data
+     * usa {@code EntityManager.find()}, e o {@code @Filter} de Hibernate <b>não é aplicado a {@code
+     * find()}</b> — apenas a consultas. Sem esta declaração, {@code findById} devolveria registros
+     * de outro tenant, violando ART-022 ("filtro automático e não-opcional") e ART-024 (recurso de
+     * outro tenant deve ser indistinguível de inexistente).
+     *
+     * <p>Declarar a consulta em JPQL faz o filtro voltar a valer. O teste de isolamento {@code
+     * readByIdMustNotFindOtherTenantRecord} é o que impede esta regressão.
+     */
+    @Override
+    @Query("SELECT e FROM #{#entityName} e WHERE e.id = :id")
+    Optional<T> findById(@Param("id") UUID id);
 
     @Modifying
     @Query(

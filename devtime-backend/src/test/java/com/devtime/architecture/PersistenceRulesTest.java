@@ -138,6 +138,25 @@ class PersistenceRulesTest {
     }
 
     @Test
+    @DisplayName("ART-022: nenhum código usa getReferenceById, que ignora o filtro de tenant")
+    void codeMustNotUseGetReferenceById() {
+        noClasses()
+                .that()
+                .resideInAPackage(ROOT + "..")
+                .should()
+                .callMethodWhere(
+                        com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
+                                com.tngtech.archunit.core.domain.properties.HasName.Predicates.name(
+                                        "getReferenceById")))
+                .because(
+                        "getReferenceById devolve um proxy carregado por EntityManager.getReference(),"
+                                + " e o @Filter de Hibernate não se aplica a ele — o registro de outro"
+                                + " tenant seria acessível. Use findById, que é sobrescrito em"
+                                + " SoftDeleteRepository com JPQL")
+                .check(production);
+    }
+
+    @Test
     @DisplayName("BR-140/BR-141: nenhum código usa o relógio do sistema diretamente")
     void codeMustUseInjectedClock() {
         noClasses()

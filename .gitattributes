@@ -1,0 +1,23 @@
+# Normalização de fim de linha.
+#
+# Sem isto, o build não é reprodutível entre plataformas: no Windows os arquivos ficam em CRLF, e o
+# Spotless executando em Linux — dentro da imagem Docker ou no pipeline — recusa os mesmos arquivos
+# que aceita localmente. LF em todo o repositório torna o resultado idêntico em qualquer ambiente.
+
+* text=auto eol=lf
+
+# Scripts que o Windows precisa executar diretamente.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binários: nunca normalizar.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.jar binary

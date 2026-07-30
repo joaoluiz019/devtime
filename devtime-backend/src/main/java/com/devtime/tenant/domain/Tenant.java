@@ -56,7 +56,8 @@ public class Tenant extends BaseEntity {
     @Column(name = "locale", nullable = false, length = 10)
     private String locale;
 
-    /** ART-041: moeda ISO-4217 do tenant. */
+    /** ART-041: moeda ISO-4217 do tenant. {@code CHAR(3)} conforme database.md §4.2. */
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 

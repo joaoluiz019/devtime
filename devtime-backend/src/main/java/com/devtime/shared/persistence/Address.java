@@ -6,6 +6,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 /**
  * Value Object de endereço, achatado nas colunas {@code address_*} (entities.md §7.1).
@@ -41,6 +43,8 @@ public class Address {
     @Column(name = "address_zip_code", length = 20)
     private String zipCode;
 
+    /** ISO-3166-1 alfa-2. {@code CHAR(2)} no schema, daí a declaração explícita do tipo fixo. */
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(name = "address_country", length = 2)
     private String country;
 }
