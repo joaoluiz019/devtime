@@ -58,12 +58,15 @@ specs/
 ├── 014-comments/
 ├── 015-attachments/
 └── future/                    # fora do MVP — apenas intenção e fronteira
-    ├── 016-teams/
-    ├── 017-permissions/
-    ├── 018-subscriptions/
-    ├── 019-public-api/
-    └── 020-ai/
+    ├── README.md              # regras da pasta (FU-01 a FU-06) e índice
+    ├── 016-teams/spec.md
+    ├── 017-permissions/spec.md
+    ├── 018-subscriptions/spec.md
+    ├── 019-public-api/spec.md
+    └── 020-ai/spec.md
 ```
+
+> **`future/` possui apenas `spec.md` por feature**, e essa spec **não** segue o `feature-template.md`. Ela registra a *fronteira*: objetivo, motivo do adiamento, o que o MVP já preserva e — a única parte vinculante hoje — o que não pode ser quebrado. Preencher 39 seções para uma feature que só será construída em fases posteriores produziria documentação que envelhece antes de ser lida. As regras dessa pasta estão em [`future/README.md`](future/README.md).
 
 ### 3.1 Papel de cada arquivo
 
