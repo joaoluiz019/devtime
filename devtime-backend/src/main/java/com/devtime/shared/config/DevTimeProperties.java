@@ -28,7 +28,22 @@ import org.springframework.validation.annotation.Validated;
 public record DevTimeProperties(
         @NotNull @Valid ApiProps api,
         @NotNull @Valid CorsProps cors,
-        @NotNull @Valid SecurityProps security) {
+        @NotNull @Valid SecurityProps security,
+        @NotNull @Valid AppProps app,
+        @NotNull @Valid MailProps mail) {
+
+    /**
+     * @param baseUrl {@code APP_BASE_URL} de integrations.md §12: origem dos links enviados por
+     *     e-mail. Configurável e não derivada da requisição — derivá-la do header {@code Host}
+     *     permitiria a um atacante fazer o sistema enviar, ao titular real, um link de verificação
+     *     apontando para o domínio dele
+     */
+    public record AppProps(@NotBlank String baseUrl) {}
+
+    /**
+     * @param from {@code MAIL_FROM} de integrations.md §12: remetente das mensagens transacionais
+     */
+    public record MailProps(@NotBlank String from) {}
 
     /**
      * @param issuer claim {@code iss}, validada na verificação do token (security.md §5.2)

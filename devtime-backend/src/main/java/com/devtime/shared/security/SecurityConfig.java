@@ -121,8 +121,15 @@ public class SecurityConfig {
             AUTH_BASE + "/login",
             AUTH_BASE + "/refresh",
             AUTH_BASE + "/verify-email",
+            // §5.1 de authentication.md classifica o reenvio como público: quem precisa dele ainda
+            // não consegue autenticar, justamente por não ter verificado o e-mail.
+            AUTH_BASE + "/resend-verification",
             AUTH_BASE + "/forgot-password",
-            AUTH_BASE + "/reset-password"
+            AUTH_BASE + "/reset-password",
+            // §5.12: "Pública/Autenticada". O aceite parte de um link de e-mail, que pode ser
+            // aberto em um navegador sem sessão. A proteção é a imprevisibilidade do token; quando
+            // há sessão, o serviço a considera (CX-09).
+            AUTH_BASE + "/invitations/*/accept"
         };
     }
 

@@ -9,11 +9,10 @@ import org.springframework.http.HttpStatus;
  * <p>Um código aposentado <b>nunca</b> é reutilizado: clientes tratam o código programaticamente, e
  * a reutilização silenciosamente mudaria o significado de uma condição já integrada.
  *
- * <p>Este enum contém apenas os códigos transversais que a fundação técnica (F0) precisa: faixas de
- * autenticação, autorização, tenancy, validação genérica e infraestrutura, conforme §6 da
- * constituição. Os códigos específicos de cada domínio são registrados pela feature que os introduz
- * (EX-13) — por exemplo, os códigos de autenticação {@code DEVTIME-1003} a {@code DEVTIME-1012} são
- * responsabilidade da tarefa T-001-34.
+ * <p>Os códigos específicos de cada domínio são registrados pela feature que os introduz (EX-13).
+ * Os códigos de autenticação {@code DEVTIME-1003} a {@code DEVTIME-1012} e {@code DEVTIME-2451} a
+ * {@code DEVTIME-2459} foram registrados pela feature 001 (T-001-34) e seguem a tabela consolidada
+ * de {@code docs/04-api/authentication.md} §8, que é normativa sobre o contrato de erro da API.
  *
  * <p>A chave de mensagem existe porque EX-10 exige que a apresentação passe por i18n: o código é o
  * identificador estável, o texto é apresentação e pode mudar sem quebrar o contrato.
@@ -31,6 +30,30 @@ public enum ErrorCode {
     AUTHENTICATION_REQUIRED(
             "DEVTIME-1001", HttpStatus.UNAUTHORIZED, "error.authentication.required"),
     TENANT_NOT_SELECTED("DEVTIME-1002", HttpStatus.UNAUTHORIZED, "error.tenant.notSelected"),
+    /** INV-USR-04: autenticou, mas não possui membership ativo em nenhum tenant. */
+    NO_ACTIVE_MEMBERSHIP("DEVTIME-1003", HttpStatus.FORBIDDEN, "error.membership.noneActive"),
+    /** Cookie de refresh ausente, desconhecido, revogado ou expirado (CX-06). */
+    REFRESH_TOKEN_INVALID("DEVTIME-1004", HttpStatus.UNAUTHORIZED, "error.refreshToken.invalid"),
+    /** RN-005 / RT-04: token rotacionado reapresentado; toda a cadeia é revogada. */
+    REFRESH_TOKEN_REUSE_DETECTED(
+            "DEVTIME-1005", HttpStatus.UNAUTHORIZED, "error.refreshToken.reuseDetected"),
+    /** RN-453: 5 falhas em 15 minutos bloqueiam a conta por 30 minutos. */
+    ACCOUNT_LOCKED("DEVTIME-1006", HttpStatus.LOCKED, "error.account.locked"),
+    /** RN-461: token de redefinição expirado (1 hora) ou já consumido. */
+    PASSWORD_RESET_TOKEN_INVALID(
+            "DEVTIME-1007", HttpStatus.GONE, "error.passwordReset.tokenInvalid"),
+    /** §4.2 de state-machines.md: login com conta em {@code PENDING_ACTIVATION}. */
+    EMAIL_NOT_VERIFIED("DEVTIME-1008", HttpStatus.FORBIDDEN, "error.email.notVerified"),
+    /** Token de verificação emitido há mais de 7 dias. */
+    VERIFICATION_TOKEN_EXPIRED("DEVTIME-1009", HttpStatus.GONE, "error.verification.tokenExpired"),
+    /** Token de verificação desconhecido — distinto de expirado, por exigência de §5.6. */
+    VERIFICATION_TOKEN_INVALID(
+            "DEVTIME-1010", HttpStatus.NOT_FOUND, "error.verification.tokenInvalid"),
+    /** PW-05: alteração de senha com senha atual incorreta. */
+    CURRENT_PASSWORD_INCORRECT(
+            "DEVTIME-1011", HttpStatus.UNPROCESSABLE_ENTITY, "error.password.currentIncorrect"),
+    /** {@code authentication.md} §5.9: nova senha igual à atual. */
+    PASSWORD_UNCHANGED("DEVTIME-1012", HttpStatus.UNPROCESSABLE_ENTITY, "error.password.unchanged"),
 
     // ── Autorização e permissões · DEVTIME-1100–1199 ─────────────────────────────────────────
     PERMISSION_DENIED("DEVTIME-1101", HttpStatus.FORBIDDEN, "error.permission.denied"),
@@ -67,6 +90,19 @@ public enum ErrorCode {
     /** Transição de estado inválida; a resposta inclui {@code availableTransitions} (EX-09). */
     INVALID_STATE_TRANSITION("DEVTIME-2010", HttpStatus.CONFLICT, "error.state.invalidTransition"),
     TERMINAL_STATE("DEVTIME-2011", HttpStatus.CONFLICT, "error.state.terminal"),
+
+    // ── Conta e organização · DEVTIME-2450–2499 (authentication.md §8) ───────────────────────
+    /** RN-451 / PW-02: senha fora da política mínima. */
+    PASSWORD_POLICY_VIOLATION(
+            "DEVTIME-2451", HttpStatus.UNPROCESSABLE_ENTITY, "error.password.policyViolation"),
+    /** RN-452 / INV-USR-01: e-mail já pertence a um usuário não excluído. */
+    EMAIL_ALREADY_REGISTERED("DEVTIME-2452", HttpStatus.CONFLICT, "error.email.alreadyRegistered"),
+    /** RN-457: convite expirado (7 dias) ou invalidado por reenvio. */
+    INVITATION_EXPIRED("DEVTIME-2457", HttpStatus.GONE, "error.invitation.expired"),
+    /** Convite desconhecido ou revogado. */
+    INVITATION_INVALID("DEVTIME-2458", HttpStatus.NOT_FOUND, "error.invitation.invalid"),
+    /** {@code authentication.md} §5.12: já existe membership do usuário neste tenant. */
+    ALREADY_MEMBER("DEVTIME-2459", HttpStatus.CONFLICT, "error.membership.alreadyMember"),
 
     // ── Work logs e classificação · DEVTIME-2100–2199 (worklogs.md) ─────────────────────────
     /**

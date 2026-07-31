@@ -64,6 +64,16 @@ public class User extends BaseEntity {
     @Column(name = "locked_until")
     private Instant lockedUntil;
 
+    /**
+     * RN-453: início da janela de 15 minutos de contagem de falhas.
+     *
+     * <p>Sem esta coluna, {@code failedLoginAttempts} seria um contador sem janela: cinco erros de
+     * digitação espalhados por meses bloqueariam a conta, comportamento que a regra não pede.
+     * Introduzida por V027 junto com a atualização de entities.md §6.2.
+     */
+    @Column(name = "last_failed_login_at")
+    private Instant lastFailedLoginAt;
+
     /** TK-04: access tokens emitidos antes deste instante são rejeitados. */
     @Column(name = "password_changed_at", nullable = false)
     private Instant passwordChangedAt;

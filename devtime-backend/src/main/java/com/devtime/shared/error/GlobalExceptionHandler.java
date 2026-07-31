@@ -113,6 +113,25 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Limite de requisições excedido (ART-073).
+     *
+     * <p>Único handler que devolve {@code ResponseEntity} em vez de {@code ProblemDetail}: §4.6 e
+     * §8.1 de {@code security.md} exigem o header {@code Retry-After}, e ele não é expressável no
+     * corpo. Precede {@link #handleBusinessRule} por ser subtipo mais específico.
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    org.springframework.http.ResponseEntity<ProblemDetail> handleRateLimit(
+            RateLimitExceededException exception, HttpServletRequest request) {
+        logClientError(exception.getErrorCode(), request, exception);
+        return org.springframework.http.ResponseEntity.status(
+                        exception.getErrorCode().getDefaultStatus())
+                .header(
+                        org.springframework.http.HttpHeaders.RETRY_AFTER,
+                        String.valueOf(exception.getRetryAfter().toSeconds()))
+                .body(factory.businessRule(exception, request));
+    }
+
+    /**
      * Exceções de negócio, incluindo {@link EntityNotFoundException}.
      *
      * <p>Um único handler porque cada exceção já carrega seu código e status; ramificar por subtipo
@@ -177,6 +196,18 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler({TenantContextNotInitializedException.class, CrossTenantWriteException.class})
     ProblemDetail handleTenancyFailure(RuntimeException exception, HttpServletRequest request) {
+        if (exception instanceof TenantContextNotInitializedException) {
+            // CE-P-11: é o token de pré-seleção alcançando um endpoint de negócio. Não é falha
+            // interna, e sim o estado previsto de "organização ainda não escolhida" — responder 500
+            // faria o cliente tratar como indisponibilidade em vez de redirecionar para a seleção.
+            log.info(
+                    "Requisição sem organização selecionada. path={} traceId={}",
+                    request.getRequestURI(),
+                    TraceContext.currentTraceId());
+            return factory.create(ErrorCode.TENANT_NOT_SELECTED, request);
+        }
+        // CrossTenantWriteException é outra coisa: uma escrita tentou gravar em tenant diferente do
+        // contexto. Isso é defeito ou ataque, nunca fluxo previsto (security.md §6.1, camada 3).
         log.error(
                 "Falha de isolamento de tenant. path={} traceId={}",
                 request.getRequestURI(),

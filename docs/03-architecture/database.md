@@ -805,6 +805,8 @@ REVOKE UPDATE, DELETE ON audit_logs FROM devtime_app;
 | `work_log_tags` | PK `(work_log_id, tag_id)` | `(tag_id)` | — |
 | `comments` | — | `(tenant_id, ticket_id, created_at)` | — |
 | `attachments` | — | `(tenant_id, ticket_id)`, `(tenant_id, checksum_sha256)` | `CHECK` XOR entre `ticket_id` e `comment_id` |
+| `verification_tokens` | `token_hash` (não parcial) | `(user_id, type)` parcial, `(expires_at)` | Sem `tenant_id` obrigatório: verificação e redefinição precedem a seleção de organização. `consumed_at` e `invalidated_at` são distintos — usado responde sucesso na segunda vez (§5.6), substituído por reenvio responde expirado (RN-457) |
+| `rate_limit_counters` | `bucket_key` | `(window_started_at)` | Infraestrutura, não domínio: sem exclusão lógica, auditoria nem versão. O discriminador entra como SHA-256 para que a tabela não vire lista de e-mails cadastrados |
 | `refresh_tokens` | `(token_hash)` | `(user_id, expires_at)` | Sem `tenant_id` obrigatório |
 | `report_executions` | — | `(tenant_id, created_at DESC)`, `(status)` | — |
 | `shedlock` | PK `(name)` | — | Tabela de infraestrutura |
@@ -841,6 +843,17 @@ REVOKE UPDATE, DELETE ON audit_logs FROM devtime_app;
 | `V022` | `comments` | F4 |
 | `V023` | `attachments` | F4 |
 | `V024` | Índices de performance adicionais | F4 |
+| `V025` | `verification_tokens` | F0 ¹ |
+| `V026` | `rate_limit_counters` | F0 ¹ |
+| `V027` | `users.last_failed_login_at` | F0 ¹ |
+
+> ¹ **Sequência fora da fase.** As três pertencem à feature `001-authentication`, de F0, mas ocupam
+> números posteriores a `V024`. A tabela original não previa nenhuma delas: `verification_tokens`
+> (token de uso único para verificação, redefinição e convite), `rate_limit_counters` (o "contador
+> em banco" de `security.md` §8.1) e a coluna que sustenta a janela de 15 minutos de RN-453. Como
+> `V023` e `V024` já estavam reservadas a `attachments` e aos índices de F4, reaproveitar um número
+> faria a numeração divergir deste documento — e ART-053 impede renumerar depois do merge. A lacuna
+> foi reportada antes da implementação e resolvida acrescentando as entradas ao fim da sequência.
 
 ### 8.2 Regras de migração
 

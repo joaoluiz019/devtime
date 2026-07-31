@@ -58,6 +58,14 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!--
+            integrations.md §6.1: adapter SMTP com TLS. Ativo apenas em staging e prod; em local e
+            test o LoggingMailAdapter atende a porta MailPort sem contatar rede (BR-203).
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.flywaydb</groupId>

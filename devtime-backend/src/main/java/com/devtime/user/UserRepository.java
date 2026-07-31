@@ -45,4 +45,14 @@ public interface UserRepository extends SoftDeleteRepository<User> {
     @CrossTenant(reason = "users é tabela global (ART-013); o chamador filtra por membership ativo")
     @Query("SELECT u FROM User u WHERE lower(u.displayName) IN :handles")
     List<User> findAllByDisplayNameIn(@Param("handles") Collection<String> handles);
+
+    /**
+     * {@code UnlockExpiredAccountsJob}: contas cujo bloqueio já venceu (§11 de spec 001).
+     *
+     * <p>Processada em lote pelo job, mas a mesma condição é aplicada no login para que uma conta
+     * não permaneça bloqueada nos até dez minutos entre execuções (TS-001-08 passo 6).
+     */
+    @CrossTenant(reason = "users é tabela global (ART-013); o job percorre todas as contas")
+    @Query("SELECT u FROM User u WHERE u.lockedUntil IS NOT NULL AND u.lockedUntil <= :reference")
+    List<User> findLockExpired(@Param("reference") java.time.Instant reference);
 }

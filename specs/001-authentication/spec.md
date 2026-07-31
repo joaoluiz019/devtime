@@ -104,9 +104,9 @@ Sem sessão autenticada e sem tenant selecionado, nenhuma consulta do sistema po
 | 1 | Rate limit por IP + e-mail | `429` |
 | 2 | Usuário existe (busca `@CrossTenant`) | Resposta genérica — ver §19 |
 | 3 | `status ≠ LOCKED` ou `lockedUntil` expirado (RN-453) | `423 DEVTIME-1006` |
-| 4 | Senha confere (BCrypt custo 12) | `401 DEVTIME-1003` + incremento de tentativa |
-| 5 | `status = ACTIVE` (e-mail verificado) | `403 DEVTIME-1004` |
-| 6 | Existe ao menos um `Membership ACTIVE` (INV-USR-04) | `403 DEVTIME-1102` |
+| 4 | Senha confere (BCrypt custo 12) | `401 DEVTIME-1001` + incremento de tentativa |
+| 5 | `status = ACTIVE` (e-mail verificado) | `403 DEVTIME-1008` |
+| 6 | Existe ao menos um `Membership ACTIVE` (INV-USR-04) | `403 DEVTIME-1003` |
 | 7 | Um único membership ⇒ emite token com `tid`; múltiplos ⇒ token de pré-seleção | — |
 
 **Por que a ordem é esta:** o bloqueio (3) precede a verificação de senha (4) para que uma conta bloqueada não sirva de oráculo de senha correta. A verificação de e-mail (5) vem **depois** da senha para que um atacante não descubra quais e-mails existem e estão pendentes de ativação.
@@ -273,15 +273,26 @@ flowchart TD
 
 ## 12. Casos de erro
 
+> **Precedência.** Esta tabela foi **sincronizada com `docs/04-api/authentication.md` §8**, que é
+> normativa sobre o contrato de erro da API (`specs/README.md` §1: `docs/` é a fonte de verdade,
+> `specs/` é o recorte executável). A versão anterior atribuía `DEVTIME-1003` a "credenciais
+> inválidas" e `DEVTIME-1004` a "e-mail não verificado", divergindo do documento de API. A
+> divergência foi reportada e resolvida em favor de `docs/`.
+
 | Código | HTTP | Situação | Mensagem ao usuário | Regra |
 |---|:--:|---|---|---|
-| `DEVTIME-1001` | 401 | Token ausente, inválido ou expirado | Autenticação necessária | — |
+| `DEVTIME-1001` | 401 | Token ausente, inválido ou expirado **ou credenciais inválidas** | Autenticação necessária | §19, AU-01 |
 | `DEVTIME-1002` | 401 | Tenant não selecionado no token | Selecione uma organização | CE-P-11 |
-| `DEVTIME-1003` | 401 | Credenciais inválidas | E-mail ou senha incorretos | §19 |
-| `DEVTIME-1004` | 403 | E-mail não verificado | Verifique seu e-mail para continuar | §4.2 SM |
+| `DEVTIME-1003` | 403 | Usuário sem organização ativa | Você não possui acesso ativo a nenhuma organização | INV-USR-04 |
+| `DEVTIME-1004` | 401 | Refresh token ausente, inválido ou expirado | Sua sessão expirou | CX-06 |
 | `DEVTIME-1005` | 401 | Refresh token reusado | Sua sessão foi encerrada por segurança | RN-005 |
 | `DEVTIME-1006` | 423 | Conta bloqueada | Conta bloqueada temporariamente. Tente novamente às HH:MM | RN-453 |
 | `DEVTIME-1007` | 410 | Token de redefinição expirado ou usado | Link expirado. Solicite um novo | RN-461 |
+| `DEVTIME-1008` | 403 | E-mail não verificado | Verifique seu e-mail para continuar | §4.2 SM |
+| `DEVTIME-1009` | 410 | Token de verificação expirado | Link expirado. Solicite um novo e-mail | §4.2 SM |
+| `DEVTIME-1010` | 404 | Token de verificação inválido | Link de verificação inválido | — |
+| `DEVTIME-1011` | 422 | Senha atual incorreta | A senha atual informada está incorreta | PW-05 |
+| `DEVTIME-1012` | 422 | Nova senha igual à atual | A nova senha deve ser diferente da atual | — |
 | `DEVTIME-1102` | 403 | Membership inativo, suspenso ou removido | Seu acesso a esta organização foi revogado | RN-459 |
 | `DEVTIME-1201` | 403 | Tenant suspenso, operação de escrita | Organização suspensa: apenas leitura | RN-007 |
 | `DEVTIME-1202` | 403 | Tenant cancelado | Organização cancelada | RN-008 |
@@ -298,7 +309,7 @@ flowchart TD
 | CX-01 | Cadastro com e-mail em maiúsculas e espaços | Normalizado para minúsculas e sem espaços antes da verificação de unicidade (RN-452) |
 | CX-02 | Dois cadastros simultâneos com o mesmo e-mail | O índice único garante que apenas um vence; o outro recebe `409 DEVTIME-2452` traduzido da violação de constraint (EH-05) |
 | CX-03 | Colisão de `slug` de tenant | Sufixo numérico incremental (`acme`, `acme-2`); nunca falha o cadastro por causa do slug |
-| CX-04 | Token de verificação usado duas vezes | Segunda tentativa retorna `410`; o estado do usuário não muda |
+| CX-04 | Token de verificação usado duas vezes | **Idempotente:** a segunda chamada retorna `200` e o estado do usuário não muda. Clientes de e-mail com pré-visualização consomem o link antes do usuário, e recusar a segunda chamada quebraria um fluxo legítimo (§5.6 e CA-08 de `authentication.md`). Token **substituído por reenvio** é caso distinto: retorna `410 DEVTIME-1009` |
 | CX-05 | Refresh concorrente em 3 abas | Uma única chamada real; as demais aguardam na fila e recebem o mesmo token (§7.3 `frontend.md`) |
 | CX-06 | Refresh com token revogado por logout | `401 DEVTIME-1001`; não dispara revogação em cadeia (não é reuso de rotacionado) |
 | CX-07 | Redefinição de senha com token válido e conta bloqueada | Permitida; a redefinição bem-sucedida desbloqueia e zera `failedLoginAttempts` |
@@ -428,15 +439,15 @@ flowchart TD
 | Política de senha (maiúscula, minúscula, dígito, fora de lista comum) | RN-451 | `DEVTIME-2451` / 422 |
 | Unicidade de e-mail entre não excluídos | RN-452 | `DEVTIME-2452` / 409 |
 | Conta não bloqueada | RN-453 | `DEVTIME-1006` / 423 |
-| Senha confere | — | `DEVTIME-1003` / 401 |
-| E-mail verificado | §4.2 SM | `DEVTIME-1004` / 403 |
-| Existe membership ativo | INV-USR-04 | `DEVTIME-1102` / 403 |
+| Senha confere | — | `DEVTIME-1001` / 401 |
+| E-mail verificado | §4.2 SM | `DEVTIME-1008` / 403 |
+| Existe membership ativo | INV-USR-04 | `DEVTIME-1003` / 403 |
 | Membership do tenant selecionado está `ACTIVE` | RN-459 | `DEVTIME-1102` / 403 |
 | Token de verificação/redefinição válido, não usado, não expirado | RN-461 | `DEVTIME-1007` / 410 |
 | Convite não expirado | RN-457 | `DEVTIME-2457` / 410 |
 | Refresh token não revogado e não rotacionado | RN-005 | `DEVTIME-1005` / 401 |
-| Senha atual correta na alteração | — | `DEVTIME-1003` / 401 |
-| Nova senha diferente da atual | RN-451 (derivada) | `DEVTIME-2451` / 422 |
+| Senha atual correta na alteração | PW-05 | `DEVTIME-1011` / 422 |
+| Nova senha diferente da atual | RN-451 (derivada) | `DEVTIME-1012` / 422 |
 
 ### 17.3 Camada 3 — Consistência (`409`)
 | Constraint | Garante | Mapeado para |
@@ -663,11 +674,15 @@ Todos com `unmappedTargetPolicy = ERROR` (MP-01).
 | `AccountLockValidator` | Validator | RN-453 | `DEVTIME-1006` |
 | `TokenExpiryValidator` | Validator | RN-457, RN-461 | `DEVTIME-2457`, `DEVTIME-1007` |
 | `MembershipActiveValidator` | Validator | RN-459 | `DEVTIME-1102` |
-| `InvalidCredentialsException` | Exception | — | `DEVTIME-1003` / 401 |
-| `EmailNotVerifiedException` | Exception | §4.2 SM | `DEVTIME-1004` / 403 |
+| `InvalidCredentialsException` | Exception | AU-01 | `DEVTIME-1001` / 401 |
+| `EmailNotVerifiedException` | Exception | §4.2 SM | `DEVTIME-1008` / 403 |
 | `AccountLockedException` | Exception | RN-453 | `DEVTIME-1006` / 423 |
 | `TokenReuseDetectedException` | Exception | RN-005 | `DEVTIME-1005` / 401 |
 | `TokenExpiredException` | Exception | RN-461 | `DEVTIME-1007` / 410 |
+| `VerificationTokenExpiredException` | Exception | §4.2 SM | `DEVTIME-1009` / 410 |
+| `VerificationTokenInvalidException` | Exception | — | `DEVTIME-1010` / 404 |
+| `CurrentPasswordIncorrectException` | Exception | PW-05 | `DEVTIME-1011` / 422 |
+| `PasswordUnchangedException` | Exception | — | `DEVTIME-1012` / 422 |
 | `InvitationExpiredException` | Exception | RN-457 | `DEVTIME-2457` / 410 |
 | `TenantSuspendedException` | Exception | RN-007 | `DEVTIME-1201` / 403 |
 | `TenantCancelledException` | Exception | RN-008 | `DEVTIME-1202` / 403 |

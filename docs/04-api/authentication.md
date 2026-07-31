@@ -243,6 +243,9 @@ Especificar todos os endpoints de autenticação, gestão de sessão, seleção 
 }
 ```
 
+**Header de resposta:** `Location: /api/v1/auth/me` — o recurso que o cliente poderá ler assim que
+verificar o e-mail (BR-088 exige `Location` em todo `201`).
+
 **Erros:**
 
 | Status | Código | Situação |
@@ -250,7 +253,7 @@ Especificar todos os endpoints de autenticação, gestão de sessão, seleção 
 | `409` | `DEVTIME-2452` | E-mail já cadastrado |
 | `422` | `DEVTIME-2451` | Senha não atende à política |
 | `400` | `DEVTIME-2000` | Termos não aceitos ou campo inválido |
-| `429` | — | Rate limit excedido |
+| `429` | — | Rate limit excedido; header `Retry-After` |
 
 ---
 
@@ -470,6 +473,11 @@ sequenceDiagram
 
 > **Nota de projeto:** `activeTimer` é incluído aqui deliberadamente. Ao carregar a aplicação, uma única requisição recupera sessão, permissões e o cronômetro em andamento — evitando três chamadas na inicialização e eliminando o intervalo em que a barra do cronômetro apareceria vazia.
 
+> **Estado da implementação:** `activeTimer` **ainda não é retornado**. O cronômetro é a feature
+> `009-timer`, não implementada; descrever agora o contrato de uma entidade inexistente seria
+> especular. Campos ausentes são omitidos do JSON (§4.1), então acrescentá-lo depois é aditivo e não
+> quebra clientes. Todos os demais campos desta seção estão implementados.
+
 ---
 
 ### 5.11 Sessões
@@ -516,9 +524,14 @@ sequenceDiagram
 
 | Situação | Corpo | Resultado |
 |---|---|---|
-| Usuário já existe e está autenticado | vazio | Membership ativado |
-| Usuário já existe, não autenticado | `{ "password": "..." }` | Autentica e ativa o membership |
-| Usuário não existe | `{ "fullName": "...", "password": "..." }` | Cria usuário e ativa o membership |
+| Usuário já existe e está autenticado | vazio | Membership ativado; responde `{ "message": "Convite aceito." }` e **nenhum** cookie novo — CX-09 preserva a sessão corrente |
+| Usuário já existe, não autenticado | `{ "password": "..." }` | Autentica e ativa o membership; responde a estrutura de sessão com cookie |
+| Usuário não existe | `{ "fullName": "...", "password": "..." }` | Define senha e nome, marca o e-mail como verificado — o aceite prova a posse do endereço tanto quanto o link de verificação — e ativa o membership |
+
+> **`userExists`** responde à pergunta que a tela faz: "peço login ou peço cadastro?". É `true`
+> quando a conta já pode autenticar, e não quando existe linha em `users`: o convite cria a conta em
+> `PENDING_ACTIVATION` antes de a pessoa definir senha, então a existência da linha não distingue os
+> dois fluxos.
 
 | Status | Código | Situação |
 |---|---|---|

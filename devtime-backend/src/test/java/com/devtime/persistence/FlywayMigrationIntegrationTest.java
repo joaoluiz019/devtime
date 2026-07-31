@@ -38,10 +38,15 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
         // F0 (fundação) seguido de F1. As lacunas são intencionais: V015 e V016 estão reservadas a
         // `timers` e `work_logs` em database.md §8.1, e V018–V021 às features de F2 e F3.
         // Reaproveitar um número faria a numeração divergir do documento que a define.
+        //
+        // V025 a V027 pertencem à feature 001 e vêm depois de V023/V024 (reservadas a
+        // `attachments` e aos índices de F4) porque `verification_tokens`, `rate_limit_counters` e
+        // `users.last_failed_login_at` não constavam de database.md §8.1 — a lacuna foi reportada e
+        // o documento atualizado com estas três entradas ao fim da sequência.
         assertThat(versions)
                 .containsExactly(
                         "001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011",
-                        "012", "013", "014", "017", "022");
+                        "012", "013", "014", "017", "022", "025", "026", "027");
     }
 
     @Test

@@ -165,6 +165,7 @@ erDiagram
 | `emailVerifiedAt` | TIMESTAMPTZ | ✖ | | `null` | — |
 | `lastLoginAt` | TIMESTAMPTZ | ✖ | | `null` | — |
 | `failedLoginAttempts` | int | ✔ | | `0` | Zerado em login bem-sucedido |
+| `lastFailedLoginAt` | TIMESTAMPTZ | ✖ | | `null` | Início da janela de 15 minutos de RN-453 |
 | `lockedUntil` | TIMESTAMPTZ | ✖ | | `null` | Bloqueio temporário |
 | `passwordChangedAt` | TIMESTAMPTZ | ✔ | | `now()` | Invalida tokens anteriores |
 | `timezone` | String(60) | ✖ | | herda do tenant | Preferência pessoal |
@@ -693,6 +694,34 @@ erDiagram
 | `ipAddress` | String(45) | ✖ | — |
 
 **Invariante INV-RFT-01:** reuso de um token já rotacionado revoga toda a cadeia (detecção de roubo — RN-005).
+
+---
+
+### 6.19.1 `VerificationToken`
+
+**Objetivo:** token de uso único dos três fluxos que provam posse de um endereço de e-mail —
+verificação de conta, redefinição de senha e convite. Introduzida por `001-authentication`.
+
+| Campo | Tipo | Obrig. | Regras |
+|---|---|:--:|---|
+| `id` | UUID | ✔ | 🔑🔒 |
+| `userId` | UUID | ✔ | 🔗🔒 |
+| `tenantId` | UUID | ✖ | Preenchido **apenas** em `INVITATION` |
+| `type` | enum | ✔ | 🔒 `EMAIL_VERIFICATION`, `PASSWORD_RESET`, `INVITATION` |
+| `tokenHash` | String(64) | ✔ | 🔒 SHA-256 do valor opaco. O valor bruto nunca é persistido |
+| `expiresAt` | TIMESTAMPTZ | ✔ | 🔒 7 dias em verificação e convite (RN-457); 1 hora em redefinição (RN-461) |
+| `consumedAt` | TIMESTAMPTZ | ✖ | Uso único: marcado na mesma transação do efeito |
+| `invalidatedAt` | TIMESTAMPTZ | ✖ | Preenchido quando um reenvio substitui este token (RN-457) |
+
+**Por que `consumedAt` e `invalidatedAt` são campos distintos:** um link efetivamente usado responde
+sucesso na segunda vez, porque clientes de e-mail com pré-visualização consomem o link antes do
+usuário (CE-AU-04, CA-08 de `authentication.md`). Já um link substituído por reenvio precisa
+responder "expirado" — se respondesse sucesso, quem clicasse no e-mail antigo concluiria que ele
+valeu, e o token novo ficaria órfão. Um único campo não distinguiria os dois casos.
+
+**Não é tenant-scoped:** os três fluxos ocorrem antes de existir organização selecionada. O acesso é
+sempre pelo hash de um valor imprevisível de 256 bits, o que torna a enumeração inviável mesmo sem
+recorte por tenant.
 
 ---
 

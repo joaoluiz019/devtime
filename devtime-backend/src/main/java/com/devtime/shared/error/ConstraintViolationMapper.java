@@ -39,8 +39,24 @@ public class ConstraintViolationMapper {
         return Optional.empty();
     }
 
+    /**
+     * Constraints com código próprio, mais específico que a convenção de prefixo (EX-13).
+     *
+     * <p>{@code uq_users_email} é o caso de CX-02 / AC-001-40: dois cadastros simultâneos com o
+     * mesmo e-mail. Um deles perde a corrida no índice, e a resposta precisa ser exatamente a mesma
+     * do caminho verificado antes da inserção — {@code DEVTIME-2452} —, não o {@code DEVTIME-2001}
+     * genérico. Caso contrário, o cliente distinguiria "e-mail duplicado" de "corrida perdida",
+     * revelando concorrência de cadastro sobre o mesmo endereço.
+     */
+    private static final java.util.Map<String, ErrorCode> BY_CONSTRAINT =
+            java.util.Map.of("uq_users_email", ErrorCode.EMAIL_ALREADY_REGISTERED);
+
     private Optional<ErrorCode> byNamingConvention(String constraintName) {
         String name = constraintName.toLowerCase();
+        ErrorCode specific = BY_CONSTRAINT.get(name);
+        if (specific != null) {
+            return Optional.of(specific);
+        }
         if (name.startsWith("uq_")) {
             // entities.md §11: violação de unicidade → DEVTIME-2001 / 409.
             return Optional.of(ErrorCode.UNIQUENESS_VIOLATION);

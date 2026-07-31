@@ -252,7 +252,7 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 
 | Nº | Feature | Spec | Tasks | Aceite | Testes | Status |
 |:--:|---|:--:|:--:|:--:|:--:|---|
-| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁷ |
 | 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ |
 | 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_PARTIAL` ² |
@@ -286,6 +286,12 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | ⁵ | `007` — backend completo (CRUD, chave derivada com sequência atômica por contrato, máquina de 7 estados com as 49 células, atribuição, movimentação de contrato, exclusão restrita, totais por incremento, quadro em consulta única, linha do tempo). Pendentes: `ActiveTimerGuard` consulta `TimerService` quando `009` existir; `TicketWorkLogGate` passa a contar work logs reais com `008`; work logs na linha do tempo e o escopo de horas de `MEMBER` entram com `008`; `DenormalizationReconcileJob` depende da agregação de `008` |
 | ⁶ | `014` — backend completo (CRUD, hierarquia de um nível normalizada na escrita, menções resolvidas em lote, janela de 24h, moderação, comentários de sistema nos três gatilhos de RN-815). Fecha a dívida OB-06 de `007`. Pendente: `existsForComment` publicado, sem consumidor até `015` |
 
+**Notas da sprint S2 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ⁷ | `001` — backend completo: cadastro atômico (organização + conta + vínculo OWNER + 9 categorias + token, em uma transação), verificação de e-mail idempotente, login na ordem normativa da §6.1, bloqueio e desbloqueio de conta (RN-453), rotação de refresh com detecção de reuso em cadeia (RN-005), seleção e troca de organização, recuperação e alteração de senha, sessões ativas com ownership, consumo e aceite de convite, rate limit em banco, e-mail transacional pós-commit e jobs de limpeza. O `TenantContextFilter` passou a aplicar os passos 2 a 4 de `permissions.md` §4.1 (T-001-14). **Pendentes:** frontend (T-001-39 a T-001-52), `TenantPurgeJob` (depende do cancelamento de organização, que é `002`), `activeTimer` em `GET /auth/me` (depende de `009`) e a emissão de convites (`002`; aqui só se consome). Três lacunas de documentação foram reportadas e resolvidas: `verification_tokens` e `rate_limit_counters` ausentes de `database.md` §8.1, e `users.last_failed_login_at`, exigida pela janela de 15 minutos de RN-453 |
+
 **Interfaces públicas publicadas nesta sprint:**
 
 | Interface | Consumidor previsto |
@@ -300,6 +306,11 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `AuditService.record(...)` · `recordSystemAction(...)` · `findByEntity(...)` | Toda feature com entidade auditável (RN-006); a leitura serve à linha do tempo de `007` |
 | `ContractService.findIdByCode(code)` · `findIdsByClient(clientId)` | `007` (busca por chave e filtro por cliente) |
 | `MembershipService.isActiveMember(userId)` · `activeMemberIds()` | `007` (RN-304), `014` (RN-813) |
+| `MembershipService.createOwner(...)` · `findByTenantAndUser(...)` · `findActiveByUser(...)` · `activateInvitedFor(...)` · `activate(...)` | `001` (cadastro, seleção de organização, aceite de convite) |
+| `TenantService.provision(...)` · `require(...)` · `optionsFor(userId)` · `sessionSnapshot(tenantId, userId)` | `001` (cadastro, `/auth/tenants`, `TenantContextFilter`) |
+| `UserAccountService.*` | `001` (credencial, bloqueio, verificação e troca de senha) |
+| `SessionValidationService.validate(...)` | `shared` (passos 3 e 4 de `permissions.md` §4.1) |
+| `AuthService.*` · `PasswordResetService.*` · `SessionService.*` · `InvitationAcceptanceService.*` | Fronteira HTTP de `001` |
 | `UserService.findSummaries(...)` · `summaryOf(...)` · `findByHandles(...)` | `007`, `014` (exibição e menções) |
 | `TagService.resolveOrCreate(rawName)` · `findOptions(ids)` | `007`, `008` |
 | `TagLinkService.replaceTicketTags(...)` · `findByTicketIds(...)` · `ticketIdsWithAllTags(...)` | `007` |

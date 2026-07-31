@@ -28,8 +28,8 @@
 | AC-001-11 | Feliz | `GET /auth/me` retorna papel e permissões | — |
 | AC-001-12 | Erro | E-mail já cadastrado | RN-452 |
 | AC-001-13 | Erro | Senha fora da política | RN-451 |
-| AC-001-14 | Erro | Credenciais inválidas | — |
-| AC-001-15 | Erro | Login sem e-mail verificado | §4.2 SM |
+| AC-001-14 | Erro | Credenciais inválidas (`DEVTIME-1001`) | AU-01 |
+| AC-001-15 | Erro | Login sem e-mail verificado (`DEVTIME-1008`) | §4.2 SM |
 | AC-001-16 | Erro | Conta bloqueada após 5 falhas | RN-453 |
 | AC-001-17 | Erro | Token de verificação expirado | §4.2 SM |
 | AC-001-18 | Erro | Token de redefinição reutilizado | RN-461 |
@@ -40,7 +40,7 @@
 | AC-001-23 | Erro | Termos não aceitos | — |
 | AC-001-24 | Extremo | E-mail com maiúsculas e espaços é normalizado | CX-01 |
 | AC-001-25 | Extremo | Colisão de slug resolve com sufixo | CX-03 |
-| AC-001-26 | Extremo | Token de verificação usado duas vezes | CX-04 |
+| AC-001-26 | Extremo | Token de verificação usado duas vezes — idempotente | CX-04 |
 | AC-001-27 | Extremo | Redefinição desbloqueia conta bloqueada | CX-07 |
 | AC-001-28 | Extremo | Falha no envio de e-mail não desfaz o cadastro | CX-12 |
 | AC-001-29 | Extremo | Tenant suspenso aparece na seleção em modo leitura | CX-08 |
@@ -142,7 +142,7 @@ Quando eu envio POST /api/v1/auth/logout
 Então recebo 204 No Content
 E o refresh token da sessão fica com revokedAt preenchido
 E o cookie de refresh é removido
-E uma nova tentativa de refresh com esse token retorna 401 DEVTIME-1001
+E uma nova tentativa de refresh com esse token retorna 401 DEVTIME-1004
 ```
 
 ### AC-001-08 — Recuperação de senha redefine o acesso
@@ -217,7 +217,7 @@ E a resposta indica os requisitos não atendidos, sem ecoar a senha informada
 ```gherkin
 Dado um usuário "ACTIVE" com senha correta "SenhaForte123"
 Quando eu envio POST /api/v1/auth/login com a senha "SenhaErrada999"
-Então recebo 401 Unauthorized com o código "DEVTIME-1003"
+Então recebo 401 Unauthorized com o código "DEVTIME-1001"
 E failedLoginAttempts é incrementado em 1
 E um AuditLog com action "USER_LOGIN_FAILED" é gravado, sem a senha tentada
 ```
@@ -226,7 +226,7 @@ E um AuditLog com action "USER_LOGIN_FAILED" é gravado, sem a senha tentada
 ```gherkin
 Dado um usuário com status "PENDING_ACTIVATION"
 Quando eu envio POST /api/v1/auth/login com credenciais corretas
-Então recebo 403 Forbidden com o código "DEVTIME-1004"
+Então recebo 403 Forbidden com o código "DEVTIME-1008"
 E nenhum access token é emitido
 E a resposta indica a ação disponível de reenvio da verificação
 ```
@@ -247,7 +247,7 @@ Então recebo 423 Locked com o código "DEVTIME-1006"
 ```gherkin
 Dado um token de verificação emitido há 8 dias
 Quando eu envio POST /api/v1/auth/verify-email com esse token
-Então recebo 410 Gone com o código "DEVTIME-1007"
+Então recebo 410 Gone com o código "DEVTIME-1009"
 E o usuário permanece com status "PENDING_ACTIVATION"
 E a resposta oferece a ação de reenvio
 ```
@@ -327,10 +327,19 @@ E o cadastro não falha por causa do slug
 ```gherkin
 Dado um token de verificação já consumido com sucesso
 Quando eu envio POST /api/v1/auth/verify-email com o mesmo token
-Então recebo 410 Gone com o código "DEVTIME-1007"
+Então recebo 200 OK
 E o usuário permanece "ACTIVE"
 E emailVerifiedAt não é alterado
+Mas dado um token substituído por reenvio (RN-457)
+Quando eu envio POST /api/v1/auth/verify-email com o token antigo
+Então recebo 410 Gone com o código "DEVTIME-1009"
 ```
+
+> **Ajustado.** A versão anterior exigia `410` no segundo uso, contrariando §5.6 e CA-08 de
+> `docs/04-api/authentication.md`, que exigem idempotência — clientes de e-mail com pré-visualização
+> consomem o link antes do usuário. A divergência foi reportada e resolvida em favor de `docs/`, que
+> é a fonte normativa. O caso que continua devolvendo `410` é o do token substituído por reenvio,
+> semanticamente distinto e agora explícito no cenário.
 
 ### AC-001-27 — Redefinição desbloqueia conta bloqueada
 ```gherkin

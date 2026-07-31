@@ -22,9 +22,22 @@ class ConstraintViolationMapperTest {
     @Test
     @DisplayName("entities.md §11: índice único violado vira DEVTIME-2001 / 409")
     void uniqueConstraintMustMapToUniquenessViolation() {
-        var exception = wrap("uq_users_email");
+        var exception = wrap("uq_clients_tenant_document");
 
         assertThat(mapper.map(exception)).contains(ErrorCode.UNIQUENESS_VIOLATION);
+    }
+
+    @Test
+    @DisplayName(
+            "CX-02 / EX-13: uq_users_email tem código próprio, mais específico que a convenção")
+    void userEmailConstraintMustMapToDedicatedCode() {
+        var exception = wrap("uq_users_email");
+
+        assertThat(mapper.map(exception))
+                .as(
+                        "dois cadastros simultâneos precisam da mesma resposta do caminho verificado"
+                                + " antes da inserção (AC-001-40)")
+                .contains(ErrorCode.EMAIL_ALREADY_REGISTERED);
     }
 
     @Test

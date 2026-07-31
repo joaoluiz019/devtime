@@ -51,6 +51,23 @@ spring:
     deserialization:
       fail-on-unknown-properties: true
 
+  # integrations.md §6.1: SMTP com TLS. Consumido apenas por SmtpMailAdapter (staging e prod);
+  # em local e test o adapter ativo não abre conexão alguma.
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:1025}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+
   mvc:
     problemdetails:
       # Desabilitado de propósito. Habilitado, o Spring Boot registra seu próprio
@@ -82,12 +99,22 @@ management:
     # DP-05: readiness só responde OK após a validação do schema.
     db:
       enabled: true
+    # O provedor de e-mail é dependência degradável (integrations.md §4): a indisponibilidade dele
+    # não pode marcar a aplicação como fora do ar, ou o orquestrador reiniciaria um serviço que
+    # continua atendendo todo o restante. A falha de envio é observada por auth.email.send_failures.
+    mail:
+      enabled: false
 
 devtime:
   api:
     # security.md §5.2: iss e aud são validados na verificação do token.
     issuer: ${DEVTIME_JWT_ISSUER}
     audience: ${DEVTIME_JWT_AUDIENCE}
+  app:
+    # integrations.md §12: origem dos links de verificação, redefinição e convite.
+    base-url: ${APP_BASE_URL}
+  mail:
+    from: ${MAIL_FROM}
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS}
   security:
@@ -138,6 +165,10 @@ devtime:
   api:
     issuer: ${DEVTIME_JWT_ISSUER:https://api.devtime.test}
     audience: ${DEVTIME_JWT_AUDIENCE:devtime-web}
+  app:
+    base-url: ${APP_BASE_URL:http://localhost:4200}
+  mail:
+    from: ${MAIL_FROM:nao-responda@devtime.test}
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS:http://localhost:4200}
   security:

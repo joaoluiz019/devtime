@@ -38,10 +38,26 @@ class SecurityContractIntegrationTest extends IntegrationTestSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtService jwtService;
+    @Autowired private com.devtime.support.SessionFixture sessionFixture;
 
-    private final UUID userId = UUID.randomUUID();
-    private final UUID tenantId = UUID.randomUUID();
-    private final UUID membershipId = UUID.randomUUID();
+    private UUID userId;
+    private UUID tenantId;
+    private UUID membershipId;
+
+    /**
+     * Organização, usuário e vínculo reais.
+     *
+     * <p>Identificadores sintéticos deixaram de bastar com T-001-14: o filtro passou a verificar
+     * situação da organização e do vínculo a cada requisição (permissions.md §4.1, passos 3 e 4), e
+     * um token que aponta para um vínculo inexistente é recusado — como deve ser.
+     */
+    @org.junit.jupiter.api.BeforeEach
+    void createSession() {
+        var session = sessionFixture.create(Role.OWNER);
+        tenantId = session.tenantId();
+        userId = session.userId();
+        membershipId = session.membershipId();
+    }
 
     @Test
     @DisplayName("CA-02: endpoint fora da allowlist é negado sem autenticação")

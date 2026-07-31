@@ -8,6 +8,114 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint S2 — Autenticação (backend)** · `specs/001-authentication`
+
+Escopo acordado: backend de `001-authentication`, com testes e documentação. Frontend
+(T-001-39 a T-001-52) não foi solicitado e permanece fora — ver "Pendências desta sprint".
+Exclusão de conta **não** entrou: é `POST /api/v1/tenant/cancel`, da feature `002-users` (§6.3),
+e a spec de `001` a exclui explicitamente da §4.
+
+Banco
+
+- `V025__create_verification_tokens.sql` — token de uso único dos três fluxos que provam posse de
+  e-mail. `consumed_at` e `invalidated_at` são colunas distintas: um link usado responde sucesso na
+  segunda vez (§5.6, CA-08), enquanto um substituído por reenvio responde expirado (RN-457). Um
+  único campo não distinguiria os casos, e o usuário que clicasse no e-mail antigo concluiria que
+  ele valeu.
+- `V026__create_rate_limit_counters.sql` — o "contador em banco no MVP" de `security.md` §8.1.
+  Janela fixa, não deslizante: a deslizante exigiria uma linha por tentativa, multiplicando escritas
+  justamente nos endpoints mais atacados.
+- `V027__add_users_last_failed_login_at.sql` — sem esta coluna, RN-453 não tem janela: cinco erros
+  de digitação espalhados por meses bloqueariam a conta.
+
+Cadastro e verificação
+
+- Cadastro atômico: organização, conta, vínculo `OWNER` ativo, as 9 categorias padrão (RN-501) e o
+  token de verificação em **uma** transação (CE-01). Os identificadores são gerados antes dela
+  porque o filtro de tenant é ativado na abertura da transação — sem isso o seed contaria as
+  categorias de todos os tenants e concluiria que já existem.
+- `SlugGenerator` com resolução de colisão por sufixo e fallback aleatório: o cadastro nunca falha
+  por causa do slug (CX-03).
+- Verificação de e-mail **idempotente** (CE-AU-04, CA-08) que também ativa os convites pendentes.
+- Envio de e-mail exclusivamente após o commit (TX-06, CP-10): a indisponibilidade do provedor não
+  desfaz cadastro, bloqueio de segurança nem troca de senha.
+
+Sessão
+
+- Login na ordem normativa da §6.1: bloqueio antes da senha, para que uma conta bloqueada não sirva
+  de oráculo de senha correta; verificação de e-mail depois da senha, para não revelar cadastros.
+  BCrypt executado mesmo sem usuário (AU-02).
+- `LoginAttemptService` com `REQUIRES_NEW` no incremento de falhas: o login termina em `401`, e um
+  contador que participasse da transação voltaria a zero a cada tentativa — RN-453 nunca bloquearia.
+- Rotação de refresh com detecção de reuso. A revogação em cadeia commita em transação própria antes
+  de o `401` subir, porque AC-001-31 exige os dois efeitos ao mesmo tempo. "Rotacionado" é
+  verificado **antes** de "revogado": invertido, todo reuso seria classificado como logout (CX-06) e
+  RN-005 nunca dispararia.
+- `TenantContextFilter` passou a aplicar os passos 2 a 4 de `permissions.md` §4.1 — organização
+  selecionada, situação da organização e do vínculo — por `SessionValidationService`, declarado em
+  `shared` e implementado em `tenant` (inversão de dependência, não exceção a AR-01). Um membro
+  removido deixa de operar imediatamente, em vez de esperar os 15 minutos do token (CE-AU-07).
+- Cookie de refresh `HttpOnly`, `Secure`, `SameSite=Strict`, restrito a `/api/v1/auth`. O valor
+  bruto sai apenas em `Set-Cookie`, nunca no corpo (CA-02).
+
+Senha, sessões e convites
+
+- Recuperação sempre `202`, com ou sem conta correspondente (PW-07, SG-02); redefinição de uso único
+  que revoga todas as sessões e desbloqueia a conta (CX-07).
+- Troca de senha preservando apenas a sessão corrente (RN-454).
+- Listagem de sessões com IP parcialmente mascarado e ownership: sessão de outro usuário devolve
+  `404`, nunca `403` (OWN-09, ART-024).
+- Consumo e aceite de convite (RN-457). Aceite por quem já está autenticado **não** troca a
+  organização da sessão corrente (CX-09).
+
+Transversal
+
+- Códigos `DEVTIME-1003` a `DEVTIME-1012` e `DEVTIME-2451` a `DEVTIME-2459` registrados conforme
+  `docs/04-api/authentication.md` §8.
+- Rate limit em `register`, `login`, `forgot-password` e `resend-verification`, com `Retry-After`. O
+  IP vem de `getRemoteAddr()`, nunca de `X-Forwarded-For`: ler o header deixaria o cliente escolher
+  o próprio identificador de limite.
+- `MailPort` com adapter de log em `local`/`test` e SMTP em `staging`/`prod`; a porta **nunca lança**
+  — a falha de envio é degradação prevista (AQ-09), medida por `auth.email.send_failures`.
+- Jobs de limpeza de tokens e desbloqueio automático de contas.
+
+### Corrigido
+
+- `TenantContextNotInitializedException` respondia `500 DEVTIME-9001`. Passou a responder
+  `401 DEVTIME-1002`: é o token de pré-seleção alcançando endpoint de negócio, estado previsto por
+  CE-P-11 — e `500` faria o cliente tratar como indisponibilidade em vez de redirecionar para a
+  seleção de organização.
+- `uq_users_email` era traduzida para o `DEVTIME-2001` genérico. Passou a produzir `DEVTIME-2452`,
+  para que a corrida entre cadastros simultâneos responda igual ao caminho verificado antes da
+  inserção (CX-02, AC-001-40).
+- O indicador de saúde de e-mail passou a ser desabilitado: o provedor é dependência degradável
+  (`integrations.md` §4) e sua indisponibilidade não pode marcar a aplicação como fora do ar.
+
+### Documentação
+
+- `database.md` §8.1 e §7.12: acrescentadas `verification_tokens`, `rate_limit_counters` e
+  `users.last_failed_login_at`, ausentes da sequência documentada.
+- `entities.md` §6.19.1: entidade `VerificationToken`; §6.2: campo `lastFailedLoginAt`.
+- `authentication.md`: `Location` no cadastro, estado de `activeTimer` em `/auth/me`, comportamento
+  do aceite de convite e semântica de `userExists`.
+- `specs/001-authentication/spec.md` §12 e `acceptance.md`: **conflito resolvido**. As duas
+  atribuíam `DEVTIME-1003` a "credenciais inválidas" e `DEVTIME-1004` a "e-mail não verificado",
+  divergindo de `docs/04-api/authentication.md` §8; e exigiam `410` no segundo uso do link de
+  verificação, contra a idempotência de §5.6 e CA-08. Resolvido em favor de `docs/`, que
+  `specs/README.md` §1 define como fonte normativa.
+
+### Pendências desta sprint
+
+- Frontend de `001` (T-001-39 a T-001-52): telas P01–P07, `AuthStore`, interceptor com fila de
+  refresh e guards.
+- `TenantPurgeJob`: depende do cancelamento de organização, que é `002-users`.
+- `activeTimer` em `GET /auth/me`: depende de `009-timer`.
+- Emissão de convites: pertence a `002-users`; aqui apenas se consome o token.
+- `PW-03` pede as 10.000 senhas mais comuns; `security/common-passwords.txt` traz o núcleo dessa
+  lista. Substituir o arquivo por um dump completo não exige alteração de código.
+
+### Adicionado
+
 **Sprint S4 — Etiquetas, Tickets e Comentários (backend)** · `specs/implementation-order.md` §4
 
 Escopo acordado: backend de `006-tags`, `007-tickets` e `014-comments`, com testes e documentação.

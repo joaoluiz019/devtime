@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.devtime.shared.security.JwtService;
 import com.devtime.shared.security.Role;
 import com.devtime.support.IntegrationTestSupport;
-import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +25,15 @@ class OpenApiContractIntegrationTest extends IntegrationTestSupport {
 
     @Autowired private MockMvc mockMvc;
     @Autowired private JwtService jwtService;
+    @Autowired private com.devtime.support.SessionFixture sessionFixture;
+
+    private com.devtime.support.SessionFixture.Session session;
+
+    /** Sessão real: com T-001-14, o filtro recusa token cujo vínculo não existe. */
+    @org.junit.jupiter.api.BeforeEach
+    void createSession() {
+        session = sessionFixture.create(Role.OWNER);
+    }
 
     /**
      * A especificação exige autenticação: Swagger UI e {@code /v3/api-docs} não constam da
@@ -37,9 +45,9 @@ class OpenApiContractIntegrationTest extends IntegrationTestSupport {
                         "Authorization",
                         "Bearer "
                                 + jwtService.issueAccessToken(
-                                        UUID.randomUUID(),
-                                        UUID.randomUUID(),
-                                        UUID.randomUUID(),
+                                        session.userId(),
+                                        session.tenantId(),
+                                        session.membershipId(),
                                         Role.OWNER,
                                         "America/Sao_Paulo"));
     }
@@ -69,6 +77,44 @@ class OpenApiContractIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.paths['/api/v1/contracts/{id}/cancel'].post").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/contracts/{id}/periods'].get").exists())
                 .andExpect(jsonPath("$.paths['/api/v1/contracts/{id}/history'].get").exists());
+    }
+
+    @Test
+    @DisplayName("CA-06 de authentication.md: os 17 endpoints de sessão constam do OpenAPI")
+    void openApiMustDocumentAuthenticationEndpoints() throws Exception {
+        mockMvc.perform(apiDocs())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/register'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/login'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/refresh'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/verify-email'].post.summary").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/resend-verification'].post.summary")
+                                .exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/logout-all'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/tenants'].get.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/select-tenant'].post.summary").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/forgot-password'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/reset-password'].post.summary").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/change-password'].post.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/me'].get.summary").exists())
+                .andExpect(jsonPath("$.paths['/api/v1/auth/sessions'].get.summary").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/sessions/{id}'].delete.summary").exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/invitations/{token}'].get.summary")
+                                .exists())
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/invitations/{token}/accept'].post.summary")
+                                .exists())
+                // Os códigos de erro fazem parte do contrato: quem integra precisa saber que 423 no
+                // login significa conta bloqueada, e não indisponibilidade.
+                .andExpect(
+                        jsonPath("$.paths['/api/v1/auth/login'].post.responses['423'].description")
+                                .value(org.hamcrest.Matchers.containsString("DEVTIME-1006")));
     }
 
     @Test

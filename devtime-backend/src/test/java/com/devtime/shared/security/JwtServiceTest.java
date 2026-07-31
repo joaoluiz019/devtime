@@ -193,7 +193,9 @@ class JwtServiceTest {
                                 new DevTimeProperties.ApiProps(
                                         "https://atacante.example", AUDIENCE),
                                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
-                                securityProps(SECRET)),
+                                securityProps(SECRET),
+                                appProps(),
+                                mailProps()),
                         clock);
         String token =
                 otherIssuer.issueAccessToken(
@@ -211,7 +213,9 @@ class JwtServiceTest {
                         new DevTimeProperties(
                                 new DevTimeProperties.ApiProps(ISSUER, "outro-cliente"),
                                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
-                                securityProps(SECRET)),
+                                securityProps(SECRET),
+                                appProps(),
+                                mailProps()),
                         clock);
         String token =
                 otherAudience.issueAccessToken(
@@ -274,7 +278,17 @@ class JwtServiceTest {
         return new DevTimeProperties(
                 new DevTimeProperties.ApiProps(ISSUER, AUDIENCE),
                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
-                securityProps(secret));
+                securityProps(secret),
+                appProps(),
+                mailProps());
+    }
+
+    private static DevTimeProperties.AppProps appProps() {
+        return new DevTimeProperties.AppProps("http://localhost:4200");
+    }
+
+    private static DevTimeProperties.MailProps mailProps() {
+        return new DevTimeProperties.MailProps("nao-responda@devtime.test");
     }
 
     private static DevTimeProperties.SecurityProps securityProps(String secret) {
