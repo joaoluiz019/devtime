@@ -1,0 +1,9 @@
+Olá, {{fullName}}.
+
+Sua conta no DevTime foi bloqueada temporariamente após várias tentativas de acesso
+sem sucesso. O bloqueio termina em {{lockedUntil}}.
+
+Se não foi você quem tentou entrar, recomendamos redefinir sua senha assim que o
+bloqueio terminar.
+
+Equipe DevTime

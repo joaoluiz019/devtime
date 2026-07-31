@@ -1,0 +1,65 @@
+package com.devtime.shared.mail;
+
+import com.devtime.shared.config.DevTimeProperties;
+import com.devtime.shared.observability.SensitiveDataMasker;
+import jakarta.mail.internet.MimeMessage;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.stereotype.Component;
+
+/**
+ * Adapter SMTP (integrations.md §6.1: {@code SmtpMailAdapter}, SMTP com TLS).
+ *
+ * <p>Ativo em {@code staging} e {@code prod}. As credenciais vêm de variável de ambiente (ART-083);
+ * a ausência de configuração faz a aplicação falhar na inicialização, não no primeiro envio.
+ *
+ * <p>CE-I-08: trocar de provedor é substituir esta classe por outra implementação de {@link
+ * MailPort}, sem tocar em nenhuma feature.
+ */
+@Component
+@Profile({"staging", "prod"})
+@Slf4j
+public class SmtpMailAdapter implements MailPort {
+
+    private final JavaMailSender mailSender;
+    private final MailTemplateRenderer renderer;
+    private final String from;
+
+    public SmtpMailAdapter(
+            JavaMailSender mailSender,
+            MailTemplateRenderer renderer,
+            DevTimeProperties properties) {
+        this.mailSender = mailSender;
+        this.renderer = renderer;
+        // CF-01: a propriedade vem do bloco tipado e validado, nunca de um @Value isolado.
+        this.from = properties.mail().from();
+    }
+
+    @Override
+    public boolean send(MailMessage message) {
+        try {
+            MimeMessage mime = mailSender.createMimeMessage();
+            // multipart=true: ML-06 exige as duas variantes na mesma mensagem, para clientes que
+            // não renderizam HTML.
+            MimeMessageHelper helper = new MimeMessageHelper(mime, true, "UTF-8");
+            MailTemplateRenderer.RenderedMail rendered = renderer.render(message);
+            helper.setFrom(from);
+            helper.setTo(message.to());
+            helper.setSubject(rendered.subject());
+            helper.setText(rendered.plainText(), rendered.html());
+            mailSender.send(mime);
+            return true;
+        } catch (Exception e) {
+            // Captura ampla proposital: qualquer falha de envio é degradação prevista (AQ-09), não
+            // erro da requisição de negócio. O contrato de MailPort é não lançar.
+            log.warn(
+                    "falha no envio de e-mail destinatario={} tipo={} causa={}",
+                    SensitiveDataMasker.mask(message.to()),
+                    message.template().name(),
+                    e.getClass().getSimpleName());
+            return false;
+        }
+    }
+}

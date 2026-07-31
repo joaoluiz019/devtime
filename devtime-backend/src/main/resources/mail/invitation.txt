@@ -1,0 +1,10 @@
+Olá.
+
+{{invitedByName}} convidou você para a organização {{tenantName}} no DevTime,
+com o papel {{role}}.
+
+{{invitationUrl}}
+
+O convite expira em 7 dias.
+
+Equipe DevTime
