@@ -42,6 +42,25 @@ public final class ContractResponses {
             int nonBillableMinutes,
             String currency) {}
 
+    /**
+     * Referência enxuta do contrato para features consumidoras (AR-02).
+     *
+     * <p>{@code status} é {@code String} e não o enum: {@code ContractStatus} pertence ao domínio
+     * de {@code 004}, e AR-02 proíbe que {@code 007} ou {@code 008} dependam dele. A decisão de
+     * negócio que essas features realmente precisam — se o contrato aceita registro de horas
+     * (RN-306) — chega calculada em {@code acceptsWorkLogs}, tomada por quem é dono da regra.
+     *
+     * @param acceptsWorkLogs RN-306: verdadeiro apenas em {@code ACTIVE} e {@code SUSPENDED}
+     */
+    @Schema(name = "ContractRefResponse")
+    public record ContractRefResponse(
+            UUID id,
+            String code,
+            String name,
+            String status,
+            boolean acceptsWorkLogs,
+            ContractClientResponse client) {}
+
     /** Item de {@code periodsPreview} (contracts.md §5 e §6). */
     @Schema(name = "PeriodPreviewItem")
     public record PeriodPreviewItem(

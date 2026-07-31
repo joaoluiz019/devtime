@@ -28,7 +28,17 @@ class FeatureBoundaryRulesTest {
      * pacote.
      */
     private static final List<String> FEATURES =
-            List.of("tenant", "user", "auth", "audit", "category", "client", "contract");
+            List.of(
+                    "tenant",
+                    "user",
+                    "auth",
+                    "audit",
+                    "category",
+                    "client",
+                    "contract",
+                    "tag",
+                    "ticket",
+                    "comment");
 
     private final JavaClasses production =
             new ClassFileImporter()

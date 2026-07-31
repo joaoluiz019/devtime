@@ -35,13 +35,61 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
                                         + " ORDER BY installed_rank",
                                 String.class);
 
-        // F0 (fundação) seguido de F1: categories, clients, contacts, contracts e contract_periods.
-        // A lacuna em V009 é intencional — a versão está reservada a `tags` em database.md §8.1, e
-        // reaproveitá-la faria a numeração divergir do documento que a define.
+        // F0 (fundação) seguido de F1. As lacunas são intencionais: V015 e V016 estão reservadas a
+        // `timers` e `work_logs` em database.md §8.1, e V018–V021 às features de F2 e F3.
+        // Reaproveitar um número faria a numeração divergir do documento que a define.
         assertThat(versions)
                 .containsExactly(
-                        "001", "002", "003", "004", "005", "006", "007", "008", "010", "011", "012",
-                        "013");
+                        "001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011",
+                        "012", "013", "014", "017", "022");
+    }
+
+    @Test
+    @DisplayName("INV-TCK-01: tickets possui índice único parcial sobre (contract_id, number)")
+    void ticketNumberMustBeUniquePerContract() {
+        List<String> definitions =
+                jdbc().queryForList(
+                                """
+                        SELECT indexdef FROM pg_indexes
+                         WHERE schemaname = 'public'
+                           AND tablename = 'tickets'
+                           AND indexname = 'uq_tickets_contract_number'
+                        """,
+                                String.class);
+
+        assertThat(definitions).hasSize(1);
+        assertThat(definitions.get(0))
+                .as("ART-055: parcial, para que um ticket excluído não bloqueie a numeração")
+                .contains("deleted_at IS NULL");
+    }
+
+    @Test
+    @DisplayName("§6.2 de specs/007: tickets NÃO possui coluna key — a chave é derivada")
+    void ticketKeyMustNotBePersisted() {
+        List<String> columns =
+                jdbc().queryForList(
+                                "SELECT column_name FROM information_schema.columns"
+                                        + " WHERE table_name = 'tickets'",
+                                String.class);
+
+        assertThat(columns)
+                .as("entities.md §6.12 marca a chave como campo derivado (📐)")
+                .doesNotContain("key");
+    }
+
+    @Test
+    @DisplayName("RN-811: o CHECK de comments rejeita INSERT direto com 0 e com 10.001 caracteres")
+    void commentBodyLengthMustBeEnforcedByConstraint() {
+        List<String> constraints =
+                jdbc().queryForList(
+                                """
+                        SELECT pg_get_constraintdef(oid) FROM pg_constraint
+                         WHERE conname = 'ck_comments_body_length'
+                        """,
+                                String.class);
+
+        assertThat(constraints).hasSize(1);
+        assertThat(constraints.get(0)).contains("10000");
     }
 
     @Test

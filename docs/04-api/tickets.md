@@ -118,7 +118,7 @@ Especificar os endpoints de gestão de tickets (unidade de trabalho à qual todo
 }
 ```
 
-> A `key` é gerada atomicamente (RN-302) e nunca muda, mesmo se o código do contrato for alterado — o valor é congelado na criação, garantindo que uma referência enviada ao cliente permaneça válida.
+> A `key` é derivada de `{contract.code}-{number}` e nunca muda — nem ao mover o ticket de contrato (§8.3). `number` é obtido atomicamente (RN-302) e é imutável, e `contract.code` também o é (INV-CTR-01); a chave é, portanto, estável para sempre. Ela **não** é uma coluna: `entities.md` §6.12 a marca como campo derivado (📐) e `database.md` §7.7 não a declara. A busca por chave (§7.1) a decompõe em (código do contrato, número) e resolve pelo índice `uq_tickets_contract_number`.
 
 ---
 
@@ -285,11 +285,15 @@ Busca por chave legível (`CT-0001-42`). Existe porque a chave é o identificado
 
 ### 8.3 `POST /api/v1/tickets/{id}/move-contract`
 
-**Request:** `{ "targetContractId": "0192f3a4-...", "version": 7 }`
+**Request:** `{ "targetContractId": "0192f3a4-...", "confirmed": true, "version": 7 }`
 
 **Guardas (RN-305):** o ticket **não** pode ter nenhum registro de horas; o contrato de destino deve pertencer ao **mesmo cliente** e aceitar registros.
 
-**Efeito:** o ticket recebe um **novo** `number` e uma **nova** `key` na sequência do contrato de destino.
+**Efeito:** o ticket muda de `contractId`. O `number` e a `key` **permanecem inalterados**.
+
+| Campo | Regra |
+|---|---|
+| `confirmed` | Reconhecimento de que a chave não muda. É registrado na auditoria; não é guarda — nenhuma regra de `02-domain/` condiciona a operação a ele |
 
 | Status | Código | Situação |
 |---|---|---|
@@ -300,12 +304,15 @@ Busca por chave legível (`CT-0001-42`). Existe porque a chave é o identificado
 **Response `200 OK`:**
 
 ```json
-{ "id": "...", "previousKey": "CT-0001-42", "key": "CT-0002-7",
-  "contract": { "id": "...", "code": "CT-0002" },
-  "warning": "A chave do ticket mudou. Referências externas anteriores não serão resolvidas." }
+{ "id": "...", "key": "CT-0001-42",
+  "contract": { "id": "...", "code": "CT-0002", "name": "Evolução", "status": "ACTIVE",
+                "acceptsWorkLogs": true },
+  "notice": "A chave do ticket permanece CT-0001-42: ela deriva do contrato de origem e é referência externa permanente." }
 ```
 
-**Justificativa da renumeração:** a `key` deriva do contrato (RN-302). Manter a chave antiga criaria um identificador incoerente com o contrato ao qual o ticket pertence, quebrando a rastreabilidade nos relatórios.
+**Justificativa da permanência da chave:** `number` e `key` são campos imutáveis (🔒 em `02-domain/entities.md` §6.12) e RN-011 proíbe alterá-los após a criação. A chave já circulou por e-mail, reunião e possivelmente nota fiscal; renumerá-la quebraria a única referência estável do ticket. RN-305 mitiga o estranhamento de ver `CT-0001-42` sob o contrato `CT-0002` restringindo a movimentação a tickets **sem horas** — ou seja, recém-criados, cuja chave dificilmente circulou.
+
+> **Correção de contrato.** Até 2026-07-30 esta seção descrevia a renumeração do ticket no contrato de destino, com `previousKey` e um `warning` de que a chave mudara. O comportamento contrariava RN-011 e a imutabilidade declarada em `entities.md` §6.12, que precedem este documento pela hierarquia de IA-11, além de `specs/007-tickets` §6.2, CX-04, CP-06 e CA-12. A seção foi corrigida para o comportamento implementado.
 
 ### 8.4 `DELETE /api/v1/tickets/{id}`
 
@@ -391,9 +398,45 @@ Linha do tempo unificada (RF-091), combinando comentários, mudanças de status,
 
 | Status | Código | Situação |
 |---|---|---|
-| `403` | `DEVTIME-1103` | Não é o autor |
+| `403` | `DEVTIME-1103` | Não é o autor — **nem `ADMIN`/`OWNER` editam comentário de terceiro** (§6.3 de `specs/014-comments`) |
 | `409` | `DEVTIME-2706` | Janela de 24 horas expirada |
 | `409` | `DEVTIME-2707` | Comentário de sistema é imutável (RN-815) |
+| `422` | `DEVTIME-2705` | Corpo fora de 1–10.000 caracteres após aparar (RN-811) |
+
+> **Referência de origem inválida.** Um `parentCommentId` inexistente ou pertencente a outro ticket responde `404 DEVTIME-2002` (INV-CMT-02). `specs/014-comments` §12 atribuía `DEVTIME-2706` a esse caso, colidindo com a janela de edição definida aqui; este documento precede a spec pela hierarquia de IA-11, e uma referência não alcançável no ticket é indistinguível de inexistente (ART-024).
+
+### 10.3 `DELETE /api/v1/comments/{id}`
+
+O autor exclui em até 24 horas; quem possui `COMMENT_DELETE_ANY` modera a qualquer momento (RN-812). Excluir um comentário raiz **preserva as respostas** — excluí-las em cascata destruiria a contribuição de terceiros por decisão de uma pessoa só.
+
+| Status | Código | Situação |
+|---|---|---|
+| `204` | — | Excluído logicamente (RN-003) |
+| `403` | `DEVTIME-1103` | Não é o autor e não possui `COMMENT_DELETE_ANY` |
+| `409` | `DEVTIME-2706` | Autor fora da janela de 24 horas |
+| `409` | `DEVTIME-2707` | Comentário de sistema |
+
+### 10.4 `GET /api/v1/tickets/{id}/comments`
+
+Conversa paginada por **cursor**, com as respostas carregadas junto de suas raízes.
+
+**Query:** `cursor` (instante da raiz mais antiga da página anterior), `size` (default 20, máximo 50).
+
+```json
+{
+  "content": [
+    { "id": "...", "body": "Consegui reproduzir", "author": { "id": "...", "name": "Camila Torres" },
+      "isSystem": false, "canEdit": true, "canDelete": true,
+      "replies": [ { "id": "...", "body": "Aqui também", "replies": [] } ] },
+    { "id": "...", "body": "Situação alterada de BACKLOG para IN_PROGRESS.",
+      "author": null, "isSystem": true, "systemTrigger": "STATUS_CHANGED",
+      "canEdit": false, "canDelete": false, "replies": [] }
+  ],
+  "cursor": "2026-07-22T15:00:00-03:00",
+  "hasMore": false,
+  "totalComments": 3
+}
+```
 
 ---
 
@@ -495,6 +538,7 @@ stateDiagram-v2
 | `DEVTIME-2702` | 415 | Tipo de arquivo não permitido |
 | `DEVTIME-2703` | 409 | Arquivo em verificação |
 | `DEVTIME-2704` | 422 | Limite de anexos atingido |
+| `DEVTIME-2705` | 422 | Corpo do comentário fora de 1–10.000 caracteres |
 | `DEVTIME-2706` | 409 | Janela de edição do comentário expirada |
 | `DEVTIME-2707` | 409 | Comentário de sistema é imutável |
 | `DEVTIME-2708` | 413 | Quota de armazenamento esgotada |
@@ -505,7 +549,7 @@ stateDiagram-v2
 
 | # | Critério |
 |---|---|
-| CA-01 | A chave do ticket é única por contrato e nunca muda após a criação, exceto em movimentação de contrato |
+| CA-01 | A chave do ticket é única por contrato e nunca muda após a criação, **inclusive** em movimentação de contrato |
 | CA-02 | Ticket com registros nunca pode ser excluído nem mudar de contrato |
 | CA-03 | Transição para `DONE` é bloqueada com cronômetro ativo |
 | CA-04 | Ticket `DONE` volta a `IN_PROGRESS` ao receber novo registro |

@@ -68,6 +68,16 @@ public enum ErrorCode {
     INVALID_STATE_TRANSITION("DEVTIME-2010", HttpStatus.CONFLICT, "error.state.invalidTransition"),
     TERMINAL_STATE("DEVTIME-2011", HttpStatus.CONFLICT, "error.state.terminal"),
 
+    // ── Work logs e classificação · DEVTIME-2100–2199 (worklogs.md) ─────────────────────────
+    /**
+     * RN-104: categoria inexistente, de outro tenant ou inativa.
+     *
+     * <p>Registrado aqui por 007-tickets, que é a primeira feature a referenciar uma categoria em
+     * campo de escrita ({@code defaultCategoryId}). O work log em si chega com 008.
+     */
+    CATEGORY_INVALID_OR_INACTIVE(
+            "DEVTIME-2104", HttpStatus.UNPROCESSABLE_ENTITY, "error.category.invalidOrInactive"),
+
     // ── Contratos e períodos · DEVTIME-2200–2299 (contracts.md §14) ──────────────────────────
     /** RN-201 / RN-405: cliente inexistente, de outro tenant ou inativo. */
     CONTRACT_CLIENT_INVALID(
@@ -110,6 +120,37 @@ public enum ErrorCode {
     JUSTIFICATION_REQUIRED(
             "DEVTIME-2215", HttpStatus.UNPROCESSABLE_ENTITY, "error.justification.required"),
 
+    // ── Tickets · DEVTIME-2300–2399 (tickets.md §13) ─────────────────────────────────────────
+    /** RN-301: contrato ausente, inexistente no tenant ou inválido para o ticket. */
+    TICKET_CONTRACT_REQUIRED(
+            "DEVTIME-2301", HttpStatus.UNPROCESSABLE_ENTITY, "error.ticket.contractRequired"),
+    /** RN-303: título fora de 3–200 caracteres. */
+    TICKET_TITLE_INVALID(
+            "DEVTIME-2303", HttpStatus.UNPROCESSABLE_ENTITY, "error.ticket.titleInvalid"),
+    /** RN-304: responsável inexistente ou sem membership {@code ACTIVE} no tenant. */
+    TICKET_ASSIGNEE_INVALID(
+            "DEVTIME-2304", HttpStatus.UNPROCESSABLE_ENTITY, "error.ticket.assigneeInvalid"),
+    /** RN-305 / INV-TCK-02: movimentação de contrato com work logs registrados. */
+    TICKET_CONTRACT_MOVE_RESTRICTED(
+            "DEVTIME-2305", HttpStatus.CONFLICT, "error.ticket.contractMoveRestricted"),
+    /** RN-306: contrato {@code ENDED}/{@code CANCELLED} não aceita registro de horas. */
+    CONTRACT_NOT_ACCEPTING_WORK(
+            "DEVTIME-2306", HttpStatus.UNPROCESSABLE_ENTITY, "error.contract.notAcceptingWork"),
+    /** RN-307 / INV-TCK-03: ticket com work logs é cancelável, nunca excluível. */
+    TICKET_DELETE_RESTRICTED("DEVTIME-2307", HttpStatus.CONFLICT, "error.ticket.deleteRestricted"),
+    /** RN-311: conclusão bloqueada por cronômetro ativo — {@code RUNNING} ou {@code PAUSED}. */
+    TICKET_ACTIVE_TIMER("DEVTIME-2311", HttpStatus.CONFLICT, "error.ticket.activeTimer"),
+    /** RN-313 / INV-TAG-01: limite de 10 etiquetas por alvo. */
+    TAG_LIMIT_EXCEEDED("DEVTIME-2313", HttpStatus.UNPROCESSABLE_ENTITY, "error.tag.limitExceeded"),
+    /** state-machines.md §4.7: {@code blockReason} ausente ou com menos de 5 caracteres. */
+    TICKET_BLOCK_REASON_REQUIRED(
+            "DEVTIME-2314", HttpStatus.UNPROCESSABLE_ENTITY, "error.ticket.blockReasonRequired"),
+    /** RN-305: contrato de destino pertence a outro cliente (tickets.md §8.3). */
+    TICKET_TARGET_CONTRACT_CLIENT_MISMATCH(
+            "DEVTIME-2315",
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "error.ticket.targetContractClientMismatch"),
+
     // ── Clientes · DEVTIME-2400–2449 (clients.md §13) ────────────────────────────────────────
     /** RN-401: cliente com contrato {@code ACTIVE} ou {@code SUSPENDED}. */
     CLIENT_DELETE_RESTRICTED("DEVTIME-2401", HttpStatus.CONFLICT, "error.client.deleteRestricted"),
@@ -147,6 +188,20 @@ public enum ErrorCode {
     /** users.md §8.3: substituta inexistente, inativa ou igual à excluída. */
     CATEGORY_REPLACEMENT_INVALID(
             "DEVTIME-2605", HttpStatus.UNPROCESSABLE_ENTITY, "error.category.replacementInvalid"),
+
+    // ── Tags · DEVTIME-2600–2699 (users.md §9) ───────────────────────────────────────────────
+    /** RN-507: nome normalizado já existente no tenant. */
+    TAG_NAME_DUPLICATED("DEVTIME-2604", HttpStatus.CONFLICT, "error.tag.nameDuplicated"),
+
+    // ── Comentários · DEVTIME-2700–2799 (tickets.md §13) ─────────────────────────────────────
+    /** RN-811: corpo fora de 1–10.000 caracteres após aparar. */
+    COMMENT_BODY_INVALID(
+            "DEVTIME-2705", HttpStatus.UNPROCESSABLE_ENTITY, "error.comment.bodyInvalid"),
+    /** RN-812: janela de 24 horas encerrada (tickets.md §10.2). */
+    COMMENT_EDIT_WINDOW_EXPIRED(
+            "DEVTIME-2706", HttpStatus.CONFLICT, "error.comment.editWindowExpired"),
+    /** RN-815 / INV-CMT-03: comentário de sistema é imutável (tickets.md §10.2). */
+    COMMENT_SYSTEM_IMMUTABLE("DEVTIME-2707", HttpStatus.CONFLICT, "error.comment.systemImmutable"),
 
     // ── Infraestrutura e erros inesperados · DEVTIME-9000–9099 ───────────────────────────────
     /**

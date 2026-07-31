@@ -8,6 +8,75 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint S4 — Etiquetas, Tickets e Comentários (backend)** · `specs/implementation-order.md` §4
+
+Escopo acordado: backend de `006-tags`, `007-tickets` e `014-comments`, com testes e documentação.
+O frontend das três features não foi solicitado e permanece fora — ver "Pendências desta sprint".
+
+Etiquetas (`006`)
+
+- Migrations `V009` (`tags`) e `V017` (`ticket_tags`), com índice único parcial sobre
+  `(tenant_id, name)` (INV-TAG-02) e índice parcial de órfãs sobre `usage_count = 0`.
+- `TagNormalizer` reproduzindo integralmente a tabela normativa da §6.1 da spec (RN-506):
+  minúsculas, bordas aparadas, espaços internos colapsados e hifenizados. **Acentos preservados** e
+  caracteres especiais não filtrados — `refatoração` e `refatoracao` coexistem por decisão (CX-02).
+- Unicidade verificada sobre o nome **normalizado** (RN-507), com o índice parcial como barreira
+  para a corrida entre criações simultâneas.
+- `TagLinkService` com substituição atômica do conjunto de etiquetas do ticket, limite de 10 sobre o
+  conjunto resultante (RN-313) e `usageCount` ajustado por `UPDATE ... SET x = x + ?` na mesma
+  transação do vínculo (INV-TAG-04).
+- Exclusão removendo os vínculos em lote e informando as contagens desvinculadas (§9.3 de
+  `users.md`); sugestões de limpeza que **apenas sugerem** (RN-508).
+
+Tickets (`007`)
+
+- Migration `V014` com índice único `(contract_id, number)` (INV-TCK-01), os `CHECK` de INV-TCK-05,
+  de INV-TCK-04 (`DONE` exige `completedAt`) e do motivo de impedimento.
+- `TicketNumberGenerator` com lock consultivo de transação por contrato
+  (`pg_advisory_xact_lock`): a serialização é obtida sem travar linhas, o que importa quando o
+  contrato ainda não tem nenhum ticket — cenário em que `SELECT ... FOR UPDATE` sobre `tickets` não
+  travaria nada e deixaria a primeira dupla de criações em corrida (RN-302, CP-03).
+- `TicketKeyBuilder` reproduzindo a tabela normativa de chaves da §6.2 e a decomposição inversa,
+  usada pela busca por chave legível.
+- `TicketStateMachine` com as 49 células da matriz de `state-machines.md` §4.7 e
+  `availableTransitions` por estado **e** permissão (ME-06).
+- RN-310 exata: `startedAt` apenas na 1ª entrada em `IN_PROGRESS`, `completedAt` limpo em **toda**
+  saída de `DONE`. `ActiveTimerGuard`, `BlockReasonValidator`, `AssigneeValidator`,
+  `ContractMoveGuard` e `TicketDeletionGuard` como pontos únicos de RN-311, §4.7, RN-304, RN-305 e
+  RN-307.
+- Movimentação de contrato preservando `number` e chave (RN-011, CP-06); exclusão restrita com
+  mensagem que aponta o cancelamento como caminho (RN-307, RN-314).
+- `TicketTotalsService.applyWorkLogDelta` por incremento, nunca por reagregação (RN-308, CP-12), e
+  `reopenOnWorkLog` aplicando RN-312 sem reversão na exclusão do work log (CX-06).
+- Quadro servido por **uma** consulta agrupada com limite de 50 cartões por coluna (CP-14) e linha
+  do tempo paginada por cursor, unindo auditoria e comentários por inversão de dependência.
+
+Comentários (`014`)
+
+- Migration `V022` com `CHECK (length(btrim(body)) BETWEEN 1 AND 10000)`, FK autorreferente e os
+  quatro índices da §13.4 da spec.
+- Hierarquia de um nível normalizada **na escrita** (RN-814): responder a uma resposta vincula à
+  raiz, mantendo a árvore plana por construção.
+- `MentionExtractor` resolvendo menções em duas consultas em lote, independentemente da quantidade,
+  filtrando por membros ativos (RN-813). Menção não resolvida permanece como texto, sem erro;
+  padrão de e-mail não é menção.
+- `CommentEditPolicy` com janela estritamente menor que 24h (CX-09), `canEdit`/`canDelete`
+  calculados no servidor e a distinção de §6.3: `ADMIN`/`OWNER` **excluem, mas não editam** —
+  `COMMENT_UPDATE_ANY` não existe no catálogo de permissões.
+- `SystemCommentListener` fecha a dívida OB-06 de `007`: os três gatilhos de RN-815 geram
+  comentário de sistema **dentro** da transação da transição, sem ciclo entre as features — `007`
+  publica o evento e não conhece `014`.
+
+Transversal
+
+- 16 códigos de erro de domínio registrados em `ErrorCode` (`DEVTIME-2104`, `23xx`, `2604`, `27xx`).
+- `AuditService` ganha leitura (`findByEntity`) e contexto adicional em `metadata`, exigido por §18
+  de `specs/007-tickets` para o `blockReason` e o `workLogId` que disparou a reabertura.
+- Interfaces públicas mínimas de `002-users` publicadas por esta sprint: `MembershipService`
+  (RN-304, RN-813) e `UserService` (exibição e menções). Escopo deliberadamente estreito — o ciclo
+  de vida de usuário e membership continua pertencendo a `002`.
+- OpenAPI descrevendo as 15 rotas novas, com os códigos de erro por resposta.
+
 **Sprint S3 — Categorias, Clientes e Contratos (backend)** · `specs/implementation-order.md` §4
 
 Escopo acordado: backend de `005-categories`, `003-clients` e `004-contracts` no recorte S3 (CRUD e
@@ -109,6 +178,95 @@ Documentação
 - `README.md` com o ambiente em 3 comandos (RE-03) e este `CHANGELOG.md` (RE-04).
 - `ai/coding-guidelines.md` §5: árvore do repositório corrigida para `devtime-backend/` e
   `devtime-frontend/`, conforme ADR-022.
+
+### Corrigido — Sprint S4
+
+- **Escopo de dados de `MEMBER` sobre clientes.** A S3 deixou o escopo fechado por padrão porque
+  `tickets` e `work_logs` não existiam ("as subconsultas `EXISTS` entram com `007`/`008`"). Com
+  `tickets`, a metade que depende deles foi implementada: um contrato é visível ao membro quando ele
+  é relator ou responsável de algum ticket nele, e um cliente é visível quando possui contrato
+  visível (§9 de `permissions.md`). O grafo de features permanece acíclico por inversão — `client`
+  declara `MemberScopeSource`, `contract` declara `MemberContractLinkSource`, e cada uma é
+  implementada pela feature que possui a informação.
+- **Ticket ilegível para `MEMBER`.** Como consequência do item acima, um `MEMBER` não conseguia
+  abrir ticket algum: a resposta embute contrato e cliente, e o escopo fechado devolvia `404`.
+  `ClientService.getRefById` e `ContractService.getRefById` passam a servir a identificação embutida
+  sem aplicar o escopo de carteira — comportamento previsto e aceito em OB-04 de `specs/007`
+  (`MEMBER` enxerga todos os tickets do tenant). Listar e detalhar clientes segue restrito.
+- **Acoplamento entre features na fronteira do contrato.** `ContractResponse` expõe o enum
+  `ContractStatus`, e consumi-lo em `007` violaria AR-02. `ContractRefResponse` devolve a situação
+  como texto e `acceptsWorkLogs` já decidido por quem é dono de RN-306. Pelo mesmo motivo,
+  `TicketStatusChangedEvent` carrega o nome da situação, não o enum.
+- **Parâmetro opcional de texto em JPQL.** `(:param IS NULL OR ...)` com um `String` nulo faz
+  Hibernate 6 enviar o parâmetro sem tipo, e o PostgreSQL recusa a comparação (`operator does not
+  exist: character varying ~~ bytea`). As consultas afetadas passam a usar `cast(... as String)` e a
+  receber o padrão de `LIKE` já montado.
+
+### Conflitos de documentação — Sprint S4
+
+Encontrados **antes** da implementação e resolvidos pela hierarquia de IA-11 (`project-constitution`
+> `02-domain/` > `03-architecture/` > `04-api/` > `specs/`), conforme CE-G-02 manda: seguir a
+hierarquia **e** reportar. Nenhum deles exigiu inventar regra de negócio.
+
+| # | Conflito | Documentos | Resolução |
+|:--:|---|---|---|
+| C-01 | **Chave do ticket ao mover de contrato.** `04-api/tickets.md` §8.3 determinava um **novo** `number` e uma **nova** `key` no contrato de destino, com `previousKey` e aviso de quebra de referência. `entities.md` §6.12 marca ambos como imutáveis (🔒), RN-011 proíbe alterá-los, e `specs/007` §6.2, CX-04, CP-06, OB-01 e CA-12 exigem que permaneçam | `02-domain/entities.md`, `business-rules.md` × `04-api/tickets.md` | 02-domain prevalece: a chave **não** muda. `04-api/tickets.md` §8.3 foi corrigida neste PR (ART-111) |
+| C-02 | **`key` persistida ou derivada.** `entities.md` §6.12 marca 📐 (campo derivado, não persistido) e `database.md` §7.7 não declara a coluna; `specs/007` §13.2 e §13.4 a descrevem persistida, com índice único `uq_tickets_tenant_key` | `02-domain/`, `03-architecture/` × `specs/007` | Derivada. `V014` não cria a coluna; a busca por chave decompõe o valor e resolve por `uq_tickets_contract_number` |
+| C-03 | **`DEVTIME-2706` com dois significados.** `specs/014` §12 o atribui a `parentCommentId` inválido (422); `04-api/tickets.md` §10.2 e §13 o atribuem à janela de edição expirada (409) | `04-api/tickets.md` × `specs/014` | 04-api prevalece. Origem inválida responde `DEVTIME-2002`/404 (ART-024) e a decisão está documentada em `tickets.md` §10.2 |
+| C-04 | **Numeração das migrations.** `specs/006` pede `V017`/`V018`, `specs/007` pede `V019`–`V021` e `specs/014` pede `V037`; `database.md` §8.1 aloca `V009`, `V014`, `V017` e `V022` | `03-architecture/database.md` × `specs/` | `database.md` prevalece, como já ocorrera em `V008` na S3 |
+| C-05 | **Contagem de células da matriz de ticket.** `specs/007/tasks.md` T-007-08 fala em "22 válidas e 27 proibidas"; a matriz de `state-machines.md` §4.7 tem **19** válidas (a soma da spec não fecha 49 sob nenhuma contagem) | `02-domain/state-machines.md` × `specs/007` | A matriz prevalece. O teste cobre as 49 células e afirma 19 válidas |
+| C-06 | **FK de `assignee_id`.** `specs/007` §17.3 aponta para `memberships.user_id`, que não é único isoladamente — um usuário participa de vários tenants — e portanto não pode ser alvo de FK; `database.md` §7.7 aponta para `users` | `03-architecture/database.md` × `specs/007` | FK para `users`; a validação de membership `ACTIVE` (RN-304) é da aplicação |
+| C-07 | **`DEVTIME-9002` com dois significados.** `ADR-017` e `ADR-045` o atribuem a *rate limit* (`429`) e o código já o implementa assim; `state-machines.md` §7 e `specs/006`/`007` §17.3 o atribuem a estado inconsistente / violação de `CHECK` | `02-domain/state-machines.md` × `docs/adr/` + código | **Não resolvido nesta sprint** e sem impacto no escopo entregue: as violações de `CHECK` continuam caindo em `DEVTIME-9001` pelo comportamento de fechar-por-padrão do `ConstraintViolationMapper`. Exige decisão do Tech Lead: renumerar o código de *rate limit* (mudança de contrato público) ou emendar `state-machines.md` §7 |
+
+### Verificado — Sprint S4
+
+- Backend: **545 testes verdes** (unitários + integração com Testcontainers em PostgreSQL 16).
+  Cobertura global de linhas 89,9% (gate 80%) e 92,8% em services, validators, policies e guards
+  (meta ART-100: 90%).
+- **Duas suítes escritas antes do código** (SQ-02): a tabela normativa de normalização de etiquetas
+  (§6.1 de `specs/006`) e a matriz 7×7 do ticket, célula a célula, com aceitação **e** rejeição. A
+  matriz esperada é transcrita do documento, não importada da implementação — uma suíte que
+  consultasse a própria máquina provaria apenas que ela é consistente consigo mesma.
+- **Atomicidade da sequência de `number` comprovada**: 100 criações simultâneas no mesmo contrato
+  produzem 100 números distintos e consecutivos, sem lacuna (CA-02 de `specs/007`).
+- Janela de 24h dos comentários verificada com `Clock` controlado em 0h, 1h, 23h, 23h59, 24h, 25h e
+  30 dias — 24h exatas já está fora (CX-09).
+- Isolamento entre tenants verde nos endpoints novos, por id **e** por chave legível; recurso de
+  outro tenant responde `404` (ART-024).
+- Migrations `V009`, `V014`, `V017` e `V022` aplicam do zero; `ddl-auto=validate` aprovou o
+  mapeamento. Verificado por consulta ao catálogo que `tickets` **não** possui coluna `key` e que o
+  índice `uq_tickets_contract_number` é parcial.
+
+### Pendências — Sprint S4
+
+Reportadas antes do início e confirmadas na entrega.
+
+- **Frontend das três features** (T-006-10 a 14, T-007-23 a 32, T-014-10 a 15): não solicitado nesta
+  sprint. SQ-09 exige que uma feature entregue backend **e** frontend; enquanto o frontend não
+  existir, `006`, `007` e `014` permanecem `BACKEND_DONE`, não `DONE`.
+- **Dependências não implementadas.** `001-authentication` e `002-users` continuam ausentes. Esta
+  sprint publicou apenas as interfaces mínimas que RN-304 e RN-813 exigem (`MembershipService`,
+  `UserService`); cadastro, convite, papel e ciclo de vida seguem pertencendo a `002`.
+- **`ActiveTimerGuard` não bloqueia nada** enquanto `009-timer` não existir: sem a tabela `timers`,
+  nenhum cronômetro pode existir. RN-311 tem ponto único de aplicação e testes que já passam por ele.
+- **`TicketWorkLogGate` deriva a existência de horas de `spentMinutes`** enquanto `008` não publica
+  `WorkLogService`. A derivação é exata (RN-115 exige `netMinutes > 0`), e a substituição pela
+  contagem real é de uma linha.
+- **Work logs na linha do tempo e escopo de horas de `MEMBER`** (IMP-02) entram com `008`, junto da
+  fonte de eventos correspondente.
+- **`work_log_tags` e `TagLinkService.linkToWorkLog`** entram com `008` (CE-O-03); `V017` cria apenas
+  `ticket_tags`.
+- **`DenormalizationReconcileJob`** continua inexistente — é compartilhado com `003`, `004` e `011` e
+  também não foi construído na S3. Os pontos de reconciliação de `usageCount` e dos totais do ticket
+  ficam para quando o job existir, e não foram deixados como código sem chamador (CG-09).
+- **`TagCleanupSuggestionJob`** não implementado: registrar o instante exato em que `usageCount`
+  chegou a zero exigiria um campo que `entities.md` §6.11 não define. As sugestões de RN-508 são
+  calculadas ao vivo sobre `updatedAt`, que é o que o índice documentado em §13.4 sustenta.
+- **`TagService.getAllForReport`** e **`CommentService.existsForComment`** só ganham consumidor em
+  `012` e `015`; o segundo foi publicado, o primeiro não, para não deixar consulta sem chamador.
+- **Busca sem acento** em tickets não é oferecida: exigiria a extensão `unaccent`, que não consta das
+  instaladas em `V001`. A busca é sem diferenciar caixa, sobre título e descrição.
+- **`DEVTIME-9002`** permanece com dois significados na documentação (C-07 abaixo).
 
 ### Verificado — Sprint S3
 

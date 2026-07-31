@@ -7,6 +7,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 
 import com.devtime.audit.domain.AuditLog;
 import com.devtime.shared.persistence.BaseEntity;
+import com.devtime.tag.domain.TicketTagLink;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -41,8 +42,13 @@ class PersistenceRulesTest {
                 .areAnnotatedWith(Entity.class)
                 // database.md §4.3 isenta audit_logs: é append-only e não possui updated_*,
                 // deleted_* nem version (INV-AUD-01), colunas que BaseEntity exigiria.
+                //
+                // ticket_tags é tabela de junção pura (database.md §7.12): não tem identidade
+                // própria, nada nela é editável (o vínculo existe ou não existe) e §9.3 de
+                // specs/006-tags determina a remoção física das linhas na exclusão da etiqueta.
+                // P-03 protege entidade de domínio; uma aresta entre duas não é dado de negócio.
                 .and()
-                .doNotBelongToAnyOf(AuditLog.class)
+                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class)
                 .should()
                 .beAssignableTo(BaseEntity.class)
                 .because("ART-050: identidade, auditoria, soft delete e version vêm de um lugar só")
@@ -71,9 +77,10 @@ class PersistenceRulesTest {
         classes()
                 .that()
                 .areAnnotatedWith(Entity.class)
-                // audit_logs não possui deleted_at (INV-AUD-01).
+                // audit_logs não possui deleted_at (INV-AUD-01); ticket_tags também não, porque a
+                // desvinculação é remoção física da aresta (§9.3 de specs/006-tags).
                 .and()
-                .doNotBelongToAnyOf(AuditLog.class)
+                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class)
                 .should()
                 .beAnnotatedWith(SQLRestriction.class)
                 .because(

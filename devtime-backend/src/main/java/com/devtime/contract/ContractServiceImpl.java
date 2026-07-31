@@ -451,6 +451,47 @@ public class ContractServiceImpl implements ContractService {
         return toDetail(contract, List.of());
     }
 
+    /** Interface pública para {@code 007}: caminho inverso da chave do ticket (RN-302, FA-15). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public Optional<UUID> findIdByCode(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        // O filtro de tenant torna o resultado vazio para código de outro tenant (ART-024).
+        return repository.findByCode(code).map(Contract::getId);
+    }
+
+    /** Interface pública para {@code 007}: filtro de tickets por cliente (IMP-02). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public List<UUID> findIdsByClient(UUID clientId) {
+        return repository.findByClientId(clientId).stream().map(Contract::getId).toList();
+    }
+
+    /**
+     * Interface pública para {@code 007} e {@code 008} (ver {@link ContractService#getRefById}).
+     */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public com.devtime.contract.dto.ContractResponses.ContractRefResponse getRefById(
+            UUID contractId) {
+        Contract contract = require(contractId);
+        var client = clientService.getRefById(contract.getClientId());
+        return new com.devtime.contract.dto.ContractResponses.ContractRefResponse(
+                contract.getId(),
+                contract.getCode(),
+                contract.getName(),
+                contract.getStatus().name(),
+                acceptsWorkLogs(contract.getStatus()),
+                new ContractClientResponse(client.id(), client.name(), client.color()));
+    }
+
+    /** RN-306: apenas {@code ACTIVE} e {@code SUSPENDED} aceitam registro de horas. */
+    private boolean acceptsWorkLogs(ContractStatus status) {
+        return status == ContractStatus.ACTIVE || status == ContractStatus.SUSPENDED;
+    }
+
     // ── Apoio ───────────────────────────────────────────────────────────────────────────────
 
     /** Passos 1 a 10 da §6.2, materializando o plano em entidades persistidas. */

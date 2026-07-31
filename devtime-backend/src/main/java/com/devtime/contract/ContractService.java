@@ -62,4 +62,37 @@ public interface ContractService {
      * <p>Interface pública para {@code 007} e {@code 008}. Retorna DTO, não a entidade (AR-02).
      */
     ContractResponse getActiveForWorkLog(UUID contractId);
+
+    /**
+     * Identificador do contrato pelo código legível ({@code CT-0001}).
+     *
+     * <p>Interface pública para {@code 007}: a chave do ticket deriva do código do contrato
+     * (RN-302), e a busca por chave (FA-15) precisa percorrer o caminho inverso.
+     *
+     * @return vazio quando o código não existe no tenant — indistinguível de código de outro
+     *     tenant, por ART-024
+     */
+    java.util.Optional<UUID> findIdByCode(String code);
+
+    /**
+     * Contratos de um cliente.
+     *
+     * <p>Interface pública para {@code 007}: o ticket não desnormaliza o cliente (database.md
+     * §7.7), então filtrar tickets por cliente exige resolver os contratos dele primeiro. Devolver
+     * a lista permite que o filtro seja aplicado na consulta, nunca em memória (IMP-02).
+     */
+    java.util.List<UUID> findIdsByClient(UUID clientId);
+
+    /**
+     * Referência do contrato para embutir em recursos de outras features.
+     *
+     * <p>Interface pública para {@code 007-tickets} e {@code 008-worklogs}. Devolve {@code status}
+     * como texto e {@code acceptsWorkLogs} já decidido, para que a feature consumidora não precise
+     * conhecer {@code ContractStatus} (AR-02) nem reimplementar RN-306.
+     *
+     * <p>Não aplica o escopo de dados de {@code MEMBER}: o consumidor já verificou a permissão do
+     * recurso que a embute, e {@code MEMBER} enxerga todos os tickets do tenant (OB-04 de {@code
+     * specs/007}). O filtro de tenant continua valendo.
+     */
+    com.devtime.contract.dto.ContractResponses.ContractRefResponse getRefById(UUID contractId);
 }

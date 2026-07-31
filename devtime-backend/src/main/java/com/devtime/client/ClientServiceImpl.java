@@ -246,12 +246,24 @@ public class ClientServiceImpl implements ClientService {
         contactRepository.saveAll(contacts);
     }
 
+    /** Identificação sem escopo de MEMBER (ver ClientService#getRefById e OB-04 de specs/007). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CLIENT_VIEW')")
+    public com.devtime.client.dto.ClientResponses.ClientRef getRefById(UUID clientId) {
+        Client client =
+                clientRepository
+                        .findById(clientId)
+                        .orElseThrow(() -> EntityNotFoundException.of(Client.class, clientId));
+        return new com.devtime.client.dto.ClientResponses.ClientRef(
+                client.getId(), client.getName(), client.getColor());
+    }
+
     private Client requireVisible(UUID id) {
         Client client =
                 clientRepository
                         .findById(id)
                         .orElseThrow(() -> EntityNotFoundException.of(Client.class, id));
-        if (!memberScope.isWithinScope()) {
+        if (!memberScope.isWithinScope(id)) {
             // CE-P-05 / CX-13: fora do escopo do papel é 404, nunca 403 — 403 confirmaria que o
             // cliente existe.
             throw EntityNotFoundException.of(Client.class, id);

@@ -54,6 +54,16 @@ public interface ClientService {
     ClientResponse getActiveForContract(UUID clientId);
 
     /**
+     * Identificação do cliente para embutir em recursos de outras features.
+     *
+     * <p>Interface pública para {@code 004-contracts} e, através dela, para {@code 007-tickets}.
+     * <b>Não</b> aplica o escopo de dados de {@code MEMBER} da nota ² — ver a justificativa em
+     * {@link com.devtime.client.dto.ClientResponses.ClientRef}. O filtro de tenant continua valendo
+     * (ART-022): um cliente de outro tenant resulta em {@code 404}.
+     */
+    com.devtime.client.dto.ClientResponses.ClientRef getRefById(UUID clientId);
+
+    /**
      * Ajusta {@code activeContractsCount} após uma transição de contrato (entities.md §9).
      *
      * <p>Existe para que a atualização do campo desnormalizado permaneça dentro da feature dona do

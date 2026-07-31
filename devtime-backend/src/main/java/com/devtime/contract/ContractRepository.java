@@ -17,6 +17,10 @@ public interface ContractRepository extends SoftDeleteRepository<Contract> {
     @Query("SELECT COUNT(c) > 0 FROM Contract c WHERE c.code = :code")
     boolean existsByCode(@Param("code") String code);
 
+    /** Caminho inverso da chave do ticket (RN-302): do código legível ao identificador. */
+    @Query("SELECT c FROM Contract c WHERE c.code = :code")
+    Optional<Contract> findByCode(@Param("code") String code);
+
     /**
      * Maior código já emitido no tenant, base do próximo sequencial.
      *

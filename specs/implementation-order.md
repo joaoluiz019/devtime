@@ -257,15 +257,15 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ |
 | 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_PARTIAL` ² |
 | 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ |
-| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ |
+| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ |
 | 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 009 | Timer | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 014 | Comments | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
 | 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 
 > Atualizar a coluna **Status** é obrigatório no PR que conclui a feature (MN-03).
@@ -278,6 +278,14 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | ² | `004` — recorte S3 entregue: CRUD, código sequencial, prévia, máquina de estados completa, geração do 1º período na ativação, retomada com períodos faltantes, truncamento e histórico. Pendentes de S4: jobs `GeneratePeriodsJob`, `OpenScheduledPeriodsJob`, `AutoEndContractsJob` e `ContractEndingReminderJob`; guarda de cronômetro ativo (depende de `009`) |
 | ³ | `005` — backend completo exceto a migração de work logs na exclusão (RN-505) e a estatística de uso, ambas dependentes de `008`; o seed é exposto por `CategoryService.seedDefaults` e deve ser acionado por `002` na criação do tenant |
 
+**Notas da sprint S4 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ⁴ | `006` — backend completo (CRUD com normalização, unicidade do nome normalizado, vínculo com limite de 10, `usageCount` transacional, exclusão removendo vínculos, sugestões de limpeza). Pendentes: `work_log_tags` e `TagLinkService.linkToWorkLog`, que dependem de `008` (CE-O-03); `TagService.getAllForReport`, que só tem consumidor em `012`; e o `TagCleanupSuggestionJob`, cujo instante exato de orfandade exigiria um campo que `entities.md` §6.11 não define — as sugestões são calculadas ao vivo sobre `idx_tags_tenant_orphan` |
+| ⁵ | `007` — backend completo (CRUD, chave derivada com sequência atômica por contrato, máquina de 7 estados com as 49 células, atribuição, movimentação de contrato, exclusão restrita, totais por incremento, quadro em consulta única, linha do tempo). Pendentes: `ActiveTimerGuard` consulta `TimerService` quando `009` existir; `TicketWorkLogGate` passa a contar work logs reais com `008`; work logs na linha do tempo e o escopo de horas de `MEMBER` entram com `008`; `DenormalizationReconcileJob` depende da agregação de `008` |
+| ⁶ | `014` — backend completo (CRUD, hierarquia de um nível normalizada na escrita, menções resolvidas em lote, janela de 24h, moderação, comentários de sistema nos três gatilhos de RN-815). Fecha a dívida OB-06 de `007`. Pendente: `existsForComment` publicado, sem consumidor até `015` |
+
 **Interfaces públicas publicadas nesta sprint:**
 
 | Interface | Consumidor previsto |
@@ -289,7 +297,17 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `ContractService.getActiveForWorkLog(contractId)` | `007`, `008` (RN-306) |
 | `ContractPeriodService.resolveOpenPeriod(contractId, workDate)` | `008` (RN-107) |
 | `ContractPeriodService.getCurrentPeriod(contractId)` | `010`, `011` |
-| `AuditService.record(...)` · `recordSystemAction(...)` | Toda feature com entidade auditável (RN-006) |
+| `AuditService.record(...)` · `recordSystemAction(...)` · `findByEntity(...)` | Toda feature com entidade auditável (RN-006); a leitura serve à linha do tempo de `007` |
+| `ContractService.findIdByCode(code)` · `findIdsByClient(clientId)` | `007` (busca por chave e filtro por cliente) |
+| `MembershipService.isActiveMember(userId)` · `activeMemberIds()` | `007` (RN-304), `014` (RN-813) |
+| `UserService.findSummaries(...)` · `summaryOf(...)` · `findByHandles(...)` | `007`, `014` (exibição e menções) |
+| `TagService.resolveOrCreate(rawName)` · `findOptions(ids)` | `007`, `008` |
+| `TagLinkService.replaceTicketTags(...)` · `findByTicketIds(...)` · `ticketIdsWithAllTags(...)` | `007` |
+| `TicketService.getForWorkLog(ticketId)` · `getKeyById(ticketId)` | `008`, `009`, `012`, `013` |
+| `TicketTotalsService.applyWorkLogDelta(ticketId, spentDelta, billableDelta)` | `008` (RN-308) |
+| `TicketTransitionService.reopenOnWorkLog(ticketId, workLogId)` | `008` (RN-312) |
+| `TicketActivitySource.activityOf(ticketId)` | Implementada por `014`; `008` acrescenta os work logs |
+| `SystemCommentService.emit(...)` · `CommentService.existsForComment(...)` | `007` (RN-815), `015` (INV-ATT-01) |
 
 ---
 

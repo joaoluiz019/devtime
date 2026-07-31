@@ -414,16 +414,20 @@ Sincronizado com `devtime-backend/src/main/java/com/devtime/category` (T-005-22)
 
 ## 9. Tags
 
+**Permissão:** `TAG_VIEW` para leitura, `TAG_MANAGE` para escrita. `MEMBER` possui `TAG_MANAGE` (§7 de `permissions.md`): a tag é anotação de quem executa, não taxonomia de relatório.
+
 ### 9.1 `GET /api/v1/tags`
 
 **Filtros:** `search`, `minUsage`.
-**Ordenação padrão:** `usageCount,desc`.
+**Ordenação padrão:** `usageCount,desc`, com desempate estável por `name`.
+
+> O termo de `search` passa pela **mesma normalização do nome** (RN-506) antes da comparação. Sem isso, procurar por `"Code Review"` não encontraria `code-review` — o usuário digita como fala, mas o dado está normalizado.
 
 ```json
 {
   "content": [
-    { "id": "...", "name": "urgente", "color": "#EF4444", "usageCount": 34 },
-    { "id": "...", "name": "refatoracao", "color": "#8B5CF6", "usageCount": 12 }
+    { "id": "...", "name": "urgente", "color": "#EF4444", "usageCount": 34, "version": 3 },
+    { "id": "...", "name": "refatoracao", "color": "#8B5CF6", "usageCount": 12, "version": 1 }
   ]
 }
 ```
@@ -432,18 +436,51 @@ Sincronizado com `devtime-backend/src/main/java/com/devtime/category` (T-005-22)
 
 **Request:** `{ "name": "Code Review", "color": "#06B6D4" }`
 
-**Normalização (RN-506):** `"Code Review"` → `"code-review"`. A resposta retorna o nome já normalizado.
+**Normalização (RN-506):** `"Code Review"` → `"code-review"`. A resposta retorna o nome já normalizado — o usuário precisa ver imediatamente o que foi de fato criado, sob pena de a normalização parecer defeito.
 
 | Status | Código | Situação |
 |---|---|---|
+| `201` | — | Criada, com `Location` e o nome normalizado |
 | `409` | `DEVTIME-2604` | Tag já existe (após normalização) |
-| `422` | `DEVTIME-2000` | Nome com menos de 2 ou mais de 40 caracteres |
+| `422` | `DEVTIME-2000` | Nome com menos de 2 ou mais de 40 caracteres **após a normalização** |
 
-### 9.3 `DELETE /api/v1/tags/{id}`
+> O limite de 60 caracteres no campo bruto é apenas proteção contra payload abusivo. A regra de negócio (RN-507) incide sobre o nome **armazenado**: uma entrada de 60 caracteres cheia de espaços pode normalizar para 38 e é legítima.
+
+### 9.3 `PATCH /api/v1/tags/{id}`
+
+Renomeia ou altera a cor. Campos nulos preservam o valor atual. `version` é obrigatório (RN-004). Vínculos e `usageCount` são preservados na renomeação.
+
+| Status | Código | Situação |
+|---|---|---|
+| `409` | `DEVTIME-2604` | O novo nome normalizado já pertence a outra tag |
+| `409` | `DEVTIME-2004` | Conflito de versão |
+| `404` | `DEVTIME-2002` | Inexistente ou de outro tenant |
+
+### 9.4 `DELETE /api/v1/tags/{id}`
 
 Remove a tag e todos os seus vínculos. Não afeta os tickets nem os registros de horas em si.
 
+Responde `200`, e não `204`, porque o usuário precisa saber quantos registros perderam um rótulo.
+
 **Response `200 OK`:** `{ "unlinkedFromTickets": 12, "unlinkedFromWorkLogs": 45 }`
+
+### 9.5 `GET /api/v1/tags/autocomplete`
+
+**Query:** `term`. Devolve no máximo **20** sugestões, limitadas no servidor — a consulta dispara a cada tecla digitada, e um limite apenas no cliente ainda trafegaria a lista inteira.
+
+```json
+[{ "id": "...", "name": "code-review", "color": "#06B6D4" }]
+```
+
+### 9.6 `GET /api/v1/tags/cleanup-suggestions`
+
+Tags com `usageCount = 0` há mais de 90 dias (RN-508). **Apenas sugere**: nenhuma exclusão é automática — excluir vocabulário que o usuário pode retomar, sem que ele tenha pedido, é destruição de dado.
+
+```json
+{ "tags": [{ "id": "...", "name": "migracao-v1", "color": "#94A3B8",
+             "orphanSince": "2026-03-01T10:00:00-03:00" }],
+  "orphanDays": 90 }
+```
 
 ---
 

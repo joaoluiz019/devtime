@@ -79,6 +79,22 @@ public final class ClientResponses {
             int activeContractsCount,
             Instant createdAt) {}
 
+    /**
+     * Identificação enxuta do cliente, embutida em recursos de outras features.
+     *
+     * <p>Existe porque um ticket exibe a que cliente pertence (tickets.md §7) e {@code MEMBER}
+     * enxerga <b>todos</b> os tickets do tenant (§9 de permissions.md, OB-04 de specs/007). Sem
+     * esta referência, o escopo de dados da nota ² — que restringe a <b>carteira</b> de clientes —
+     * também esconderia o nome do cliente dentro de um ticket que o membro tem direito de ver,
+     * tornando a tela inútil.
+     *
+     * <p>A consequência aceita e documentada em OB-04 é que {@code MEMBER} enxerga o nome dos
+     * clientes através dos tickets. O que a nota ² protege continua protegido: listar e detalhar
+     * clientes segue restrito ao vínculo.
+     */
+    @Schema(name = "ClientRef")
+    public record ClientRef(UUID id, String name, String color) {}
+
     /** clients.md §9.2. */
     @Schema(name = "ClientDeactivationResponse")
     public record ClientDeactivationResponse(ClientStatus status, DeactivationImpact impact) {}
