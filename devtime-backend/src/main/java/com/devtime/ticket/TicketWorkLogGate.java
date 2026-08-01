@@ -1,27 +1,33 @@
 package com.devtime.ticket;
 
 import com.devtime.ticket.domain.Ticket;
+import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
  * Existência de horas registradas no ticket, consultada por RN-305 e RN-307.
  *
- * <p><b>Estado nesta sprint:</b> {@code 008-worklogs} não foi implementada e a tabela {@code
- * work_logs} não existe (database.md §8.1, V016). Sem {@code WorkLogService} para consultar — e
- * BR-002 proíbe alcançar um repositório de outra feature —, a existência de horas é derivada de
- * {@code spentMinutes}.
+ * <p>Com {@code 008-worklogs} entregue, a contagem é <b>real</b> e chega por {@link
+ * TicketWorkLogCountSource}. Até aqui era derivada de {@code spentMinutes}: a derivação era exata —
+ * RN-115 exige {@code netMinutes > 0} e RN-308 mantém {@code spentMinutes} como a soma desses
+ * valores —, mas dependia de essa cadeia permanecer verdadeira. A contagem direta não depende de
+ * nada.
  *
- * <p><b>Por que a derivação é exata, e não uma aproximação:</b> RN-115 exige {@code netMinutes > 0}
- * em todo work log, e RN-308 mantém {@code spentMinutes} como a soma desses valores, reduzida na
- * exclusão (RN-125). Logo {@code spentMinutes > 0} se e somente se existe ao menos um work log não
- * excluído. Quando {@code 008} publicar {@code WorkLogService.countByTicket}, a contagem real
- * substitui esta derivação neste ponto único — e as guardas não mudam.
+ * <p>A inversão é obrigatória, não estilística: {@code worklog} depende de {@code ticket} por
+ * RN-101, e injetar {@code WorkLogService} aqui fecharia um ciclo entre features (AR-09, BR-008).
  */
 @Component
+@RequiredArgsConstructor
 public class TicketWorkLogGate {
+
+    private final List<TicketWorkLogCountSource> workLogSources;
 
     /** RN-305, RN-307: o ticket possui horas apuradas. */
     public boolean hasWorkLogs(Ticket ticket) {
-        return ticket.getSpentMinutes() > 0;
+        return workLogSources.stream()
+                        .mapToLong(source -> source.countByTicket(ticket.getId()))
+                        .sum()
+                > 0;
     }
 }

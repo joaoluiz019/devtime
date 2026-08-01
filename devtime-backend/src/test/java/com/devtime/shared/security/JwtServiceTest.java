@@ -288,7 +288,8 @@ class JwtServiceTest {
     }
 
     private static DevTimeProperties.MailProps mailProps() {
-        return new DevTimeProperties.MailProps("nao-responda@devtime.test");
+        return new DevTimeProperties.MailProps(
+                "nao-responda@devtime.test", DevTimeProperties.MailProps.MailProvider.SMTP, null);
     }
 
     private static DevTimeProperties.SecurityProps securityProps(String secret) {

@@ -52,6 +52,7 @@ public class TagServiceImpl implements TagService {
 
     private final TagRepository repository;
     private final TicketTagRepository ticketTagRepository;
+    private final WorkLogTagRepository workLogTagRepository;
     private final TagMapper mapper;
     private final TagNormalizer normalizer;
     private final TagNameValidator nameValidator;
@@ -142,8 +143,8 @@ public class TagServiceImpl implements TagService {
         int usageCount = tag.getUsageCount();
 
         long unlinkedFromTickets = ticketTagRepository.deleteByTagId(id); // INV-TAG-05
-        // work_log_tags chega com 008-worklogs (CE-O-03): sem a tabela, nenhum vínculo existe.
-        long unlinkedFromWorkLogs = 0L;
+        // Dívida CE-O-03 quitada: work_log_tags passou a existir com 008-worklogs (V028).
+        long unlinkedFromWorkLogs = workLogTagRepository.deleteByTagId(id);
 
         repository.softDelete(
                 id, clock.now(), tenantContext.currentUserId().orElse(null)); // RN-003

@@ -112,6 +112,20 @@ public final class ContractExceptions {
                 "A justificativa deve ter no mínimo 10 caracteres");
     }
 
+    /**
+     * RN-306: contrato {@code ENDED} ou {@code CANCELLED} não aceita registro de horas.
+     *
+     * <p>Existe aqui, e não apenas em {@code TicketExceptions}, porque a regra é do contrato:
+     * quando {@code 008} e {@code 009} perguntam por {@code getWorkLogRef}, quem responde é a
+     * feature dona do estado.
+     */
+    public static BusinessRuleException notAcceptingWork(String status) {
+        return new InvalidContractTypeException(
+                ErrorCode.CONTRACT_NOT_ACCEPTING_WORK,
+                "contractId",
+                "Contrato em " + status + " não aceita registros de horas");
+    }
+
     /** RN-216: falha de contiguidade — corrupção estrutural, não erro do usuário. */
     public static BusinessRuleException contiguityViolation(
             UUID contractId, LocalDate expected, LocalDate found) {

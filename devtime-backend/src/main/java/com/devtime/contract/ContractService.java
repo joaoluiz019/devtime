@@ -95,4 +95,17 @@ public interface ContractService {
      * specs/007}). O filtro de tenant continua valendo.
      */
     com.devtime.contract.dto.ContractResponses.ContractRefResponse getRefById(UUID contractId);
+
+    /**
+     * Contrato apto a receber registro de horas, com a vigência e a política de excedente.
+     *
+     * <p>Interface pública para {@code 008-worklogs} e {@code 009-timer}. Diferente de {@link
+     * #getRefById(UUID)}, aplica RN-306 — falha com {@code DEVTIME-2306} quando o contrato está
+     * {@code ENDED} ou {@code CANCELLED} — e carrega o que RN-117 e RN-231 exigem.
+     *
+     * @throws com.devtime.shared.error.EntityNotFoundException {@code DEVTIME-2002} quando
+     *     inexistente ou de outro tenant
+     */
+    com.devtime.contract.dto.ContractResponses.ContractWorkLogRefResponse getWorkLogRef(
+            UUID contractId);
 }

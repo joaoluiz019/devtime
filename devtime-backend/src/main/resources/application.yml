@@ -115,6 +115,12 @@ devtime:
     base-url: ${APP_BASE_URL}
   mail:
     from: ${MAIL_FROM}
+    # integrations.md §6.1: smtp | resend. Lido apenas em staging e prod — em local e test o
+    # LoggingMailAdapter atende MailPort sem abrir conexão (BR-203).
+    provider: ${MAIL_PROVIDER:smtp}
+    # ART-083: chave do Resend só por variável de ambiente. Obrigatória quando provider=resend;
+    # a validação de MailProps recusa a inicialização se faltar (CF-03).
+    resend-api-key: ${RESEND_API_KEY:}
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS}
   security:
@@ -169,6 +175,8 @@ devtime:
     base-url: ${APP_BASE_URL:http://localhost:4200}
   mail:
     from: ${MAIL_FROM:nao-responda@devtime.test}
+    provider: ${MAIL_PROVIDER:smtp}
+    resend-api-key: ${RESEND_API_KEY:}
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS:http://localhost:4200}
   security:

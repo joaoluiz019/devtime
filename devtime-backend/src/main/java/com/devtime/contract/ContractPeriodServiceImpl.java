@@ -1,6 +1,8 @@
 package com.devtime.contract;
 
 import com.devtime.contract.domain.ContractPeriod;
+import com.devtime.contract.domain.PeriodStatus;
+import com.devtime.contract.dto.ContractResponses.ContractPeriodRefResponse;
 import com.devtime.contract.dto.ContractResponses.ContractPeriodResponse;
 import com.devtime.shared.error.EntityNotFoundException;
 import java.time.LocalDate;
@@ -50,5 +52,49 @@ public class ContractPeriodServiceImpl implements ContractPeriodService {
         return repository
                 .findByContractIdAndDate(contractId, workDate)
                 .map(mapper::toPeriodResponse);
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(null, 'PERIOD_VIEW')")
+    public Optional<ContractPeriodRefResponse> resolvePeriodRef(
+            UUID contractId, LocalDate workDate) {
+        return repository.findByContractIdAndDate(contractId, workDate).map(this::toRef);
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(null, 'PERIOD_VIEW')")
+    public ContractPeriodRefResponse getRefById(UUID periodId) {
+        return toRef(
+                repository
+                        .findById(periodId)
+                        .orElseThrow(
+                                () -> EntityNotFoundException.of(ContractPeriod.class, periodId)));
+    }
+
+    /**
+     * §4.6 de state-machines.md: {@code OPEN} e {@code REOPENED} aceitam escrita de work log.
+     *
+     * <p>A decisão é tomada aqui e viaja pronta na referência, para que {@code 008} não precise
+     * conhecer {@code PeriodStatus} nem reimplementar a leitura da máquina de estados (AR-02).
+     */
+    private ContractPeriodRefResponse toRef(ContractPeriod period) {
+        boolean acceptsWorkLogs =
+                period.getStatus() == PeriodStatus.OPEN
+                        || period.getStatus() == PeriodStatus.REOPENED;
+        return new ContractPeriodRefResponse(
+                period.getId(),
+                period.getContractId(),
+                period.getSequence(),
+                period.getLabel(),
+                period.getStartDate(),
+                period.getEndDate(),
+                period.getStatus().name(),
+                acceptsWorkLogs,
+                period.getContractedMinutes(),
+                period.getCarriedInMinutes(),
+                period.getAdjustmentMinutes(),
+                period.getConsumedMinutes(),
+                period.getNonBillableMinutes(),
+                period.getCurrency());
     }
 }

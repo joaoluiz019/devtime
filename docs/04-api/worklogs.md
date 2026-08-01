@@ -681,7 +681,32 @@ sequenceDiagram
 | CA-11 | Registro travado nunca pode ser editado nem excluído |
 | CA-12 | `MEMBER` não consulta registros de outros usuários |
 
-## 14. Dependências e impactos
+## 14. Estado da implementação (sprints S5 e S6 — backend)
+
+Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/worklog` e `.../timer`
+(specs `008` e `009`).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `POST /work-logs` | ✅ Implementado | Ordem normativa da §6.1 da spec aplicada na sequência exata; a resposta traz o saldo do período **já atualizado** e `warnings[]` sob `OveragePolicy = WARN` |
+| `GET /work-logs` e `GET /work-logs/{id}` | ✅ Implementado | Projeção sem `description`; escopo de `MEMBER` por `Specification`, inclusive na contagem da paginação |
+| `PUT /work-logs/{id}` e `DELETE /work-logs/{id}` | ✅ Implementados | Revalidam a §6.1 integralmente; RN-121 e RN-124 aplicados no serviço, não só no controller |
+| `POST /work-logs/{id}/duplicate` | ✅ Implementado | Exige novo horário; o mesmo intervalo é rejeitado por RN-102 |
+| `POST /work-logs/validate` | ✅ Implementado | Relata **todos** os problemas de uma vez; serviço inteiramente `readOnly` — nada é persistido |
+| `GET /work-logs/calendar` e `/totals` | ✅ Implementados | Agrupamento por `workDate`, que já é a data local do tenant |
+| `GET`, `POST`, `PATCH /timers/current` · `pause` · `resume` · `stop` · `DELETE` | ✅ Implementados | Estado 100% no servidor; o cliente calcula o tempo decorrido localmente |
+| `GET /timers/abandoned` e `POST /timers/{id}/recover` | ✅ Implementados | Janela de 7 dias; o `endedAt` é informado pelo usuário, nunca inventado |
+| `GET /timers/active` e `POST /timers/{id}/force-stop` | ✅ Implementados | A visão de equipe omite descrição e histórico de pausas (§19.1 da spec) |
+| RN-160 — preservação do cronômetro | ✅ Garantida por construção | O estado só muda **depois** de o work log existir; qualquer falha reverte a transação |
+| `TimerMonitorJob` e `AbandonedTimerCleanupJob` | ✅ Implementados | O monitor marca `ABANDONED` e notifica; **não** encerra nem gera work log |
+| `WorkLogConsistencyJob` | ✅ Implementado | Detecta e alerta; **nunca** corrige (CP-17) |
+| 3º elo da cadeia de RN-104 (preferência do usuário) | ⚠️ Pendente | Depende de `002-users` expor preferências; a cadeia degrada para ticket → contrato → primeira ativa |
+| Teste de concorrência (T-008-36) e de desempenho com 100k registros (T-008-43) | ⚠️ Pendentes | Exigem carga real; RN-102 se apoia na validação, no índice dedicado e no job de detecção |
+| Notificações `TIMER_LONG_RUNNING`, `TIMER_ABANDONED`, `CONTRACT_OVERAGE` | ⚠️ Eventos publicados | A entrega pertence a `013-notifications` |
+| Frontend P21–P23 e componente global de cronômetro | ⚠️ Fora do escopo | Não solicitado nas sprints |
+| `source = IMPORT` e `AI_SUGGESTION` | ℹ️ Sem caminho de entrada | Reservados; reusarão `WorkLogService.create` pelo mesmo motivo de RN-159 |
+
+## 15. Dependências e impactos
 
 | Documento | Relação |
 |---|---|

@@ -5,6 +5,7 @@ import com.devtime.shared.tenancy.TenantContext;
 import com.devtime.shared.time.TenantClock;
 import com.devtime.tag.domain.Tag;
 import com.devtime.tag.domain.TicketTagLink;
+import com.devtime.tag.domain.WorkLogTagLink;
 import com.devtime.tag.dto.TagRequests.TagLinkRequest;
 import com.devtime.tag.dto.TagResponses.TagOptionResponse;
 import java.util.ArrayList;
@@ -29,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TagLinkServiceImpl implements TagLinkService {
 
     private final TicketTagRepository ticketTagRepository;
+    private final WorkLogTagRepository workLogTagRepository;
     private final TagRepository tagRepository;
     private final TagMapper mapper;
     private final TagLinkPolicy linkPolicy;
@@ -142,6 +144,102 @@ public class TagLinkServiceImpl implements TagLinkService {
     }
 
     @Override
+    @Transactional
+    public List<TagOptionResponse> replaceWorkLogTags(UUID workLogId, Collection<UUID> tagIds) {
+        Set<UUID> desired = tagIds == null ? Set.of() : new LinkedHashSet<>(tagIds);
+        linkPolicy.assertWithinLimit(workLogId, desired.size()); // INV-TAG-01
+
+        List<Tag> resolved = assertAllExistInTenant(desired);
+        Set<UUID> current = Set.copyOf(workLogTagRepository.findTagIdsByWorkLogId(workLogId));
+
+        Set<UUID> toRemove =
+                current.stream().filter(id -> !desired.contains(id)).collect(Collectors.toSet());
+        List<UUID> toAdd = desired.stream().filter(id -> !current.contains(id)).toList();
+
+        if (!toRemove.isEmpty()) {
+            workLogTagRepository.deleteByWorkLogIdAndTagIdIn(workLogId, toRemove);
+            usageCounter.decrement(toRemove); // INV-TAG-04
+        }
+        if (!toAdd.isEmpty()) {
+            toAdd.forEach(tagId -> workLogTagRepository.save(newWorkLogLink(workLogId, tagId)));
+            usageCounter.increment(toAdd);
+        }
+        if (!toRemove.isEmpty() || !toAdd.isEmpty()) {
+            log.info(
+                    "etiquetas do work log atualizadas workLogId={} adicionadas={} removidas={}",
+                    workLogId,
+                    toAdd.size(),
+                    toRemove.size());
+        }
+        return orderedOptions(resolved, desired);
+    }
+
+    @Override
+    public List<TagOptionResponse> findByWorkLogId(UUID workLogId) {
+        List<UUID> tagIds = workLogTagRepository.findTagIdsByWorkLogId(workLogId);
+        if (tagIds.isEmpty()) {
+            return List.of();
+        }
+        return mapper.toOptions(tagRepository.findAllByIdIn(tagIds));
+    }
+
+    @Override
+    public Map<UUID, List<TagOptionResponse>> findByWorkLogIds(Collection<UUID> workLogIds) {
+        if (workLogIds == null || workLogIds.isEmpty()) {
+            return Map.of();
+        }
+        List<WorkLogTagLink> links = workLogTagRepository.findByWorkLogIdIn(workLogIds);
+        if (links.isEmpty()) {
+            return Map.of();
+        }
+        Map<UUID, TagOptionResponse> byTagId =
+                tagRepository
+                        .findAllByIdIn(
+                                links.stream()
+                                        .map(WorkLogTagLink::getTagId)
+                                        .collect(Collectors.toSet()))
+                        .stream()
+                        .collect(Collectors.toMap(Tag::getId, mapper::toOption));
+
+        Map<UUID, List<TagOptionResponse>> byWorkLog = new HashMap<>();
+        for (WorkLogTagLink link : links) {
+            TagOptionResponse option = byTagId.get(link.getTagId());
+            if (option != null) {
+                byWorkLog
+                        .computeIfAbsent(link.getWorkLogId(), key -> new ArrayList<>())
+                        .add(option);
+            }
+        }
+        byWorkLog
+                .values()
+                .forEach(
+                        options ->
+                                options.sort(
+                                        java.util.Comparator.comparing(TagOptionResponse::name)));
+        return byWorkLog;
+    }
+
+    @Override
+    @Transactional
+    public void unlinkAllFromWorkLog(UUID workLogId) {
+        List<UUID> tagIds = workLogTagRepository.findTagIdsByWorkLogId(workLogId);
+        if (tagIds.isEmpty()) {
+            return;
+        }
+        workLogTagRepository.deleteByWorkLogId(workLogId);
+        usageCounter.decrement(tagIds); // INV-TAG-04
+    }
+
+    @Override
+    public List<UUID> workLogIdsWithAllTags(Collection<UUID> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return List.of();
+        }
+        Set<UUID> distinct = Set.copyOf(tagIds);
+        return workLogTagRepository.findWorkLogIdsWithAllTags(distinct, distinct.size());
+    }
+
+    @Override
     public List<UUID> ticketIdsWithAllTags(Collection<UUID> tagIds) {
         if (tagIds == null || tagIds.isEmpty()) {
             return List.of();
@@ -175,6 +273,18 @@ public class TagLinkServiceImpl implements TagLinkService {
         Map<UUID, TagOptionResponse> byId =
                 tags.stream().collect(Collectors.toMap(Tag::getId, mapper::toOption));
         return desiredOrder.stream().map(byId::get).filter(java.util.Objects::nonNull).toList();
+    }
+
+    private WorkLogTagLink newWorkLogLink(UUID workLogId, UUID tagId) {
+        WorkLogTagLink link = new WorkLogTagLink();
+        link.setWorkLogId(workLogId);
+        link.setTagId(tagId);
+        // Mesma razão de newLink: a entidade de junção não estende BaseEntity, então o
+        // AuditListener não a alcança e o tenant precisa ser atribuído aqui (ART-021).
+        link.setTenantId(tenantContext.requireTenantId());
+        link.setCreatedAt(clock.now());
+        link.setCreatedBy(tenantContext.currentUserId().orElse(null));
+        return link;
     }
 
     private TicketTagLink newLink(UUID ticketId, UUID tagId) {

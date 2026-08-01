@@ -62,10 +62,42 @@ public interface TicketService {
     TicketResponse getForWorkLog(UUID ticketId);
 
     /**
+     * Ticket apto a receber horas, na forma que {@code 008} e {@code 009} conseguem consumir.
+     *
+     * <p>{@link TicketResponse} expõe os enums de {@code ticket.domain}, que AR-02 proíbe às
+     * features consumidoras. Esta referência traz apenas o que elas usam: os identificadores a
+     * copiar para o work log (RN-109), a chave legível e a categoria padrão da cadeia de RN-104.
+     *
+     * <p>Aplica RN-306 como {@link #getForWorkLog(UUID)}: contrato encerrado responde {@code
+     * DEVTIME-2306}.
+     */
+    com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse getRefForWorkLog(UUID ticketId);
+
+    /**
+     * A mesma referência, <b>sem</b> aplicar RN-306.
+     *
+     * <p>Existe para exibição, onde recusar é o comportamento errado: um cronômetro em execução
+     * cujo contrato foi encerrado no meio do trabalho precisa continuar visível (CX-04, CX-22 de
+     * {@code specs/009}). É o encerramento dele que falhará em RN-306, com a orientação de mover o
+     * ticket — e para isso o usuário precisa antes conseguir ver o cronômetro.
+     */
+    com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse getRef(UUID ticketId);
+
+    /**
      * Chave legível do ticket.
      *
      * <p>Interface pública para {@code 012-reports} e {@code 013-notifications}: o relatório e a
      * notificação exibem {@code CT-0001-42}, não um UUID.
      */
     String getKeyById(UUID ticketId);
+
+    /**
+     * Identificadores dos tickets de um contrato.
+     *
+     * <p>Interface pública para {@code 011-bank-hours}: RN-240 precisa saber se existe cronômetro
+     * ativo em algum ticket do contrato antes de fechar o período, e {@code timers} não
+     * desnormaliza o contrato. Resolver os tickets aqui mantém cada consulta dentro da feature dona
+     * da sua tabela (AR-02).
+     */
+    List<UUID> findIdsByContract(UUID contractId);
 }

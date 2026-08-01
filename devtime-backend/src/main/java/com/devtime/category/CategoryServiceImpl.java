@@ -43,6 +43,7 @@ public class CategoryServiceImpl implements CategoryService {
     private final CategoryNameUniquenessValidator nameUniquenessValidator;
     private final SystemCategoryGuard systemCategoryGuard;
     private final CategoryReplacementValidator replacementValidator;
+    private final DefaultCategoryResolver defaultCategoryResolver;
     private final TenantContext tenantContext;
     private final TenantClock clock;
 
@@ -68,6 +69,22 @@ public class CategoryServiceImpl implements CategoryService {
     @PreAuthorize("hasPermission(null, 'CATEGORY_VIEW')")
     public CategoryResponse getById(UUID id) {
         return mapper.toResponse(require(id));
+    }
+
+    /**
+     * RN-104 (ver {@link CategoryService#resolveForWorkLog}).
+     *
+     * <p>Delega a {@link DefaultCategoryResolver}, que já implementa a cadeia e o desempate
+     * determinístico. O que este método acrescenta é a fronteira: a entidade fica dentro da feature
+     * e o consumidor recebe DTO (AR-02).
+     */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CATEGORY_VIEW')")
+    public java.util.Optional<CategoryResponse> resolveForWorkLog(
+            UUID ticketCategoryId, UUID contractCategoryId, UUID userCategoryId) {
+        return defaultCategoryResolver
+                .resolveDefault(ticketCategoryId, contractCategoryId, userCategoryId)
+                .map(mapper::toResponse);
     }
 
     @Override

@@ -38,6 +38,10 @@ public interface TicketRepository extends SoftDeleteRepository<Ticket> {
     @Query("SELECT t FROM Ticket t WHERE t.id IN :ids")
     List<Ticket> findAllByIdIn(@Param("ids") Collection<UUID> ids);
 
+    /** RN-240: tickets do contrato, para localizar cronômetros ativos antes do fechamento. */
+    @Query("SELECT t.id FROM Ticket t WHERE t.contractId = :contractId")
+    List<UUID> findIdsByContractId(@Param("contractId") UUID contractId);
+
     /**
      * Quadro (kanban) em <b>uma</b> consulta agrupada.
      *

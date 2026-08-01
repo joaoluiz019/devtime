@@ -338,6 +338,40 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse getRefForWorkLog(
+            UUID ticketId) {
+        Ticket ticket = require(ticketId);
+        // RN-306, na mesma ordem da §6.1 de 008: o ticket existe no tenant, depois o contrato dele
+        // aceita registro. Quem responde é a feature dona do ticket.
+        return toWorkLogRef(ticket, requireContractAcceptingWork(ticket.getContractId()));
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse getRef(UUID ticketId) {
+        Ticket ticket = require(ticketId);
+        return toWorkLogRef(ticket, requireContract(ticket.getContractId()));
+    }
+
+    private com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse toWorkLogRef(
+            Ticket ticket, ContractRefResponse contract) {
+        return new com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse(
+                ticket.getId(),
+                keyBuilder.build(contract.code(), ticket.getNumber()),
+                ticket.getTitle(),
+                contract.id(),
+                contract.client() == null ? null : contract.client().id(),
+                ticket.getDefaultCategoryId());
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public List<UUID> findIdsByContract(UUID contractId) {
+        return repository.findIdsByContractId(contractId);
+    }
+
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
     public String getKeyById(UUID ticketId) {
         return keyOf(require(ticketId));
     }

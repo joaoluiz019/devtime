@@ -66,8 +66,8 @@ class CrossTenantRulesTest {
     }
 
     @Test
-    @DisplayName("ART-023: consultas globais estão restritas às tabelas sem tenant_id")
-    void crossTenantMustOnlyTargetGlobalTables() {
+    @DisplayName("ART-023: toda consulta global pertence a um repositório com exceção justificada")
+    void crossTenantMustOnlyTargetApprovedRepositories() {
         List<String> owners =
                 annotatedMethods().stream()
                         .map(method -> method.getOwner().getSimpleName())
@@ -78,12 +78,16 @@ class CrossTenantRulesTest {
         assertThat(owners)
                 .as(
                         "users, refresh_tokens e verification_tokens não possuem tenant_id"
-                                + " (ART-013); memberships é a exceção justificada da seleção de tenant")
+                                + " (ART-013); memberships é a exceção da seleção de tenant;"
+                                + " TimerRepository é a exceção de RN-150 — o limite de um cronômetro"
+                                + " ativo é por usuário entre TODOS os tenants (CE-13), e com filtro de"
+                                + " tenant a regra seria inaplicável")
                 .containsOnly(
                         "UserRepository",
                         "MembershipRepository",
                         "RefreshTokenRepository",
-                        "VerificationTokenRepository");
+                        "VerificationTokenRepository",
+                        "TimerRepository");
     }
 
     private List<JavaMethod> annotatedMethods() {

@@ -8,6 +8,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 import com.devtime.audit.domain.AuditLog;
 import com.devtime.shared.persistence.BaseEntity;
 import com.devtime.tag.domain.TicketTagLink;
+import com.devtime.tag.domain.WorkLogTagLink;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -47,8 +48,9 @@ class PersistenceRulesTest {
                 // própria, nada nela é editável (o vínculo existe ou não existe) e §9.3 de
                 // specs/006-tags determina a remoção física das linhas na exclusão da etiqueta.
                 // P-03 protege entidade de domínio; uma aresta entre duas não é dado de negócio.
+                // work_log_tags (V028) é a mesma tabela de junção para o outro alvo de etiqueta.
                 .and()
-                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class)
+                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class, WorkLogTagLink.class)
                 .should()
                 .beAssignableTo(BaseEntity.class)
                 .because("ART-050: identidade, auditoria, soft delete e version vêm de um lugar só")
@@ -78,9 +80,10 @@ class PersistenceRulesTest {
                 .that()
                 .areAnnotatedWith(Entity.class)
                 // audit_logs não possui deleted_at (INV-AUD-01); ticket_tags também não, porque a
-                // desvinculação é remoção física da aresta (§9.3 de specs/006-tags).
+                // desvinculação é remoção física da aresta (§9.3 de specs/006-tags), o mesmo
+                // valendo para work_log_tags.
                 .and()
-                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class)
+                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class, WorkLogTagLink.class)
                 .should()
                 .beAnnotatedWith(SQLRestriction.class)
                 .because(

@@ -105,6 +105,19 @@ public enum ErrorCode {
     ALREADY_MEMBER("DEVTIME-2459", HttpStatus.CONFLICT, "error.membership.alreadyMember"),
 
     // ── Work logs e classificação · DEVTIME-2100–2199 (worklogs.md) ─────────────────────────
+    /** RN-101: registro de horas sem ticket. Não existe hora sem explicação. */
+    WORKLOG_TICKET_REQUIRED(
+            "DEVTIME-2100", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.ticketRequired"),
+    /**
+     * RN-102: sessões do mesmo usuário se sobrepõem.
+     *
+     * <p>Os detalhes carregam o registro conflitante: "já existe um registro neste intervalo" só é
+     * acionável se o usuário puder ir até ele.
+     */
+    WORKLOG_OVERLAP("DEVTIME-2102", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.overlap"),
+    /** RN-103: {@code grossMinutes} acima de 1.440. */
+    WORKLOG_SESSION_TOO_LONG(
+            "DEVTIME-2103", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.sessionTooLong"),
     /**
      * RN-104: categoria inexistente, de outro tenant ou inativa.
      *
@@ -113,6 +126,50 @@ public enum ErrorCode {
      */
     CATEGORY_INVALID_OR_INACTIVE(
             "DEVTIME-2104", HttpStatus.UNPROCESSABLE_ENTITY, "error.category.invalidOrInactive"),
+    /** RN-105 / RN-158: descrição fora de 3–2.000 caracteres após aparar. */
+    WORKLOG_DESCRIPTION_INVALID(
+            "DEVTIME-2105", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.descriptionInvalid"),
+    /** RN-107: nenhum período de contrato contém a data de trabalho. */
+    WORKLOG_NO_PERIOD_FOR_DATE(
+            "DEVTIME-2107", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.noPeriodForDate"),
+    /** RN-114: {@code endedAt} menor ou igual a {@code startedAt}. */
+    WORKLOG_RANGE_INVALID(
+            "DEVTIME-2114", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.rangeInvalid"),
+    /** RN-115: tempo líquido zero ou negativo. Registro vazio polui o relatório. */
+    WORKLOG_NET_MINUTES_INVALID(
+            "DEVTIME-2115", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.netMinutesInvalid"),
+    /** RN-116 / RN-157: {@code pausedMinutes} fora de {@code [0, grossMinutes)}. */
+    WORKLOG_PAUSED_MINUTES_INVALID(
+            "DEVTIME-2116", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.pausedMinutesInvalid"),
+    /** RN-117: {@code startedAt} fora da vigência do contrato. */
+    WORKLOG_OUTSIDE_CONTRACT_VALIDITY(
+            "DEVTIME-2117",
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "error.workLog.outsideContractValidity"),
+    /** RN-118: {@code endedAt} no futuro além da tolerância de 2 minutos. */
+    WORKLOG_ENDED_IN_FUTURE(
+            "DEVTIME-2118", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.endedInFuture"),
+    /** RN-119: data de trabalho futura sem {@code allowFutureWorkLogs}. */
+    WORKLOG_FUTURE_DATE_NOT_ALLOWED(
+            "DEVTIME-2119", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.futureDateNotAllowed"),
+    /** RN-120: fora da janela retroativa e sem papel {@code ADMIN}/{@code OWNER}. */
+    WORKLOG_RETROACTIVE_LIMIT(
+            "DEVTIME-2120", HttpStatus.UNPROCESSABLE_ENTITY, "error.workLog.retroactiveLimit"),
+    /** RN-121 / INV-WKL-07: registro de período fechado é imutável até a reabertura formal. */
+    WORKLOG_LOCKED("DEVTIME-2121", HttpStatus.CONFLICT, "error.workLog.locked"),
+    /** RN-124: mover a data para um período fechado alteraria um relatório já emitido. */
+    WORKLOG_PERIOD_TRANSFER_BLOCKED(
+            "DEVTIME-2124", HttpStatus.CONFLICT, "error.workLog.periodTransferBlocked"),
+
+    // ── Cronômetro · DEVTIME-2150–2199 (worklogs.md §9 a §12) ────────────────────────────────
+    /** RN-150 / INV-TMR-01: já existe cronômetro ativo do usuário, em qualquer tenant. */
+    TIMER_ALREADY_ACTIVE("DEVTIME-2150", HttpStatus.CONFLICT, "error.timer.alreadyActive"),
+    /** RN-153: pausar exige {@code RUNNING}. */
+    TIMER_NOT_RUNNING("DEVTIME-2153", HttpStatus.CONFLICT, "error.timer.notRunning"),
+    /** RN-155: retomar exige {@code PAUSED}. */
+    TIMER_NOT_PAUSED("DEVTIME-2155", HttpStatus.CONFLICT, "error.timer.notPaused"),
+    /** RN-165: janela de 7 dias para recuperar um cronômetro abandonado. */
+    TIMER_NOT_RECOVERABLE("DEVTIME-2165", HttpStatus.CONFLICT, "error.timer.notRecoverable"),
 
     // ── Contratos e períodos · DEVTIME-2200–2299 (contracts.md §14) ──────────────────────────
     /** RN-201 / RN-405: cliente inexistente, de outro tenant ou inativo. */
@@ -155,6 +212,33 @@ public enum ErrorCode {
     /** RN-215: justificativa obrigatória com no mínimo 10 caracteres. */
     JUSTIFICATION_REQUIRED(
             "DEVTIME-2215", HttpStatus.UNPROCESSABLE_ENTITY, "error.justification.required"),
+    /** RN-231: {@code OveragePolicy = BLOCK} e o registro ultrapassaria o saldo disponível. */
+    PERIOD_BALANCE_INSUFFICIENT(
+            "DEVTIME-2220", HttpStatus.UNPROCESSABLE_ENTITY, "error.period.balanceInsufficient"),
+    /**
+     * RN-232: <b>aviso</b>, não erro.
+     *
+     * <p>Acompanha um {@code 201 Created} em {@code warnings[]}. O status declarado aqui só existe
+     * porque o enum o exige; este código nunca é o status de uma resposta.
+     */
+    PERIOD_OVERAGE_WARNING(
+            "DEVTIME-2221", HttpStatus.UNPROCESSABLE_ENTITY, "error.period.overageWarning"),
+    /** RN-235: ajuste só em período {@code OPEN} ou {@code REOPENED}. */
+    PERIOD_NOT_ADJUSTABLE("DEVTIME-2235", HttpStatus.CONFLICT, "error.period.notAdjustable"),
+    /** RN-236 / INV-ADJ-01: ajuste é imutável; correção se faz por estorno. */
+    ADJUSTMENT_IMMUTABLE("DEVTIME-2236", HttpStatus.CONFLICT, "error.adjustment.immutable"),
+    /** RN-237: o ajuste deixaria {@code availableMinutes} negativo. */
+    ADJUSTMENT_WOULD_MAKE_BALANCE_NEGATIVE(
+            "DEVTIME-2237",
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "error.adjustment.wouldMakeBalanceNegative"),
+    /** RN-239: fechamento antes do {@code endDate} sem confirmação explícita. */
+    PERIOD_CLOSE_TOO_EARLY("DEVTIME-2239", HttpStatus.CONFLICT, "error.period.closeTooEarly"),
+    /** RN-240: existe cronômetro ativo — inclusive {@code PAUSED} — no período. */
+    PERIOD_HAS_ACTIVE_TIMER("DEVTIME-2240", HttpStatus.CONFLICT, "error.period.hasActiveTimer"),
+    /** RN-244: reabertura exige que nenhum período posterior esteja fechado. */
+    PERIOD_LATER_ALREADY_CLOSED(
+            "DEVTIME-2244", HttpStatus.CONFLICT, "error.period.laterAlreadyClosed"),
 
     // ── Tickets · DEVTIME-2300–2399 (tickets.md §13) ─────────────────────────────────────────
     /** RN-301: contrato ausente, inexistente no tenant ou inválido para o ticket. */

@@ -8,6 +8,128 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprints S5, S6 e S7 — Registro de horas, cronômetro e banco de horas (backend)** ·
+`specs/008-worklogs`, `specs/009-timer`, `specs/011-bank-hours`
+
+Escopo acordado: backend das três features, com testes e documentação. Frontend não foi solicitado
+e permanece fora — ver "Pendências desta sprint". As três são de complexidade **Crítica** (SQ-02,
+SQ-03): as suítes normativas de sobreposição e de cálculo foram escritas antes do código.
+
+Banco
+
+- `V015__create_timers.sql` — `timers` e `timer_pauses`. O índice `uq_timers_active_user` é sobre
+  `(user_id)` **sem** `tenant_id`, deliberadamente: RN-150 limita a um cronômetro ativo por
+  *pessoa* entre todos os tenants (CE-13), e incluir o tenant permitiria dois simultâneos. Ao
+  contrário de RN-102, aqui a constraint de banco é viável — `Timer` não usa exclusão lógica.
+- `V016__create_work_logs.sql` — a tabela e os sete índices, com `idx_work_logs_overlap` como o mais
+  crítico da feature. **Não** existe constraint `EXCLUDE` para RN-102: ela colidiria com o soft
+  delete, porque um registro excluído logicamente permanece na tabela e bloquearia o intervalo,
+  impedindo o usuário de recriar o que ele mesmo apagou (OB-02). A garantia fica em três camadas —
+  validação, índice dedicado e job de detecção com alerta crítico.
+- `V018__create_period_adjustments.sql` e `V020__create_period_snapshots.sql`. A unicidade do
+  snapshot é `(contract_period_id, snapshot_at)`, não apenas o período: um período reaberto e
+  refechado gera um **segundo** snapshot, e a unicidade simples impediria o refechamento (CX-18).
+- `V028__create_work_log_tags.sql` — incremental de `V017`, que só pôde criar `ticket_tags` porque
+  `work_logs` ainda não existia (CE-O-03). `V017` não foi alterada (ART-053).
+
+Registro de horas (`008`)
+
+- Ordem normativa da §6.1 aplicada integralmente e na sequência exata. Ela decide **qual erro o
+  usuário vê** quando o payload viola várias regras ao mesmo tempo: a sobreposição precede o
+  cálculo porque é o problema mais difícil de perceber sozinho, e a política de excedente é a
+  última porque depende do valor calculado e do período resolvido.
+- `OverlapDetector` com comparação **estrita nos dois lados** e intervalos semi-abertos. A definição
+  vive em `WorkLogInterval.overlaps`, testada contra os nove casos da tabela normativa; a consulta
+  SQL a reproduz e usa `LIMIT 1` sobre `idx_work_logs_overlap` — o registro conflitante só é
+  materializado quando já se sabe que há conflito.
+- `WorkLogCalculator` trunca segundos por divisão inteira e `RoundingPolicy` arredonda **sempre para
+  baixo**. Uma sessão de 10 minutos com múltiplo 15 resulta em zero e é rejeitada por RN-115: parece
+  defeito e é a consequência aritmética inevitável de nunca cobrar tempo não trabalhado (PR-03).
+- `contractId` e `clientId` são copiados do ticket e imutáveis; `netMinutes`, `source` e `timerId`
+  estão **ausentes de todos os DTOs de escrita**. A ausência é a garantia: aceitar `netMinutes` do
+  cliente permitiria inflar a cobrança com uma requisição.
+- Desnormalizados atualizados por **incremento dentro da transação**, nunca por reagregação nem por
+  evento assíncrono: a resposta `201` já devolve o saldo atualizado, e um saldo desatualizado no
+  exato momento do registro destruiria a confiança no número que é o produto.
+- `POST /work-logs/validate` relata **todos** os problemas de uma vez, ao contrário da criação, que
+  interrompe no primeiro. O serviço é `readOnly` inteiro — nada é persistido.
+- Escopo de `MEMBER` aplicado por `Specification`, inclusive na contagem da paginação e nos totais:
+  filtrar em memória vazaria a existência de registros de colegas pela diferença.
+
+Cronômetro (`009`)
+
+- Estado 100% no servidor. O cliente recebe `startedAt`, `lastResumedAt` e
+  `accumulatedActiveSeconds` e calcula o tempo decorrido localmente — um cronômetro que consultasse
+  o servidor a cada segundo geraria 3.600 requisições por hora por pessoa.
+- **RN-160 é aplicada por construção**, não por tratamento de erro: o encerramento monta o comando,
+  delega a `WorkLogService.createFromTimer` e só marca `COMPLETED` **depois** de o work log existir.
+  Qualquer falha reverte a transação e o cronômetro permanece exatamente como estava. `TIMER_STOP_FAILED`
+  é registrado em transação própria (`REQUIRES_NEW`), justamente para sobreviver a esse rollback.
+- `accumulatedActiveSeconds` **não** alimenta o work log: o valor canônico é sempre `gross − paused`
+  (RN-111). Persistir a partir do acumulado produziria dois números para a mesma sessão.
+- `TimerMonitorJob` marca `ABANDONED` e notifica, mas **não encerra nem gera work log**: encerrar
+  exigiria inventar um horário de término (RN-164, PR-03).
+
+Banco de horas (`011`)
+
+- `BalanceCalculator` com as fórmulas canônicas em aritmética inteira; `consumptionRate` é o único
+  valor fracionário e usa `BigDecimal` — `double` produziria `105.06999999` onde o cliente espera
+  `105,07`.
+- Fechamento atômico de sete passos sob **lock pessimista**. Com *optimistic locking*, dois
+  fechamentos simultâneos executariam os sete passos e um falharia no commit — mas o passo 3 já
+  teria travado work logs e o passo 4 já teria gerado um snapshot (CE-ME-08).
+- O passo 1 é **reconciliação**, não leitura: o fechamento é o último momento em que uma divergência
+  do desnormalizado ainda pode ser corrigida antes de o snapshot congelar o número. A diferença é
+  auditada e vira alerta `ERROR`.
+- Ajustes imutáveis: sem método de repositório, sem serviço e sem rota de edição ou exclusão. A
+  correção é um estorno, que fica visível no extrato que o cliente lê.
+- Snapshot com payload canônico (chaves ordenadas) e checksum SHA-256 sobre exatamente os bytes
+  persistidos. `SnapshotIntegrityJob` **alerta sem corrigir**: reescrever o snapshot para "acertar"
+  o checksum destruiria a única prova de que algo foi alterado (CX-21).
+
+Fronteiras entre features
+
+- Quatro interfaces de inversão foram criadas para manter o grafo de features **acíclico** (AR-09,
+  BR-008): `TicketWorkLogCountSource` e `ActiveTimerSource` em `007`, `PeriodWorkLogSource` e
+  `PeriodActiveTimerSource` em `004`/`011`. `worklog` e `timer` dependem de `ticket` e `contract`
+  por regra de negócio (RN-101, RN-107, RN-306); consultá-los de volta fecharia o ciclo. Quem
+  declara a interface é quem precisa do dado, quem a implementa é quem o possui — o mesmo arranjo já
+  usado por `MemberContractLinkSource`.
+- `TicketWorkLogGate` passou a usar a contagem real de work logs, e `ActiveTimerGuard` a consultar
+  cronômetros reais: as duas classes existiam desde S4 justamente como ponto único de aplicação de
+  RN-305/RN-307 e RN-311, e trocar a origem do dado não exigiu tocar em nenhuma transição.
+- A metade pendente do escopo de dados de `MEMBER` — "contratos em que registrei horas" — foi
+  fechada por `WorkLogSourceAdapters.MemberContractLinkAdapter`, dívida que `003` e `004`
+  registraram por falta da tabela.
+- `TenantSettingsService` passou a ser a fonte única dos padrões de `entities.md` §6.1.1. `008` e
+  `009` os aplicam como regra de negócio (RN-113, RN-119, RN-120, RN-163, RN-164), e duas cópias
+  divergiriam na primeira alteração — `MeResponseAssembler` passou a consumi-lo.
+
+### Pendências desta sprint
+
+- Frontend das três features (T-008-26 a T-008-35 e equivalentes de `009` e `011`): P21–P23, P16,
+  o componente global de cronômetro e a sincronização entre abas. Não foi solicitado.
+- Teste de concorrência de sobreposição (T-008-36) e teste de desempenho com 100.000 registros
+  (T-008-43). Ambos exigem carga real; a garantia de RN-102 hoje se apoia na validação, no índice
+  dedicado e no `WorkLogConsistencyJob`, e o risco residual continua declarado em R-01/OB-02.
+- **Testes de integração não executados nesta máquina**: Testcontainers exige Docker, indisponível
+  no ambiente. Eles compilam; as suítes puras — 395 testes, incluindo ArchUnit e as duas tabelas
+  normativas — estão verdes.
+- 3º elo da cadeia de RN-104 — `user.preferences.defaultCategoryId` —, que depende de `002-users`
+  expor preferências. A cadeia degrada para ticket → contrato → primeira ativa, isolada em um único
+  parâmetro.
+- `RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02): dependem dos jobs de geração de
+  período de `004`, ainda pendentes de S4.
+- Criação do período seguinte quando ele não existe no fechamento (RN-229, FA-10): a geração de
+  período pertence a `004` pela fronteira declarada na §4 de `specs/011`. O saldo fica preservado em
+  `carriedOutMinutes` e é aplicado quando o próximo período for gerado.
+- Notificações de `TIMER_LONG_RUNNING`, `TIMER_ABANDONED`, `CONTRACT_OVERAGE` e `PERIOD_CLOSED`: os
+  eventos são publicados; a entrega é de `013-notifications`.
+- Migrations em números reservados: `V015`, `V016`, `V018` e `V020` seguem `database.md` §8.1, que
+  prevalece sobre `specs/*/tasks.md` (IA-11) e é o mesmo critério já adotado em `V013` e `V014`.
+  Como `V025`–`V027` já foram aplicadas, um banco de desenvolvimento existente precisa ser recriado
+  — `spring.flyway.out-of-order` permanece desabilitado por decisão.
+
 **Sprint S2 — Autenticação (backend)** · `specs/001-authentication`
 
 Escopo acordado: backend de `001-authentication`, com testes e documentação. Frontend

@@ -1,6 +1,7 @@
 package com.devtime.shared.config;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -42,8 +43,34 @@ public record DevTimeProperties(
 
     /**
      * @param from {@code MAIL_FROM} de integrations.md §12: remetente das mensagens transacionais
+     * @param provider provedor ativo em {@code staging} e {@code prod}. Em {@code local} e {@code
+     *     test} o {@code LoggingMailAdapter} atende a porta e este valor é ignorado (BR-203)
+     * @param resendApiKey {@code RESEND_API_KEY}. Obrigatória apenas quando {@code provider =
+     *     RESEND}; ART-083 exige que venha de variável de ambiente, nunca de arquivo versionado
      */
-    public record MailProps(@NotBlank String from) {}
+    public record MailProps(
+            @NotBlank String from, @NotNull MailProvider provider, String resendApiKey) {
+
+        /** Adapters disponíveis para {@link com.devtime.shared.mail.MailPort}. */
+        public enum MailProvider {
+            SMTP,
+            RESEND
+        }
+
+        /**
+         * CF-03: a incoerência entre provedor e credencial falha na inicialização, e não no
+         * primeiro envio. Descobrir a chave ausente pelo e-mail de verificação que nunca chegou é o
+         * modo de falha caro.
+         */
+        @AssertTrue(
+                message =
+                        "defina a variável de ambiente RESEND_API_KEY quando"
+                                + " MAIL_PROVIDER=resend (a chave começa com re_)")
+        public boolean isResendApiKeyPresentWhenResendSelected() {
+            return provider != MailProvider.RESEND
+                    || (resendApiKey != null && !resendApiKey.isBlank());
+        }
+    }
 
     /**
      * @param issuer claim {@code iss}, validada na verificação do token (security.md §5.2)

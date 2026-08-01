@@ -846,6 +846,7 @@ REVOKE UPDATE, DELETE ON audit_logs FROM devtime_app;
 | `V025` | `verification_tokens` | F0 ¹ |
 | `V026` | `rate_limit_counters` | F0 ¹ |
 | `V027` | `users.last_failed_login_at` | F0 ¹ |
+| `V028` | `work_log_tags` | F1 ² |
 
 > ¹ **Sequência fora da fase.** As três pertencem à feature `001-authentication`, de F0, mas ocupam
 > números posteriores a `V024`. A tabela original não previa nenhuma delas: `verification_tokens`
@@ -854,6 +855,13 @@ REVOKE UPDATE, DELETE ON audit_logs FROM devtime_app;
 > `V023` e `V024` já estavam reservadas a `attachments` e aos índices de F4, reaproveitar um número
 > faria a numeração divergir deste documento — e ART-053 impede renumerar depois do merge. A lacuna
 > foi reportada antes da implementação e resolvida acrescentando as entradas ao fim da sequência.
+>
+> ² **`work_log_tags` fora de `V017`.** Esta tabela estava alocada a `V017` junto com `ticket_tags`,
+> mas referencia `work_logs`, que só passou a existir em `V016` — implementada depois, na sprint de
+> `008-worklogs`. Quando `007-tickets` criou `V017`, apenas `ticket_tags` pôde ser criada, e o
+> cabeçalho daquela migration registrou a decisão como aplicação de CE-O-03: a feature de menor
+> ordem cria a migration, a de maior ordem cria a incremental. `V017` não foi alterada (ART-053,
+> BR-035) e a incremental ocupou o próximo número livre, pela mesma solução da nota ¹.
 
 ### 8.2 Regras de migração
 

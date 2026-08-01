@@ -4,6 +4,7 @@ import com.devtime.ticket.domain.Ticket;
 import com.devtime.ticket.domain.TicketExceptions;
 import java.util.List;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -13,15 +14,17 @@ import org.springframework.stereotype.Component;
  * horas órfãs em um ticket já entregue e possivelmente faturado. {@code PAUSED} conta como ativo
  * (CE-ME-01, CX-11): o trabalho não terminou, apenas parou.
  *
- * <p><b>Estado nesta sprint:</b> {@code 009-timer} não foi implementada e a tabela {@code timers}
- * não existe (database.md §8.1, V015). Sem cronômetros persistidos, {@link #activeTimersOf} devolve
- * lista vazia e nenhuma conclusão é bloqueada. A classe existe agora, e não depois, porque é o
- * ponto único onde RN-311 é aplicada: quando {@code 009} publicar {@code TimerService}, a consulta
- * entra aqui e toda conclusão já passa por este caminho. A pendência está registrada no {@code
- * CHANGELOG.md}.
+ * <p>A consulta chega por {@link ActiveTimerSource}, interface declarada aqui e implementada por
+ * {@code 009-timer}. A inversão é necessária: {@code timer} já depende de {@code ticket}, e
+ * consultar {@code TimerQueryService} daqui fecharia o ciclo que AR-09 proíbe. A lista de fontes
+ * pode estar vazia — e nesse caso nenhuma conclusão é bloqueada, que é a resposta correta quando a
+ * feature de cronômetro não está presente.
  */
 @Component
+@RequiredArgsConstructor
 public class ActiveTimerGuard {
+
+    private final List<ActiveTimerSource> timerSources;
 
     /**
      * @throws com.devtime.shared.error.BusinessRuleException {@code DEVTIME-2311} / {@code 409}
@@ -34,14 +37,11 @@ public class ActiveTimerGuard {
         }
     }
 
-    /**
-     * Cronômetros {@code RUNNING} ou {@code PAUSED} do ticket.
-     *
-     * <p>Ponto de extensão de {@code 009-timer}: passará a consultar {@code TimerService}. Enquanto
-     * a feature não existe, a resposta é sempre vazia — e é essa a resposta correta, porque nenhum
-     * cronômetro pode existir sem a tabela que os persiste.
-     */
+    /** Cronômetros {@code RUNNING} ou {@code PAUSED} do ticket, de todas as fontes registradas. */
     protected List<UUID> activeTimersOf(Ticket ticket) {
-        return List.of();
+        return timerSources.stream()
+                .flatMap(source -> source.activeTimerIdsOf(ticket.getId()).stream())
+                .distinct()
+                .toList();
     }
 }

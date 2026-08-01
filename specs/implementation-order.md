@@ -259,10 +259,10 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ |
 | 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ |
 | 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ |
-| 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 009 | Timer | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁸ |
+| 009 | Timer | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁹ |
 | 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ |
 | 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
@@ -285,6 +285,14 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | ⁴ | `006` — backend completo (CRUD com normalização, unicidade do nome normalizado, vínculo com limite de 10, `usageCount` transacional, exclusão removendo vínculos, sugestões de limpeza). Pendentes: `work_log_tags` e `TagLinkService.linkToWorkLog`, que dependem de `008` (CE-O-03); `TagService.getAllForReport`, que só tem consumidor em `012`; e o `TagCleanupSuggestionJob`, cujo instante exato de orfandade exigiria um campo que `entities.md` §6.11 não define — as sugestões são calculadas ao vivo sobre `idx_tags_tenant_orphan` |
 | ⁵ | `007` — backend completo (CRUD, chave derivada com sequência atômica por contrato, máquina de 7 estados com as 49 células, atribuição, movimentação de contrato, exclusão restrita, totais por incremento, quadro em consulta única, linha do tempo). Pendentes: `ActiveTimerGuard` consulta `TimerService` quando `009` existir; `TicketWorkLogGate` passa a contar work logs reais com `008`; work logs na linha do tempo e o escopo de horas de `MEMBER` entram com `008`; `DenormalizationReconcileJob` depende da agregação de `008` |
 | ⁶ | `014` — backend completo (CRUD, hierarquia de um nível normalizada na escrita, menções resolvidas em lote, janela de 24h, moderação, comentários de sistema nos três gatilhos de RN-815). Fecha a dívida OB-06 de `007`. Pendente: `existsForComment` publicado, sem consumidor até `015` |
+
+**Notas das sprints S5, S6 e S7 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ⁸ | `008` — backend completo: CRUD com a ordem normativa da §6.1, `OverlapDetector` com comparação estrita e `EXISTS`+`LIMIT 1`, cálculo com truncamento de segundos e arredondamento **para baixo**, resolução de `workDate`/período no fuso do tenant, guardas de período travado e de transferência, propriedade e escopo de `MEMBER` por `Specification`, política de excedente nas três variantes, validação prévia sem persistir, calendário e totais, duplicação, `WorkLogConsistencyJob` que **alerta e não corrige**. Migrations `V016` (tabela + 7 índices, incluindo `idx_work_logs_overlap`) e `V028` (`work_log_tags`, incremental de `V017` — CE-O-03). Pendentes: frontend (T-008-26 a T-008-35); teste de concorrência (T-008-36) e de desempenho com 100k registros (T-008-43), que exigem infraestrutura de carga; o 3º elo da cadeia de RN-104 (preferência do usuário), que depende de `002` expor preferências |
+| ⁹ | `009` — backend completo: estado 100% no servidor, início/pausa/retomada/encerramento, `TimerPause` com recálculo de `pausedMinutes` pela soma real, unicidade por usuário **entre tenants** garantida por índice único parcial sem `tenant_id` (`V015`), troca atômica de tarefa, descarte confirmado e auditado com o tempo descartado, recuperação de abandonado em 7 dias, encerramento forçado com notificação ao dono, `TimerMonitorJob` e `AbandonedTimerCleanupJob`. RN-160 é aplicada por construção: o estado só muda **depois** de o work log existir. Pendentes: frontend (componente global de cronômetro) e a sincronização entre abas |
+| ¹⁰ | `011` — backend das duas sprints entregue junto: fórmulas canônicas, extrato explicativo, ajustes imutáveis, carry-over nas três políticas, fechamento atômico de sete passos com lock pessimista e snapshot SHA-256, reabertura em ordem inversa preservando o snapshot, `StuckClosingJob` e `SnapshotIntegrityJob`. Migrations `V018` e `V020`. Pendentes: frontend (P16); `RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02), que dependem dos jobs de geração de período de `004`, ainda pendentes de S4; criação do período seguinte no fechamento quando ele não existe (RN-229/FA-10) — a geração de período pertence a `004` pela fronteira da §4 |
 
 **Notas da sprint S2 (backend):**
 
@@ -315,6 +323,18 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `TagService.resolveOrCreate(rawName)` · `findOptions(ids)` | `007`, `008` |
 | `TagLinkService.replaceTicketTags(...)` · `findByTicketIds(...)` · `ticketIdsWithAllTags(...)` | `007` |
 | `TicketService.getForWorkLog(ticketId)` · `getKeyById(ticketId)` | `008`, `009`, `012`, `013` |
+| `TicketService.getRefForWorkLog(id)` · `getRef(id)` · `findIdsByContract(id)` | `008`, `009`, `011` |
+| `TicketWorkLogCountSource` · `ActiveTimerSource` (declaradas em `007`) | Implementadas por `008` e `009` |
+| `ContractService.getWorkLogRef(contractId)` | `008`, `009` (RN-117, RN-231, RN-306) |
+| `ContractPeriodService.resolvePeriodRef(...)` · `getRefById(periodId)` | `008` (RN-107, RN-121, RN-124) |
+| `BalanceService.getBalance` · `applyConsumptionDelta` · `checkOverage` | `008`, `010`, `013` |
+| `SnapshotService.payloadForReport(periodId)` | `012` (RN-701) |
+| `PeriodWorkLogSource` · `PeriodActiveTimerSource` (declaradas em `004`/`011`) | Implementadas por `008` e `009` |
+| `TenantSettingsService.settingsOf(...)` · `current()` · `merged(json)` | `001`, `008` (RN-113, RN-119, RN-120), `009` (RN-163, RN-164) |
+| `CategoryService.resolveForWorkLog(...)` | `008`, `009` (RN-104) |
+| `TagLinkService.replaceWorkLogTags(...)` · `findByWorkLogId(s)` · `workLogIdsWithAllTags(...)` | `008` |
+| `WorkLogService.countByTicket` · `countByCategory` · `sumBillableMinutesByPeriod` · `lockByPeriod` · `unlockByPeriod` · `createFromTimer` · `findByPeriodForStatement` | `005`, `007`, `009`, `011`, `012` |
+| `TimerQueryService.hasActiveForTicket` · `activeTimerIdsForTickets` · `TimerService.discardForUser` | `007` (RN-311), `011` (RN-240), `002` (RN-460) |
 | `TicketTotalsService.applyWorkLogDelta(ticketId, spentDelta, billableDelta)` | `008` (RN-308) |
 | `TicketTransitionService.reopenOnWorkLog(ticketId, workLogId)` | `008` (RN-312) |
 | `TicketActivitySource.activityOf(ticketId)` | Implementada por `014`; `008` acrescenta os work logs |

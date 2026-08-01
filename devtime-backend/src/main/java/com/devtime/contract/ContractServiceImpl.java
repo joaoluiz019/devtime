@@ -487,6 +487,35 @@ public class ContractServiceImpl implements ContractService {
                 new ContractClientResponse(client.id(), client.name(), client.color()));
     }
 
+    /**
+     * Interface pública para {@code 008} e {@code 009} (ver {@link ContractService#getWorkLogRef}).
+     *
+     * <p>Aplica RN-306 aqui, e não na feature consumidora, porque a regra é do contrato: é o estado
+     * dele que decide se o registro é aceito. Duplicar a decisão em {@code 008} e {@code 009}
+     * criaria dois pontos que divergiriam na primeira mudança de estado do contrato.
+     */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public com.devtime.contract.dto.ContractResponses.ContractWorkLogRefResponse getWorkLogRef(
+            UUID contractId) {
+        Contract contract = require(contractId);
+        if (!acceptsWorkLogs(contract.getStatus())) {
+            throw ContractExceptions.notAcceptingWork(contract.getStatus().name()); // RN-306
+        }
+        return new com.devtime.contract.dto.ContractResponses.ContractWorkLogRefResponse(
+                contract.getId(),
+                contract.getCode(),
+                contract.getName(),
+                contract.getClientId(),
+                contract.getStatus().name(),
+                true,
+                contract.getStartDate(),
+                contract.getEndDate(),
+                contract.getOveragePolicy().name(),
+                contract.getDefaultCategoryId(),
+                contract.getCurrency());
+    }
+
     /** RN-306: apenas {@code ACTIVE} e {@code SUSPENDED} aceitam registro de horas. */
     private boolean acceptsWorkLogs(ContractStatus status) {
         return status == ContractStatus.ACTIVE || status == ContractStatus.SUSPENDED;

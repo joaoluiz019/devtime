@@ -61,6 +61,59 @@ public final class ContractResponses {
             boolean acceptsWorkLogs,
             ContractClientResponse client) {}
 
+    /**
+     * Contrato como {@code 008-worklogs} precisa dele (AR-02).
+     *
+     * <p>Distinta de {@link ContractRefResponse} porque o registro de horas depende de três coisas
+     * que a referência enxuta não carrega: a vigência (RN-117), a política de excedente (RN-231) e
+     * o cliente a copiar para o work log (RN-109). Distinta de {@link ContractResponse} porque
+     * aquela expõe {@code ContractType}, {@code ContractStatus} e {@code OveragePolicy} — enums do
+     * domínio de {@code 004} que AR-02 proíbe {@code 008} de conhecer.
+     *
+     * @param acceptsWorkLogs RN-306, já decidido por quem é dono da regra
+     * @param overagePolicy nome do valor de {@code OveragePolicy}; a decisão de bloquear, avisar ou
+     *     permitir é de {@code 008}, mas o valor pertence ao contrato
+     */
+    @Schema(name = "ContractWorkLogRefResponse")
+    public record ContractWorkLogRefResponse(
+            UUID id,
+            String code,
+            String name,
+            UUID clientId,
+            String status,
+            boolean acceptsWorkLogs,
+            LocalDate startDate,
+            LocalDate endDate,
+            String overagePolicy,
+            UUID defaultCategoryId,
+            String currency) {}
+
+    /**
+     * Período como as features consumidoras precisam dele (AR-02).
+     *
+     * <p>Mesmo motivo de {@link ContractWorkLogRefResponse}: {@link ContractPeriodResponse} expõe
+     * {@code PeriodStatus}, e {@code 008} não pode depender do domínio de {@code 004}. {@code
+     * acceptsWorkLogs} traz a decisão já tomada — {@code OPEN} e {@code REOPENED} aceitam escrita
+     * (§4.6 de state-machines.md, CX-24) —, evitando que a feature consumidora reimplemente a
+     * leitura da máquina de estados.
+     */
+    @Schema(name = "ContractPeriodRefResponse")
+    public record ContractPeriodRefResponse(
+            UUID id,
+            UUID contractId,
+            int sequence,
+            String label,
+            LocalDate startDate,
+            LocalDate endDate,
+            String status,
+            boolean acceptsWorkLogs,
+            int contractedMinutes,
+            int carriedInMinutes,
+            int adjustmentMinutes,
+            int consumedMinutes,
+            int nonBillableMinutes,
+            String currency) {}
+
     /** Item de {@code periodsPreview} (contracts.md §5 e §6). */
     @Schema(name = "PeriodPreviewItem")
     public record PeriodPreviewItem(

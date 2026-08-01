@@ -27,6 +27,23 @@ public final class TicketResponses {
     public record TicketClientResponse(UUID id, String name, String color) {}
 
     /**
+     * Ticket como {@code 008-worklogs} e {@code 009-timer} precisam dele (AR-02).
+     *
+     * <p>{@link TicketResponse} expõe {@code TicketType}, {@code TicketStatus} e {@code
+     * TicketPriority} — enums do domínio de {@code 007} que as duas features consumidoras não podem
+     * conhecer. O que elas realmente usam são os identificadores a copiar para o work log (RN-109),
+     * a chave legível para log e mensagem, e a categoria padrão que abre a cadeia de RN-104.
+     */
+    @Schema(name = "TicketWorkLogRefResponse")
+    public record TicketWorkLogRefResponse(
+            UUID id,
+            String key,
+            String title,
+            UUID contractId,
+            UUID clientId,
+            UUID defaultCategoryId) {}
+
+    /**
      * Detalhe do ticket.
      *
      * @param key chave legível derivada de {@code {contract.code}-{number}}; nunca persistida

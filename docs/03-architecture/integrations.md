@@ -108,8 +108,9 @@ flowchart TD
 | Aspecto | Especificação |
 |---|---|
 | **Porta** | `MailPort` |
-| **Adapter** | `SmtpMailAdapter` (MVP) — substituível por provedor de API transacional |
-| **Protocolo** | SMTP com TLS |
+| **Adapter** | `SmtpMailAdapter` (padrão) ou `ResendMailAdapter`, selecionado por `MAIL_PROVIDER` (`smtp` \| `resend`) |
+| **Protocolo** | SMTP com TLS, ou HTTPS na API do Resend |
+| **Credencial** | `MAIL_USERNAME`/`MAIL_PASSWORD` (SMTP) ou `RESEND_API_KEY` (Resend), sempre por variável de ambiente (ART-083) |
 | **Fase** | F0 |
 
 **Mensagens enviadas:**

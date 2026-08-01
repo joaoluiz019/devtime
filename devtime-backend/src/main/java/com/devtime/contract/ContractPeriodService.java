@@ -28,4 +28,24 @@ public interface ContractPeriodService {
      */
     java.util.Optional<ContractPeriodResponse> resolveOpenPeriod(
             UUID contractId, LocalDate workDate);
+
+    /**
+     * RN-107, na forma que {@code 008-worklogs} consegue consumir (AR-02).
+     *
+     * <p>{@link ContractPeriodResponse} expõe {@code PeriodStatus}, enum do domínio de {@code 004}.
+     * A referência traz {@code status} como texto e {@code acceptsWorkLogs} já decidido — {@code
+     * OPEN} e {@code REOPENED} aceitam escrita (§4.6 de state-machines.md, CX-24).
+     */
+    java.util.Optional<com.devtime.contract.dto.ContractResponses.ContractPeriodRefResponse>
+            resolvePeriodRef(UUID contractId, LocalDate workDate);
+
+    /**
+     * Período por identificador, como referência.
+     *
+     * <p>Interface pública para {@code 008} (RN-121, RN-124) e {@code 009}.
+     *
+     * @throws com.devtime.shared.error.EntityNotFoundException {@code DEVTIME-2002} quando
+     *     inexistente ou de outro tenant
+     */
+    com.devtime.contract.dto.ContractResponses.ContractPeriodRefResponse getRefById(UUID periodId);
 }

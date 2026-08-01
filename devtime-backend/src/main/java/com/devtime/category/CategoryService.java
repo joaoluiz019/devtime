@@ -56,4 +56,21 @@ public interface CategoryService {
 
     /** Categorias ativas ordenadas, para seletores e relatórios. */
     List<CategoryResponse> listActive();
+
+    /**
+     * RN-104: cadeia de pré-seleção da categoria do registro de horas.
+     *
+     * <p>Ordem: categoria do ticket → categoria padrão do contrato → preferência do usuário →
+     * primeira ativa por {@code sortOrder}. Vai do mais específico ao mais genérico.
+     *
+     * <p>Interface pública para {@code 008-worklogs} e {@code 009-timer}. Devolve DTO e recebe
+     * identificadores por parâmetro: buscar o ticket ou o contrato aqui criaria as dependências
+     * {@code category → ticket} e {@code category → contract}, e a inversa já existe por {@code
+     * defaultCategoryId} — um ciclo entre features, proibido por AR-09.
+     *
+     * @return vazio apenas quando o tenant não possui nenhuma categoria ativa (CX-06 de {@code 005}
+     *     — inativar todas é decisão legítima)
+     */
+    java.util.Optional<CategoryResponse> resolveForWorkLog(
+            UUID ticketCategoryId, UUID contractCategoryId, UUID userCategoryId);
 }

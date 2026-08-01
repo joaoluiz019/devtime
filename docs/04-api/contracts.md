@@ -706,11 +706,30 @@ Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/contrac
 | Filtros `consumptionRateFrom/To`, `hasOverage`, `endingWithinDays` | ⚠️ Adiado | Derivam do saldo, apurado por `011-bank-hours` |
 | Campos derivados de consumo (`severity`, `burnRate`, `projection`) | ⚠️ Adiado | Idem — `004` nunca calcula saldo (fronteira de §4 da spec) |
 | `POST /contracts/{id}/duplicate` | ⚠️ Não implementado | Fora do recorte acordado para S3 |
-| `/contract-periods/*` — saldo, extrato, ajustes, fechamento e reabertura | ⚠️ Fora do escopo | Pertencem a `011-bank-hours` (S7 e S10) |
+| `/contract-periods/*` — saldo, extrato, ajustes, fechamento e reabertura | ✅ Implementado em S7 | Ver §16.1 |
 | Geração automática de períodos (RN-213) e jobs | ⚠️ Adiado para S4 | O gerador já suporta a geração encadeada (`generateAfter`), usada na retomada |
-| Guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`) | ⚠️ Pendente | Depende de `009-timer`; a tabela `timers` não existe |
+| Guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`) | ⚠️ Pendente | `009-timer` já publica `PeriodActiveTimerSource`; a guarda de `suspend`/`end` continua fora do recorte de `004` |
 | `overageRate` ausente | ✅ Implementado | Assume `hourlyRate`, conforme §5 |
 | `status` enviado em `PATCH` | ℹ️ Rejeitado com `400` | O campo não existe no DTO e `fail-on-unknown-properties = true` (F0) rejeita a desserialização — barreira mais forte que ignorar, e mais explícita para quem integra |
+
+### 16.1 Banco de horas (sprint S7 — backend)
+
+Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/contract` (spec `011`).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GET /contract-periods/{id}` — saldo | ✅ Implementado | RN-218 a RN-223 em `BalanceCalculator`, aritmética inteira; `consumptionRate` em `BigDecimal` com 2 casas |
+| `GET /contract-periods/{id}/statement` — extrato | ✅ Implementado | Contratado e transportado primeiro; ajustes e registros entrelaçados por data, com saldo acumulado |
+| `POST` e `GET /contract-periods/{id}/adjustments` | ✅ Implementado | RN-215, RN-235, RN-237, RN-238. **Não existe** rota de edição nem de exclusão (RN-236) |
+| `POST /contract-periods/{id}/close` | ✅ Implementado | Sete passos de RN-241 em uma transação, sob lock pessimista (CE-ME-08) |
+| `POST /contract-periods/{id}/reopen` | ✅ Implementado | RN-242 a RN-244; snapshot preservado (INV-SNP-01) |
+| `GET /contract-periods/{id}/snapshot` | ✅ Implementado | Checksum SHA-256 verificado na leitura; divergência é alerta, nunca correção (CX-21) |
+| Carry-over (RN-224 a RN-228) | ✅ Implementado | `RolloverCalculator`, três políticas; saldo negativo nunca transporta |
+| `StuckClosingJob` e `SnapshotIntegrityJob` | ✅ Implementados | O segundo **alerta sem corrigir** |
+| Criação do período seguinte no fechamento (RN-229, FA-10) | ⚠️ Parcial | Quando o período seguinte existe, recebe o `carriedIn`. Criá-lo quando não existe pertence a `004` pela fronteira da §4 da spec; o saldo fica em `carriedOutMinutes` até a geração |
+| `RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02) | ⚠️ Pendentes | Dependem dos jobs de geração de período de `004`, ainda pendentes de S4 |
+| `estimatedValue`, `burnRate`, `projectedConsumption` | ⚠️ Adiados | Campos derivados de exibição; consumidos por `010-dashboard` |
+| Frontend P16 | ⚠️ Fora do escopo | Não solicitado na sprint |
 
 ## 17. Dependências e impactos
 

@@ -4,6 +4,7 @@ import com.devtime.auth.dto.AuthResponses.MeMembership;
 import com.devtime.auth.dto.AuthResponses.MeResponse;
 import com.devtime.auth.dto.AuthResponses.MeTenant;
 import com.devtime.auth.dto.AuthResponses.MeUser;
+import com.devtime.tenant.TenantSettingsService;
 import com.devtime.tenant.dto.TenantViews.MembershipView;
 import com.devtime.tenant.dto.TenantViews.TenantOption;
 import com.devtime.tenant.dto.TenantViews.TenantView;
@@ -47,21 +48,8 @@ public class MeResponseAssembler {
                     "timerReminderEnabled",
                     true);
 
-    /** entities.md §6.1.1. */
-    private static final Map<String, Object> DEFAULT_SETTINGS =
-            Map.ofEntries(
-                    Map.entry("workDayMinutes", 480),
-                    Map.entry("workDays", List.of(1, 2, 3, 4, 5)),
-                    Map.entry("defaultRolloverPolicy", "NONE"),
-                    Map.entry("defaultOveragePolicy", "WARN"),
-                    Map.entry("timerLongRunningMinutes", 480),
-                    Map.entry("timerAutoAbandonMinutes", 960),
-                    Map.entry("allowFutureWorkLogs", false),
-                    Map.entry("retroactiveLimitDays", 30),
-                    Map.entry("roundingMinutes", 0),
-                    Map.entry("notificationThresholds", List.of(50, 80, 100)));
-
     private final AuthSessionAssembler sessionAssembler;
+    private final TenantSettingsService tenantSettingsService;
     private final ObjectMapper objectMapper;
 
     public MeResponse assemble(
@@ -101,7 +89,10 @@ public class MeResponseAssembler {
                 tenant.logoUrl(),
                 tenant.status().name(),
                 tenant.planCode(),
-                merge(DEFAULT_SETTINGS, tenant.settings()));
+                // Os padrões de §6.1.1 vivem em um único lugar: 008 e 009 aplicam as mesmas
+                // chaves como regra de negócio (RN-113, RN-119, RN-120, RN-163, RN-164), e duas
+                // cópias divergiriam na primeira alteração.
+                tenantSettingsService.merged(tenant.settings()));
     }
 
     private Map<String, Object> merge(Map<String, Object> defaults, String json) {

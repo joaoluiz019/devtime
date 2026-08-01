@@ -48,6 +48,28 @@ public interface TagLinkService {
     void unlinkAllFromTicket(UUID ticketId);
 
     /**
+     * Substitui atomicamente o conjunto de etiquetas do registro de horas (INV-TAG-01).
+     *
+     * <p>Interface pública consumida por {@code 008-worklogs}, fechando a dívida CE-O-03 de {@code
+     * 006}: a tabela {@code work_log_tags} não podia existir antes de {@code work_logs}. A
+     * permissão é da feature consumidora — é ela quem sabe se o requisitante pode alterar aquele
+     * registro.
+     */
+    List<TagOptionResponse> replaceWorkLogTags(UUID workLogId, Collection<UUID> tagIds);
+
+    /** Etiquetas de um registro de horas, na ordem de exibição. */
+    List<TagOptionResponse> findByWorkLogId(UUID workLogId);
+
+    /** Etiquetas de vários registros em <b>uma</b> consulta, evitando N+1 na listagem. */
+    Map<UUID, List<TagOptionResponse>> findByWorkLogIds(Collection<UUID> workLogIds);
+
+    /** Desvincula todas as etiquetas do registro, decrementando os contadores (INV-TAG-04). */
+    void unlinkAllFromWorkLog(UUID workLogId);
+
+    /** Registros de horas que possuem <b>todas</b> as etiquetas informadas (conjunção). */
+    List<UUID> workLogIdsWithAllTags(Collection<UUID> tagIds);
+
+    /**
      * Tickets que possuem <b>todas</b> as etiquetas informadas (conjunção, tickets.md §6).
      *
      * <p>Conjunção e não disjunção: filtrar por {@code urgente} e {@code checkout} significa "os
