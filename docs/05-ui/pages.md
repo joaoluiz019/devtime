@@ -239,7 +239,7 @@ flowchart TD
 
 | Aba | Conteúdo |
 |---|---|
-| **Visão geral** | `dt-balance-bar` do período atual, `dt-balance-statement`, projeção, distribuição por categoria |
+| **Visão geral** | `dt-consumption-gauge` do período atual, `dt-balance-breakdown`, projeção, distribuição por categoria |
 | **Períodos** | Tabela de todos os períodos com saldo, status e ações de fechar/reabrir |
 | **Tickets** | Tickets do contrato com tempo gasto |
 | **Registros** | Registros de horas do contrato, com filtros |
@@ -254,7 +254,7 @@ flowchart TD
 | Contrato `DRAFT` | Banner "Este contrato ainda não está ativo" com ação de ativar |
 | Contrato `SUSPENDED` | Banner com o motivo e a data da suspensão |
 | Contrato `ENDED`/`CANCELLED` | Banner informativo; todas as ações de escrita ocultadas |
-| Saldo indisponível | `dt-balance-statement` exibe "—" com alerta (CE-D-05) |
+| Saldo indisponível | `dt-balance-breakdown` exibe "—" com alerta (CE-D-05) |
 
 ---
 
@@ -265,7 +265,9 @@ flowchart TD
 | **Objetivo** | Conferir e fechar o período — o momento de faturamento. |
 | **Layout** | L6 · **Permissão** `PERIOD_VIEW`; fechar exige `PERIOD_CLOSE` · **Fase** F3 |
 
-**Conteúdo:** `dt-balance-statement` completo, lista de ajustes, lista de registros do período, resumos por categoria e ticket.
+**Conteúdo:** `dt-balance-summary`, `dt-balance-breakdown`, `dt-period-statement` e `dt-adjustment-list`.
+
+> **Entrega parcial (T-011-44).** Os resumos por categoria e por ticket dependem de `consumptionByCategory` e `topTickets`, que a API do extrato não emite — ver §9.2.1 de `04-api/contracts.md`.
 
 **Fluxo de fechamento:**
 
@@ -339,7 +341,7 @@ flowchart TD
 | Item | Conteúdo |
 |---|---|
 | Contexto | Cliente, contrato, período |
-| Saldo atual | `dt-balance-bar` |
+| Saldo atual | `dt-consumption-gauge` |
 | Impacto | "Após salvar: restam 04:54 (89%)" |
 | Avisos | Estouro, limiar cruzado, sobreposição |
 

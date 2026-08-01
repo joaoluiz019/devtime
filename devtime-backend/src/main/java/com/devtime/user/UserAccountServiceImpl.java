@@ -42,6 +42,7 @@ public class UserAccountServiceImpl implements UserAccountService {
     private static final String DEFAULT_PREFERENCES = "{}";
 
     private final UserRepository repository;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
     private final Clock clock;
 
@@ -212,6 +213,60 @@ public class UserAccountServiceImpl implements UserAccountService {
         return repository
                 .findById(userId)
                 .orElseThrow(() -> EntityNotFoundException.of(type, userId));
+    }
+
+    /**
+     * Atualização parcial das preferências de notificação (ver {@link
+     * UserAccountService#updateNotificationPreferences}).
+     *
+     * <p>Sem {@code @PreAuthorize}: quem verifica a permissão é {@code 013-notifications}, no
+     * endpoint que só alcança as preferências do <b>próprio</b> usuário autenticado.
+     *
+     * <p>O JSON é mesclado, não substituído: escrever o objeto inteiro apagaria {@code theme},
+     * {@code dashboardPeriod} e {@code defaultCategoryId} a cada troca de preferência de e-mail.
+     */
+    @Override
+    @Transactional
+    public void updateNotificationPreferences(
+            UUID userId,
+            Boolean emailNotifications,
+            java.util.List<String> mutedNotificationTypes) {
+        User user =
+                repository
+                        .findById(userId)
+                        .orElseThrow(() -> EntityNotFoundException.of(User.class, userId));
+
+        java.util.Map<String, Object> preferences = readPreferences(user.getPreferences());
+        if (emailNotifications != null) {
+            preferences.put("emailNotifications", emailNotifications);
+        }
+        if (mutedNotificationTypes != null) {
+            preferences.put(
+                    "mutedNotificationTypes", java.util.List.copyOf(mutedNotificationTypes));
+        }
+        user.setPreferences(writePreferences(preferences));
+    }
+
+    @SuppressWarnings("unchecked")
+    private java.util.Map<String, Object> readPreferences(String json) {
+        if (json == null || json.isBlank()) {
+            return new java.util.LinkedHashMap<>();
+        }
+        try {
+            return new java.util.LinkedHashMap<>(objectMapper.readValue(json, java.util.Map.class));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException unreadable) {
+            // Degradar para um objeto vazio é preferível a impedir o usuário de ajustar as
+            // preferências de um JSON que ele não tem como corrigir (ER-08).
+            return new java.util.LinkedHashMap<>();
+        }
+    }
+
+    private String writePreferences(java.util.Map<String, Object> preferences) {
+        try {
+            return objectMapper.writeValueAsString(preferences);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+            throw new IllegalStateException("Falha ao serializar preferências", failure);
+        }
     }
 
     private UserAccount toAccount(User user) {

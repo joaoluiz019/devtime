@@ -1,0 +1,82 @@
+/**
+ * Medidor de consumo.
+ *
+ * FR-120/FR-121: nenhuma cor, espaçamento ou dimensão literal — tudo vem de token `--dt-*`.
+ */
+
+.dt-gauge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+}
+
+.dt-gauge__track {
+  position: relative;
+}
+
+.dt-gauge__rail {
+  overflow: hidden;
+  height: var(--dt-space-3);
+  border-radius: var(--dt-radius-full);
+  background-color: var(--dt-slate-300);
+}
+
+.dt-gauge__fill {
+  height: 100%;
+  transition: width var(--dt-transition-fast) ease-out;
+}
+
+.dt-gauge__markers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.dt-gauge__marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--dt-surface-page);
+}
+
+.dt-gauge__legend {
+  display: flex;
+  gap: var(--dt-space-2);
+  align-items: center;
+  margin: 0;
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}
+
+.dt-gauge__rate {
+  margin-left: auto;
+  color: var(--dt-text-primary);
+}
+
+/* Cor do preenchimento por severidade (design-system.md §5.3). */
+.dt-gauge__fill--ok {
+  background-color: var(--dt-color-success);
+}
+
+.dt-gauge__fill--info {
+  background-color: var(--dt-color-info);
+}
+
+.dt-gauge__fill--warning {
+  background-color: var(--dt-color-warning);
+}
+
+/**
+ * BB-03: no excedente a barra fica cheia. A textura diagonal distingue "cheia porque estourou" de
+ * "cheia porque chegou exatamente a 100%" sem depender da cor (DS-05).
+ */
+.dt-gauge__fill--critical {
+  background-image: repeating-linear-gradient(
+    45deg,
+    var(--dt-color-danger),
+    var(--dt-color-danger) 6px,
+    var(--dt-red-700) 6px,
+    var(--dt-red-700) 12px
+  );
+}

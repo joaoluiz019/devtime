@@ -1,0 +1,54 @@
+/** Diálogo de ajuste. As classes de campo (`.dt-field`) são globais — ver `styles.scss`. */
+
+.dt-adjustment-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+}
+
+.dt-adjustment-dialog__actions {
+  display: flex;
+  gap: var(--dt-space-2);
+  justify-content: flex-end;
+}
+
+.dt-preview {
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-page);
+}
+
+.dt-preview__title {
+  margin: 0 0 var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+  font-weight: 600;
+}
+
+.dt-preview__figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--dt-space-2);
+  margin: 0;
+}
+
+.dt-preview__figures dt {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
+.dt-preview__figures dd {
+  margin: 0;
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+  font-weight: 600;
+}
+
+.dt-preview__warning {
+  margin: var(--dt-space-2) 0 0;
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}

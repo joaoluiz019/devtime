@@ -26,11 +26,23 @@ public final class TimerEvents {
      * <p>Emitido <b>uma única vez</b> por cronômetro — {@code longRunningNotifiedAt} é gravado
      * antes da publicação, e é ele que impede a duplicação na execução seguinte do job (CX-05).
      */
-    public record TimerLongRunningEvent(UUID timerId, UUID userId, long grossElapsedSeconds)
+    public record TimerLongRunningEvent(
+            UUID timerId, UUID userId, UUID ticketId, long grossElapsedSeconds)
             implements DomainEvent {}
 
-    /** RN-164: marcado como abandonado; a notificação leva a ação de recuperar. */
-    public record TimerAbandonedEvent(UUID timerId, UUID userId, long grossElapsedSeconds)
+    /**
+     * RN-164: marcado como abandonado; a notificação leva a ação de recuperar.
+     *
+     * @param recoverableUntil RN-165 — prazo exibido na notificação. Viaja no evento porque quem o
+     *     conhece é {@code AbandonedTimerPolicy}, dentro desta feature; recalculá-lo no consumidor
+     *     duplicaria a janela de 7 dias em dois lugares
+     */
+    public record TimerAbandonedEvent(
+            UUID timerId,
+            UUID userId,
+            UUID ticketId,
+            long grossElapsedSeconds,
+            java.time.LocalDate recoverableUntil)
             implements DomainEvent {}
 
     /**
@@ -44,6 +56,6 @@ public final class TimerEvents {
             implements DomainEvent {}
 
     /** OWN-05 / SG-07: encerramento forçado por {@code ADMIN}; o <b>dono</b> é notificado. */
-    public record TimerForceStoppedEvent(UUID timerId, UUID ownerId, UUID stoppedBy)
+    public record TimerForceStoppedEvent(UUID timerId, UUID ownerId, UUID ticketId, UUID stoppedBy)
             implements DomainEvent {}
 }

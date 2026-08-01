@@ -323,6 +323,31 @@ public enum ErrorCode {
     /** RN-815 / INV-CMT-03: comentário de sistema é imutável (tickets.md §10.2). */
     COMMENT_SYSTEM_IMMUTABLE("DEVTIME-2707", HttpStatus.CONFLICT, "error.comment.systemImmutable"),
 
+    // ── Notificações · DEVTIME-4000–4099 (notifications.md §12) ──────────────────────────────
+    /**
+     * §9.1: tentativa de silenciar um tipo com {@code canMute = false}.
+     *
+     * <p>Reservado aos tipos {@code CRITICAL} — contrato excedido e anexo infectado. A faixa 4000 é
+     * a definida por notifications.md §12, que é normativa sobre o contrato de erro da API.
+     */
+    NOTIFICATION_TYPE_NOT_MUTABLE(
+            "DEVTIME-4001", HttpStatus.UNPROCESSABLE_ENTITY, "error.notification.typeNotMutable"),
+    /**
+     * §9.2: intervalo de horário silencioso inválido.
+     *
+     * <p>Registrado para preservar a faixa: {@code quietHours} não existe em {@code entities.md}
+     * §6.2.1, que prevalece sobre notifications.md §9.1 por IA-11. Sem o campo, não há caminho que
+     * produza este código — mas reaproveitá-lo depois mudaria o significado de uma condição já
+     * publicada.
+     */
+    NOTIFICATION_QUIET_HOURS_INVALID(
+            "DEVTIME-4002",
+            HttpStatus.UNPROCESSABLE_ENTITY,
+            "error.notification.quietHoursInvalid"),
+    /** ST-03: mais de três conexões de fluxo simultâneas por usuário. */
+    NOTIFICATION_STREAM_LIMIT(
+            "DEVTIME-4003", HttpStatus.TOO_MANY_REQUESTS, "error.notification.streamLimit"),
+
     // ── Infraestrutura e erros inesperados · DEVTIME-9000–9099 ───────────────────────────────
     /**
      * Qualquer exceção não prevista (EX-04).

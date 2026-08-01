@@ -8,8 +8,9 @@ import { ShellComponent } from './core/layout/shell.component';
  * FR-081: toda rota autenticada passa por `authGuard` e `tenantSelectedGuard`. FR-089: rota inexistente
  * leva à página de "não encontrado" **dentro do shell**.
  *
- * As áreas de clientes, contratos, tickets, horas, relatórios e configurações não constam aqui: SQ-07
- * determina que nenhum frontend de feature inicie antes de o backend correspondente estar `DONE`.
+ * De `contracts`, apenas P16 (detalhe do período, feature `011`) está declarada. As áreas de clientes,
+ * tickets, horas, relatórios e configurações não constam aqui: SQ-07 determina que nenhum frontend de
+ * feature inicie antes de o backend correspondente estar `DONE`.
  */
 export const routes: Routes = [
   {
@@ -27,6 +28,10 @@ export const routes: Routes = [
         title: $localize`:@@dashboard.title:Dashboard`,
         loadComponent: () =>
           import('./features/dashboard/dashboard.page').then((module) => module.DashboardPage),
+      },
+      {
+        path: 'contracts',
+        loadChildren: () => import('./features/contracts/contracts.routes'),
       },
       {
         path: 'forbidden',

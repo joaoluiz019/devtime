@@ -1,0 +1,66 @@
+/**
+ * Extrato.
+ *
+ * SC-02: a página nunca rola horizontalmente; a tabela larga rola dentro do próprio contêiner.
+ */
+
+:host {
+  display: block;
+  overflow-x: auto;
+}
+
+.dt-statement {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}
+
+.dt-statement th,
+.dt-statement td {
+  padding: var(--dt-space-2) var(--dt-space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--dt-border);
+  vertical-align: top;
+}
+
+/* SC-03: o cabeçalho permanece visível durante a rolagem vertical. */
+.dt-statement thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--dt-surface-card);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+  font-weight: 600;
+}
+
+.dt-statement__number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* CE-D-03: descrição longa é truncada em duas linhas, com o texto completo em `title`. */
+.dt-statement__description {
+  display: -webkit-box;
+  max-width: 32rem;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.dt-statement__empty {
+  padding: var(--dt-space-7) var(--dt-space-3);
+  color: var(--dt-text-secondary);
+  text-align: center;
+}
+
+.dt-statement__empty-title {
+  margin: 0 0 var(--dt-space-1);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+  font-weight: 500;
+}

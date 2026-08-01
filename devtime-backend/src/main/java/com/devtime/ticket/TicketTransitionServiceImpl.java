@@ -183,7 +183,7 @@ public class TicketTransitionServiceImpl implements TicketTransitionService {
                         null,
                         true));
         // Notificação após o commit: entrega externa não pode reverter uma reabertura já decidida.
-        events.publish(new TicketReopenedEvent(ticketId, key, workLogId));
+        events.publish(new TicketReopenedEvent(ticketId, key, workLogId, ticket.getAssigneeId()));
 
         log.info("ticket reaberto por work log ticketId={} workLogId={}", ticketId, workLogId);
     }

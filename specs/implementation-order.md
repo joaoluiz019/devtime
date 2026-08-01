@@ -262,9 +262,9 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁸ |
 | 009 | Timer | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁹ |
 | 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ |
+| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ · `FRONTEND_PARTIAL` ¹² |
 | 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹¹ |
 | 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
 | 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 
@@ -286,6 +286,12 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | ⁵ | `007` — backend completo (CRUD, chave derivada com sequência atômica por contrato, máquina de 7 estados com as 49 células, atribuição, movimentação de contrato, exclusão restrita, totais por incremento, quadro em consulta única, linha do tempo). Pendentes: `ActiveTimerGuard` consulta `TimerService` quando `009` existir; `TicketWorkLogGate` passa a contar work logs reais com `008`; work logs na linha do tempo e o escopo de horas de `MEMBER` entram com `008`; `DenormalizationReconcileJob` depende da agregação de `008` |
 | ⁶ | `014` — backend completo (CRUD, hierarquia de um nível normalizada na escrita, menções resolvidas em lote, janela de 24h, moderação, comentários de sistema nos três gatilhos de RN-815). Fecha a dívida OB-06 de `007`. Pendente: `existsForComment` publicado, sem consumidor até `015` |
 
+**Nota da sprint S8 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹¹ | `013` — backend completo: deduplicação por índice único `(recipient_id, dedupe_key)` com inserção idempotente sem verificação prévia, avaliação de limiares a partir de `contract.notificationThresholds`, excedente com severidade crítica, resolução de destinatários por tipo de evento, e-mail respeitando preferências com a in-app sempre criada, fluxo SSE por destinatário, central com leitura/exclusão/preferências e os quatro jobs (lembrete de fechamento, contrato terminando, reprocessamento de e-mail e limpeza). `014-comments` passou a publicar `CommentCreatedEvent`, e os eventos de cronômetro ganharam `ticketId`. Pendentes: frontend (P25, P28, sino global); **alerta de "ticket parado", que não existe na documentação** — lacuna reportada; `MEMBER_*`, `EXPORT_*` e `ATTACHMENT_INFECTED` declarados no catálogo sem produtor, aguardando `002`, `012` e `015` |
+
 **Notas das sprints S5, S6 e S7 (backend):**
 
 | # | Nota |
@@ -293,6 +299,12 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | ⁸ | `008` — backend completo: CRUD com a ordem normativa da §6.1, `OverlapDetector` com comparação estrita e `EXISTS`+`LIMIT 1`, cálculo com truncamento de segundos e arredondamento **para baixo**, resolução de `workDate`/período no fuso do tenant, guardas de período travado e de transferência, propriedade e escopo de `MEMBER` por `Specification`, política de excedente nas três variantes, validação prévia sem persistir, calendário e totais, duplicação, `WorkLogConsistencyJob` que **alerta e não corrige**. Migrations `V016` (tabela + 7 índices, incluindo `idx_work_logs_overlap`) e `V028` (`work_log_tags`, incremental de `V017` — CE-O-03). Pendentes: frontend (T-008-26 a T-008-35); teste de concorrência (T-008-36) e de desempenho com 100k registros (T-008-43), que exigem infraestrutura de carga; o 3º elo da cadeia de RN-104 (preferência do usuário), que depende de `002` expor preferências |
 | ⁹ | `009` — backend completo: estado 100% no servidor, início/pausa/retomada/encerramento, `TimerPause` com recálculo de `pausedMinutes` pela soma real, unicidade por usuário **entre tenants** garantida por índice único parcial sem `tenant_id` (`V015`), troca atômica de tarefa, descarte confirmado e auditado com o tempo descartado, recuperação de abandonado em 7 dias, encerramento forçado com notificação ao dono, `TimerMonitorJob` e `AbandonedTimerCleanupJob`. RN-160 é aplicada por construção: o estado só muda **depois** de o work log existir. Pendentes: frontend (componente global de cronômetro) e a sincronização entre abas |
 | ¹⁰ | `011` — backend das duas sprints entregue junto: fórmulas canônicas, extrato explicativo, ajustes imutáveis, carry-over nas três políticas, fechamento atômico de sete passos com lock pessimista e snapshot SHA-256, reabertura em ordem inversa preservando o snapshot, `StuckClosingJob` e `SnapshotIntegrityJob`. Migrations `V018` e `V020`. Pendentes: frontend (P16); `RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02), que dependem dos jobs de geração de período de `004`, ainda pendentes de S4; criação do período seguinte no fechamento quando ele não existe (RN-229/FA-10) — a geração de período pertence a `004` pela fronteira da §4 |
+
+**Nota da sprint de frontend de `011`:**
+
+| # | Nota |
+|:--:|---|
+| ¹² | `011` — frontend entregue: `PeriodApi` espelhando os 7 endpoints publicados, `PeriodStore` com `criticality`/`canAdjust`/`canClose`/`canReopen`, `StatementStore`, os componentes compartilhados `dt-balance-summary`, `dt-consumption-gauge` e `dt-partial-badge` (reutilizáveis por `010`), mais `dt-balance-breakdown`, `dt-period-statement`, `dt-adjustment-list`, `dt-adjustment-dialog` **com prévia do saldo**, `dt-close-period-dialog`, `dt-reopen-dialog`, `dt-period-timeline` e a página P16 em `/contracts/:id/periods/:periodId` sob `permissionGuard(['PERIOD_VIEW'])`. Também entram `dt-duration-input` (exigido por FR-112, com `allowNegative` para débito), `consumptionRatePipe`, `criticalityDirective` e os sete códigos `DEVTIME-22xx` no mapa de mensagens. **Três divergências entre documentos foram reportadas e resolvidas em favor do backend implementado**, com `04-api/contracts.md` §9.1/§9.2 e `05-ui/components.md` §6.4/§6.5 sincronizados: forma do extrato (lançamentos, não razão de 7 linhas), ausência de `projection`/`financial`/`severity`/`source` em `/balance`, e ausência de `ClosePreviewResponse`. **Pendentes:** `dt-projection-chart` (T-011-18) e o gráfico de projeção, sem dado de origem; prévia de fechamento (T-011-29/T-011-31), sem endpoint — os campos "será transportado" e "registros a travar" aparecem como "—"; resumos por categoria e ticket em P16; paginação por cursor do extrato, aplicada no cliente enquanto a API devolve `entries[]` completo; autor do ajuste, que a API expõe só como UUID (FR-129 proíbe exibir); navegação até P16, que depende de P13/P14 de `004`; `RolloverExpiryJob` e `AutoClosePeriodJob`, bloqueados pelos jobs de geração de período de `004` |
 
 **Notas da sprint S2 (backend):**
 
@@ -335,6 +347,11 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `TagLinkService.replaceWorkLogTags(...)` · `findByWorkLogId(s)` · `workLogIdsWithAllTags(...)` | `008` |
 | `WorkLogService.countByTicket` · `countByCategory` · `sumBillableMinutesByPeriod` · `lockByPeriod` · `unlockByPeriod` · `createFromTimer` · `findByPeriodForStatement` | `005`, `007`, `009`, `011`, `012` |
 | `TimerQueryService.hasActiveForTicket` · `activeTimerIdsForTickets` · `TimerService.discardForUser` | `007` (RN-311), `011` (RN-240), `002` (RN-460) |
+| `MembershipService.activeMemberIdsWithRoles(roles)` | `013` (RN-607) |
+| `ContractService.notificationThresholdsOf(id)` · `findEndingOn(date)` | `013` (RN-602, RN-606) |
+| `ContractPeriodService.findEndingOn(date)` | `013` (RN-605) |
+| `UserAccountService.updateNotificationPreferences(...)` | `013` (§9.2 de notifications.md) |
+| `CommentEvents.CommentCreatedEvent` | `013` (RN-813) |
 | `TicketTotalsService.applyWorkLogDelta(ticketId, spentDelta, billableDelta)` | `008` (RN-308) |
 | `TicketTransitionService.reopenOnWorkLog(ticketId, workLogId)` | `008` (RN-312) |
 | `TicketActivitySource.activityOf(ticketId)` | Implementada por `014`; `008` acrescenta os work logs |

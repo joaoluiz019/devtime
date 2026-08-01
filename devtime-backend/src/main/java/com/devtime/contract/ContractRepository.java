@@ -42,4 +42,19 @@ public interface ContractRepository extends SoftDeleteRepository<Contract> {
             """)
     long countByClientIdAndStatusIn(
             @Param("clientId") UUID clientId, @Param("statuses") List<ContractStatus> statuses);
+
+    /**
+     * RN-606: contratos {@code ACTIVE} cujo término é exatamente a data informada.
+     *
+     * <p>Consulta de job de plataforma: percorre todos os tenants porque o lembrete precisa
+     * alcançar todas as organizações. O contexto de tenant é definido pelo chamador a cada iteração
+     * (BR-049), e o {@code tenantId} viaja no resultado para tornar isso possível.
+     */
+    @Query(
+            """
+            SELECT c FROM Contract c
+             WHERE c.endDate = :endDate
+               AND c.status = com.devtime.contract.domain.ContractStatus.ACTIVE
+            """)
+    List<Contract> findActiveEndingOn(@Param("endDate") java.time.LocalDate endDate);
 }

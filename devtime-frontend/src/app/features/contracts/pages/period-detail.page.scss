@@ -1,0 +1,143 @@
+/**
+ * P16 — layout L6.
+ *
+ * Conteúdo principal 2/3 e painel lateral 1/3 em `lg`; abaixo disso o painel vai para o fim do
+ * conteúdo (DT-04). CA-03: nenhuma página produz rolagem horizontal no `body`.
+ */
+
+.dt-period {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-6);
+  max-width: var(--dt-content-max-width);
+  margin: 0 auto;
+  padding: var(--dt-space-6);
+}
+
+.dt-period__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+}
+
+.dt-period__breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}
+
+.dt-period__breadcrumb li + li::before {
+  content: '/';
+  margin-right: var(--dt-space-2);
+}
+
+.dt-period__title-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-3);
+  align-items: center;
+}
+
+.dt-period__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+  font-weight: 600;
+}
+
+.dt-period__status {
+  display: inline-flex;
+  gap: var(--dt-space-1);
+  align-items: center;
+  padding: var(--dt-space-1) var(--dt-space-2);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-full);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
+.dt-period__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin-left: auto;
+}
+
+.dt-period__subtitle {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}
+
+.dt-period__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--dt-space-6);
+}
+
+@media (width >= 992px) {
+  .dt-period__grid {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+}
+
+.dt-period__main,
+.dt-period__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-6);
+  min-width: 0;
+}
+
+.dt-period__panel {
+  padding: var(--dt-space-4);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-card);
+}
+
+.dt-period__section-title {
+  margin: 0 0 var(--dt-space-3);
+  font-size: var(--dt-text-xl);
+  line-height: var(--dt-text-xl-line);
+  font-weight: 600;
+}
+
+.dt-period__error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  align-items: center;
+  padding: var(--dt-space-10) var(--dt-space-6);
+  text-align: center;
+}
+
+.dt-period__error i {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-3xl);
+}
+
+.dt-period__error h1 {
+  margin: 0;
+  font-size: var(--dt-text-xl);
+  line-height: var(--dt-text-xl-line);
+}
+
+.dt-period__error p {
+  margin: 0;
+  color: var(--dt-text-secondary);
+}
+
+/* O código do erro existe para o suporte, em texto discreto (§9.1 do design system). */
+.dt-period__error-code {
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}

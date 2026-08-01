@@ -51,6 +51,22 @@ public class MembershipServiceImpl implements MembershipService {
                 .collect(Collectors.toUnmodifiableSet());
     }
 
+    /**
+     * RN-607 (ver {@link MembershipService#activeMemberIdsWithRoles}).
+     *
+     * <p>Sem {@code @PreAuthorize}: é consumido por {@code 013-notifications} a partir de
+     * consumidores de evento e de jobs, onde não existe requisição nem permissão a verificar
+     * (CE-S-06). Nenhuma rota HTTP o alcança.
+     */
+    @Override
+    public Set<UUID> activeMemberIdsWithRoles(
+            java.util.Collection<com.devtime.shared.security.Role> roles) {
+        if (roles == null || roles.isEmpty()) {
+            return Set.of();
+        }
+        return Set.copyOf(repository.findActiveUserIdsByRoleIn(roles));
+    }
+
     @Override
     @Transactional
     public UUID createOwner(UUID tenantId, UUID userId) {

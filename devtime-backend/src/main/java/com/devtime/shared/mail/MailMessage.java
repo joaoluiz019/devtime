@@ -32,7 +32,20 @@ public record MailMessage(String to, MailTemplate template, Map<String, String> 
         /** AU-06: alerta ao titular a cada bloqueio por tentativas de acesso. */
         ACCOUNT_LOCKED("mail/account-locked", "Alerta de segurança na sua conta DevTime"),
         /** RN-457: convite para uma organização, com validade de 7 dias. */
-        INVITATION("mail/invitation", "Você foi convidado para uma organização no DevTime");
+        INVITATION("mail/invitation", "Você foi convidado para uma organização no DevTime"),
+        /**
+         * RN-608: notificação da central entregue por e-mail (feature 013).
+         *
+         * <p>Modelo único para os 20 tipos do catálogo: o assunto e o corpo chegam como variáveis,
+         * já renderizados por {@code NotificationTemplateRenderer}. Um arquivo por tipo obrigaria a
+         * criar dois recursos a cada novo tipo, e a mensagem é a mesma estrutura em todos — título,
+         * corpo e um link para a origem.
+         *
+         * <p>§19.1 / CP-15: o corpo <b>não</b> contém descrições de work log nem valores
+         * monetários. O e-mail sai para um provedor externo e pode ser armazenado fora do controle
+         * do tenant; ele informa e leva ao sistema, não reproduz o dado.
+         */
+        NOTIFICATION("mail/notification", "Você tem uma notificação no DevTime");
 
         private final String templateBase;
         private final String subject;

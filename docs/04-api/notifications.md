@@ -331,7 +331,33 @@ sequenceDiagram
 | CA-10 | Notificações lidas há mais de 90 dias são removidas automaticamente |
 | CA-11 | Contratos `HOURLY_OPEN` nunca geram alerta de consumo |
 
-## 14. Dependências e impactos
+## 14. Estado da implementação (sprint S8 — backend)
+
+Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/notification` (spec `013`).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GET /notifications` e `/unread-count` | ✅ Implementados | Ordenação fixa; contagem por índice **parcial** sobre `read_at IS NULL` |
+| `POST /{id}/read`, `/{id}/unread`, `/read-all` | ✅ Implementados | Marcar como lida é idempotente; `read-all` é atualização em lote |
+| `DELETE /{id}` | ✅ Implementado | Exclusão lógica (RN-003), distinta da purga de RN-609 |
+| `GET` e `PATCH /notifications/preferences` | ✅ Implementados | Atualização parcial; tipos críticos recusam silenciamento com `DEVTIME-4001` |
+| `GET /notifications/stream` | ✅ Implementado | SSE por **destinatário**, `heartbeat` de 30 s, limite de 3 conexões (`DEVTIME-4003`). Registro em memória — dívida OB-08, válida no deploy de instância única |
+| Deduplicação (RN-601, RN-603) | ✅ Implementada | Índice único `(recipient_id, dedupe_key)`; inserção tentada **sem verificação prévia**, violação tratada como sucesso silencioso |
+| Limiares de consumo (RN-602, RN-604) | ✅ Implementados | Vindos de `contract.notificationThresholds`, nunca fixos; contrato sem saldo disponível não avalia (CE-10) |
+| `PERIOD_CLOSED`, `PERIOD_REOPENED`, `ADJUSTMENT_APPLIED` | ✅ Implementados | Consumidos de `011` após o commit |
+| `TIMER_LONG_RUNNING`, `TIMER_ABANDONED`, `TIMER_FORCE_STOPPED` | ✅ Implementados | Sempre ao **dono** do cronômetro (OWN-05) |
+| `TICKET_ASSIGNED`, `TICKET_REOPENED`, `TICKET_COMMENTED`, `TICKET_MENTIONED` | ✅ Implementados | `014-comments` passou a publicar `CommentCreatedEvent`; menção prevalece sobre comentário (CE-N-07) |
+| `PERIOD_CLOSING` e `CONTRACT_ENDING` | ✅ Implementados | Jobs diários, idempotentes pelo `dedupeKey` |
+| E-mail com 3 tentativas (RN-610) | ✅ Implementado | Contador por notificação; o *backoff* é o intervalo de 5 minutos do job |
+| Limpeza de lidas há mais de 90 dias (RN-609) | ✅ Implementada | Remoção **física**; não lidas nunca são purgadas |
+| `digestMode` e `quietHours` | ⚠️ Não implementados | Não constam de `entities.md` §6.2.1, que prevalece sobre §9.1 deste documento por IA-11 — divergência registrada no `CHANGELOG.md`. `DEVTIME-4002` fica reservado |
+| `mutedTypes` (§9.1) | ℹ️ Exposto como `mutedNotificationTypes` | Nome de `entities.md` §6.2.1 e de `GET /auth/me`; um único nome evita duas grafias para a mesma preferência |
+| `CONTRACT_USAGE_50/80/100` como tipos distintos | ℹ️ Um tipo `CONTRACT_USAGE` | O limiar vive no `dedupeKey` e na severidade. Tipos fixos quebrariam um contrato com `[70, 90]` (CP-05) |
+| `MEMBER_JOINED`, `MEMBER_REMOVED`, `EXPORT_*`, `ATTACHMENT_INFECTED` | ⚠️ Sem produtor | Declarados no catálogo; chegam com `002`, `012` e `015` |
+| `TICKET_BLOCKED` | ⚠️ Não implementado | `007` não publica evento de bloqueio; o tipo não foi declarado para não aparecer na tela de preferências sem nunca ocorrer |
+| Frontend P25, P28 e sino global | ⚠️ Fora do escopo | Não solicitado na sprint |
+
+## 15. Dependências e impactos
 
 | Documento | Relação |
 |---|---|

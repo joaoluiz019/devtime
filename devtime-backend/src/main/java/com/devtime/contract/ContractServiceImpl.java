@@ -516,6 +516,42 @@ public class ContractServiceImpl implements ContractService {
                 contract.getCurrency());
     }
 
+    /**
+     * RN-602 (ver {@link ContractService#notificationThresholdsOf}).
+     *
+     * <p>Sem {@code @PreAuthorize}: é consumido por {@code 013-notifications} a partir de
+     * consumidores de evento e de jobs, onde não há requisição nem permissão a verificar (CE-S-06).
+     */
+    @Override
+    public java.util.List<Integer> notificationThresholdsOf(UUID contractId) {
+        Contract contract = require(contractId);
+        Short[] thresholds = contract.getNotificationThresholds();
+        if (thresholds == null) {
+            return java.util.List.of();
+        }
+        return java.util.Arrays.stream(thresholds)
+                .filter(java.util.Objects::nonNull)
+                .map(Short::intValue)
+                .sorted()
+                .toList();
+    }
+
+    /** RN-606 (ver {@link ContractService#findEndingOn}). Consulta de job; sem permissão. */
+    @Override
+    public java.util.List<com.devtime.contract.dto.ContractResponses.ContractReminderView>
+            findEndingOn(java.time.LocalDate endDate) {
+        return repository.findActiveEndingOn(endDate).stream()
+                .map(
+                        contract ->
+                                new com.devtime.contract.dto.ContractResponses.ContractReminderView(
+                                        contract.getTenantId(),
+                                        contract.getId(),
+                                        contract.getCode(),
+                                        contract.getName(),
+                                        contract.getEndDate()))
+                .toList();
+    }
+
     /** RN-306: apenas {@code ACTIVE} e {@code SUSPENDED} aceitam registro de horas. */
     private boolean acceptsWorkLogs(ContractStatus status) {
         return status == ContractStatus.ACTIVE || status == ContractStatus.SUSPENDED;

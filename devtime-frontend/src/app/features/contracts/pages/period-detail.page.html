@@ -1,0 +1,169 @@
+<!-- FR-170 / §8.2 do design system: esqueleto reproduzindo a estrutura final, nunca tela em branco. -->
+@if (store.loading()) {
+  <div class="dt-period" aria-busy="true">
+    <p-skeleton height="2rem" width="18rem" />
+    <p-skeleton height="9rem" />
+    <p-skeleton height="20rem" />
+  </div>
+} @else if (store.error() !== null) {
+  <!-- §8.3: erro de carregamento tem título, mensagem e ação de nova tentativa. -->
+  <section class="dt-period__error" role="alert">
+    <i class="pi pi-exclamation-triangle" aria-hidden="true"></i>
+    <h1 i18n="@@period.error.title">Não foi possível carregar o período</h1>
+    <p>{{ store.error()?.detail }}</p>
+    <p class="dt-period__error-code">{{ store.error()?.code }}</p>
+    <p-button i18n-label="@@action.retry" label="Tentar novamente" (onClick)="load()" />
+  </section>
+} @else if (store.balance(); as balance) {
+  <div class="dt-period">
+    <!-- DT-01: cabeçalho com trilha, título, selo de status e ações. -->
+    <header class="dt-period__header">
+      <nav i18n-aria-label="@@breadcrumb.label" aria-label="Trilha de navegação">
+        <ol class="dt-period__breadcrumb">
+          <li i18n="@@nav.contracts">Contratos</li>
+          <li>{{ store.contract()?.code }}</li>
+          <li aria-current="page">{{ balance.label }}</li>
+        </ol>
+      </nav>
+
+      <div class="dt-period__title-row">
+        <h1 class="dt-period__title">
+          {{ balance.label }}
+        </h1>
+
+        <!-- DS-05 / SB-01: o status aparece com ícone e texto, nunca apenas por cor. -->
+        <span class="dt-period__status">
+          <i class="pi" [class]="statusIcon()" aria-hidden="true"></i>
+          {{ statusLabel() }}
+        </span>
+
+        <dt-partial-badge [status]="balance.status" [reopenCount]="balance.reopenCount" />
+
+        <div class="dt-period__actions">
+          <!-- DT-02: ação indisponível por estado ou permissão é ocultada, não desabilitada. -->
+          @if (mayAdjust()) {
+            <p-button
+              severity="secondary"
+              [outlined]="true"
+              icon="pi pi-sliders-h"
+              i18n-label="@@period.action.adjust"
+              label="Ajustar saldo"
+              (onClick)="openDialog('adjustment')"
+            />
+          }
+          @if (mayReopen()) {
+            <p-button
+              severity="secondary"
+              [outlined]="true"
+              icon="pi pi-replay"
+              i18n-label="@@period.action.reopen"
+              label="Reabrir"
+              (onClick)="openDialog('reopen')"
+            />
+          }
+          <!-- DS-06: uma única ação primária por tela. -->
+          @if (mayClose()) {
+            <p-button
+              icon="pi pi-lock"
+              i18n-label="@@period.action.close"
+              label="Fechar período"
+              (onClick)="openDialog('close')"
+            />
+          }
+        </div>
+      </div>
+
+      <p class="dt-period__subtitle">
+        {{ store.contract()?.name }} · {{ store.contract()?.client?.name }} ·
+        {{ balance.startDate }} — {{ balance.endDate }}
+      </p>
+    </header>
+
+    <dt-period-timeline
+      [periods]="store.periods()"
+      [selectedId]="periodId()"
+      (selected)="onSelectPeriod($event)"
+    />
+
+    <div class="dt-period__grid">
+      <div class="dt-period__main">
+        <section aria-labelledby="statement-heading">
+          <h2
+            id="statement-heading"
+            class="dt-period__section-title"
+            i18n="@@period.section.statement"
+          >
+            Extrato do período
+          </h2>
+          <dt-period-statement
+            [entries]="statement.entries()"
+            [total]="statement.total()"
+            [hasMore]="statement.hasMore()"
+            (loadMore)="statement.loadMore()"
+          />
+        </section>
+
+        <section aria-labelledby="adjustments-heading">
+          <h2
+            id="adjustments-heading"
+            class="dt-period__section-title"
+            i18n="@@period.section.adjustments"
+          >
+            Ajustes
+          </h2>
+          <dt-adjustment-list
+            [adjustments]="store.adjustments()"
+            [canAdjust]="mayAdjust()"
+            (reverse)="reverseAdjustment($event)"
+          />
+        </section>
+      </div>
+
+      <!-- DT-04: em `md` e abaixo o painel lateral vai para o fim do conteúdo (ver o SCSS). -->
+      <aside class="dt-period__aside">
+        <dt-balance-summary [balance]="balance" />
+
+        <section aria-labelledby="breakdown-heading" class="dt-period__panel">
+          <h2
+            id="breakdown-heading"
+            class="dt-period__section-title"
+            i18n="@@period.section.breakdown"
+          >
+            Composição do saldo
+          </h2>
+          <dt-balance-breakdown [balance]="balance" />
+        </section>
+      </aside>
+    </div>
+  </div>
+
+  @if (dialog() === 'adjustment') {
+    <dt-adjustment-dialog
+      [visible]="true"
+      [balance]="balance"
+      [submitting]="submitting()"
+      (apply)="applyAdjustment($event)"
+      (cancelled)="closeDialog()"
+    />
+  }
+
+  @if (dialog() === 'close') {
+    <dt-close-period-dialog
+      [visible]="true"
+      [balance]="balance"
+      [early]="store.isEarlyClosing()"
+      [submitting]="submitting()"
+      (confirmed)="closePeriod($event)"
+      (cancelled)="closeDialog()"
+    />
+  }
+
+  @if (dialog() === 'reopen') {
+    <dt-reopen-dialog
+      [visible]="true"
+      [submitting]="submitting()"
+      (confirmed)="reopenPeriod($event)"
+      (cancelled)="closeDialog()"
+    />
+  }
+}

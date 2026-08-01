@@ -1,0 +1,71 @@
+/** Diálogo de pré-fechamento. */
+
+.dt-close-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+}
+
+.dt-close-dialog__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--dt-space-3);
+  margin: 0;
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-page);
+}
+
+.dt-close-dialog__figures dt {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
+.dt-close-dialog__figures dd {
+  margin: 0;
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+  font-weight: 600;
+}
+
+.dt-close-dialog__unknown {
+  color: var(--dt-text-secondary);
+}
+
+.dt-close-dialog__note,
+.dt-close-dialog__warning {
+  margin: 0;
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+}
+
+.dt-close-dialog__note {
+  color: var(--dt-text-secondary);
+}
+
+.dt-close-dialog__warning {
+  display: flex;
+  gap: var(--dt-space-2);
+  padding: var(--dt-space-3);
+  border-left: 3px solid var(--dt-color-warning);
+  border-radius: var(--dt-radius-sm);
+  background-color: var(--dt-surface-page);
+}
+
+.dt-close-dialog__warning i {
+  color: var(--dt-color-warning);
+}
+
+.dt-close-dialog__confirm {
+  display: flex;
+  gap: var(--dt-space-2);
+  align-items: flex-start;
+}
+
+.dt-close-dialog__actions {
+  display: flex;
+  gap: var(--dt-space-2);
+  justify-content: flex-end;
+}

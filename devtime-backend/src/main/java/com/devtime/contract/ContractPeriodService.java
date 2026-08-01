@@ -48,4 +48,14 @@ public interface ContractPeriodService {
      *     inexistente ou de outro tenant
      */
     com.devtime.contract.dto.ContractResponses.ContractPeriodRefResponse getRefById(UUID periodId);
+
+    /**
+     * RN-605: períodos abertos cujo {@code endDate} é exatamente a data informada, em <b>todos</b>
+     * os tenants.
+     *
+     * <p>Interface pública para o job de lembrete de {@code 013}. Restrita a {@code OPEN} e {@code
+     * REOPENED}: avisar sobre o fechamento iminente de um período já fechado não teria sentido.
+     */
+    java.util.List<com.devtime.contract.dto.ContractResponses.PeriodReminderView> findEndingOn(
+            LocalDate endDate);
 }

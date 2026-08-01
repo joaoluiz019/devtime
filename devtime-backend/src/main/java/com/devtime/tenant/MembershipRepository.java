@@ -72,4 +72,20 @@ public interface MembershipRepository extends SoftDeleteRepository<Membership> {
                AND m.status = com.devtime.tenant.domain.MembershipStatus.INVITED
             """)
     List<Membership> findInvitedByUserId(@Param("userId") UUID userId);
+
+    /**
+     * RN-607: membros ativos do tenant com um dos papéis informados.
+     *
+     * <p>O filtro por papel entra na consulta: carregar todos os membros para descartar a maioria
+     * em memória custaria proporcional ao tamanho da organização a cada avaliação de limiar, e a
+     * avaliação roda a cada alteração de consumo (RN-602).
+     */
+    @Query(
+            """
+            SELECT m.userId FROM Membership m
+             WHERE m.status = com.devtime.tenant.domain.MembershipStatus.ACTIVE
+               AND m.role IN :roles
+            """)
+    List<UUID> findActiveUserIdsByRoleIn(
+            @Param("roles") java.util.Collection<com.devtime.shared.security.Role> roles);
 }

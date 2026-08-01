@@ -49,6 +49,7 @@ public class TimerMonitorJob {
 
     private final TimerRepository repository;
     private final TenantSettingsService tenantSettingsService;
+    private final AbandonedTimerPolicy abandonedTimerPolicy;
     private final DomainEventPublisher events;
     private final TenantClock clock;
 
@@ -81,7 +82,11 @@ public class TimerMonitorJob {
                     timer.setStatus(TimerStatus.ABANDONED);
                     events.publish(
                             new TimerAbandonedEvent(
-                                    timer.getId(), timer.getUserId(), grossElapsed));
+                                    timer.getId(),
+                                    timer.getUserId(),
+                                    timer.getTicketId(),
+                                    grossElapsed,
+                                    abandonedTimerPolicy.recoverableUntil(timer)));
                     log.info(
                             "cronômetro marcado como abandonado timerId={} grossElapsedSeconds={}",
                             timer.getId(),
@@ -97,7 +102,10 @@ public class TimerMonitorJob {
                     timer.setLongRunningNotifiedAt(now);
                     events.publish(
                             new TimerLongRunningEvent(
-                                    timer.getId(), timer.getUserId(), grossElapsed));
+                                    timer.getId(),
+                                    timer.getUserId(),
+                                    timer.getTicketId(),
+                                    grossElapsed));
                     longRunning++;
                 }
             } catch (RuntimeException failure) {

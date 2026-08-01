@@ -108,4 +108,23 @@ public interface ContractService {
      */
     com.devtime.contract.dto.ContractResponses.ContractWorkLogRefResponse getWorkLogRef(
             UUID contractId);
+
+    /**
+     * RN-602: limiares de consumo configurados no contrato.
+     *
+     * <p>Interface pública para {@code 013-notifications}. Devolve os valores do contrato, nunca
+     * 50/80/100 fixos (CP-05): um contrato configurado com {@code [70, 90]} precisa alertar em 70 e
+     * 90, e usar valores fixos faria a notificação divergir do painel do mesmo contrato.
+     */
+    java.util.List<Integer> notificationThresholdsOf(UUID contractId);
+
+    /**
+     * RN-606: contratos cujo {@code endDate} é exatamente a data informada, em <b>todos</b> os
+     * tenants.
+     *
+     * <p>Interface pública para o job de lembrete de {@code 013}. Percorre tenants porque o job é
+     * de plataforma; o contexto é definido pelo chamador a cada iteração (BR-049).
+     */
+    java.util.List<com.devtime.contract.dto.ContractResponses.ContractReminderView> findEndingOn(
+            java.time.LocalDate endDate);
 }

@@ -28,6 +28,14 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   'DEVTIME-2007': $localize`:@@error.DEVTIME-2007:Esta requisição já foi processada com dados diferentes.`,
   'DEVTIME-2010': $localize`:@@error.DEVTIME-2010:Esta operação não é possível no estado atual do registro.`,
   'DEVTIME-2011': $localize`:@@error.DEVTIME-2011:Este registro está finalizado e não aceita alterações.`,
+  // 011-bank-hours (§12 de `specs/011-bank-hours/spec.md`).
+  'DEVTIME-2215': $localize`:@@error.DEVTIME-2215:A justificativa precisa ter ao menos 10 caracteres.`,
+  'DEVTIME-2235': $localize`:@@error.DEVTIME-2235:Só é possível ajustar o saldo de um período aberto.`,
+  'DEVTIME-2236': $localize`:@@error.DEVTIME-2236:Ajustes não podem ser alterados. Registre um estorno.`,
+  'DEVTIME-2237': $localize`:@@error.DEVTIME-2237:Este ajuste deixaria o saldo disponível negativo.`,
+  'DEVTIME-2239': $localize`:@@error.DEVTIME-2239:O período ainda não terminou. Confirme o fechamento antecipado para continuar.`,
+  'DEVTIME-2240': $localize`:@@error.DEVTIME-2240:Existe um cronômetro ativo neste período.`,
+  'DEVTIME-2244': $localize`:@@error.DEVTIME-2244:Existe um período posterior já fechado. Reabra-o primeiro.`,
   'DEVTIME-9001': $localize`:@@error.DEVTIME-9001:Não foi possível concluir a operação. Informe o código ao suporte.`,
   'DEVTIME-9002': $localize`:@@error.DEVTIME-9002:Muitas requisições. Aguarde um instante e tente novamente.`,
 };

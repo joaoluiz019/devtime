@@ -149,4 +149,20 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
                AND p.updatedAt < :threshold
             """)
     List<ContractPeriod> findStuckClosing(@Param("threshold") java.time.Instant threshold);
+
+    /**
+     * RN-605: períodos abertos cujo término é exatamente a data informada.
+     *
+     * <p>Restrita a {@code OPEN} e {@code REOPENED} — avisar sobre o fechamento iminente de um
+     * período já fechado não teria sentido. Consulta de job de plataforma, como {@link
+     * #findStuckClosing}.
+     */
+    @Query(
+            """
+            SELECT p FROM ContractPeriod p
+             WHERE p.endDate = :endDate
+               AND p.status IN (com.devtime.contract.domain.PeriodStatus.OPEN,
+                                com.devtime.contract.domain.PeriodStatus.REOPENED)
+            """)
+    List<ContractPeriod> findOpenEndingOn(@Param("endDate") LocalDate endDate);
 }

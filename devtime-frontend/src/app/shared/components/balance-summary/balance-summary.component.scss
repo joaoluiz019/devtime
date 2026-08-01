@@ -1,0 +1,62 @@
+/**
+ * Cartão de saldo.
+ *
+ * DS-01 (densidade sóbria): os quatro números ocupam uma grade compacta. O usuário é técnico e
+ * prefere ver mais a rolar mais.
+ */
+
+.dt-balance-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+  padding: var(--dt-space-4);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-card);
+  box-shadow: var(--dt-shadow-sm);
+}
+
+.dt-balance-summary__header {
+  display: flex;
+  gap: var(--dt-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dt-balance-summary__label {
+  margin: 0;
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+  font-weight: 500;
+}
+
+.dt-balance-summary__figures {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--dt-space-3);
+  margin: 0;
+}
+
+/* Quatro colunas a partir de `lg`, onde a largura comporta a comparação lado a lado. */
+@media (width >= 992px) {
+  .dt-balance-summary__figures {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.dt-balance-summary__figure dt {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
+.dt-balance-summary__figure dd {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+  font-weight: 600;
+}
+
+.dt-balance-summary__muted {
+  color: var(--dt-text-secondary);
+}

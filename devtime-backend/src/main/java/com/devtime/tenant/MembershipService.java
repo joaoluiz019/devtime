@@ -31,6 +31,18 @@ public interface MembershipService {
     Set<UUID> activeMemberIds();
 
     /**
+     * RN-607: membros ativos do tenant com um dos papéis informados.
+     *
+     * <p>Interface pública para {@code 013-notifications}, que resolve destinatários por tipo de
+     * evento — {@code OWNER} e {@code ADMIN} para contrato e período. O filtro por papel acontece
+     * na consulta, e não em memória: o resolvedor não deve receber a lista de todos os membros para
+     * descartar a maioria.
+     *
+     * @return conjunto possivelmente vazio; nunca {@code null} (ER-06)
+     */
+    Set<UUID> activeMemberIdsWithRoles(java.util.Collection<Role> roles);
+
+    /**
      * INV-TEN-02: cria o vínculo {@code OWNER} {@code ACTIVE} do cadastro.
      *
      * <p>Nasce ativo, e não convidado: quem cadastra a organização é o próprio titular, e não há

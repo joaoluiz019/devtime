@@ -226,7 +226,10 @@ public class TimerServiceImpl implements TimerService {
         // essa pessoa saiba produziria um registro de horas que ela não reconhece como seu.
         events.publish(
                 new TimerForceStoppedEvent(
-                        timer.getId(), timer.getUserId(), tenantContext.requireUserId()));
+                        timer.getId(),
+                        timer.getUserId(),
+                        timer.getTicketId(),
+                        tenantContext.requireUserId()));
         auditService.record(
                 "TIMER_FORCE_STOPPED",
                 ENTITY_TYPE,

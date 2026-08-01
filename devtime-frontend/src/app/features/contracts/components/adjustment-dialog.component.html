@@ -1,0 +1,150 @@
+<!--
+  A11Y-06 / FR-146: o diálogo do PrimeNG prende o foco e o devolve ao fechar.
+  FR-110: Ctrl/Cmd + Enter salva — o atalho continua ativo com o foco em campo de texto (§12 do DS).
+-->
+<p-dialog
+  [visible]="visible()"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [style]="{ width: '32rem' }"
+  [header]="title"
+  (onHide)="onCancel()"
+>
+  <form
+    class="dt-adjustment-dialog"
+    [formGroup]="form"
+    (ngSubmit)="onSubmit()"
+    (keydown.control.enter)="onSubmit()"
+    (keydown.meta.enter)="onSubmit()"
+  >
+    <div class="dt-field">
+      <!-- FR-107 / A11Y-04: todo campo tem rótulo associado por for/id. -->
+      <label for="adjustment-minutes">
+        <span i18n="@@adjustment.field.minutes">Horas a creditar ou debitar</span>
+        <span class="dt-field__required" aria-hidden="true">*</span>
+      </label>
+      <dt-duration-input
+        inputId="adjustment-minutes"
+        formControlName="minutes"
+        describedBy="adjustment-minutes-help"
+        [required]="true"
+        [allowNegative]="true"
+        [invalid]="minutesControl.touched && minutesControl.invalid"
+      />
+      <p id="adjustment-minutes-help" class="dt-field__help" i18n="@@adjustment.field.minutes.help">
+        Use valor negativo para debitar. Aceita 90, 1:30, 1h30 ou 1,5h.
+      </p>
+      <!-- FR-103 / A11Y-05: erro sob o campo, anunciado por aria-live. -->
+      @if (minutesControl.touched && minutesControl.invalid) {
+        <p
+          class="dt-field__error"
+          role="alert"
+          aria-live="polite"
+          i18n="@@adjustment.error.minutes"
+        >
+          Informe uma quantidade de horas diferente de zero.
+        </p>
+      }
+    </div>
+
+    <div class="dt-field">
+      <label for="adjustment-reason">
+        <span i18n="@@adjustment.field.reason">Motivo</span>
+        <span class="dt-field__required" aria-hidden="true">*</span>
+      </label>
+      <p-select
+        inputId="adjustment-reason"
+        formControlName="reason"
+        optionLabel="label"
+        optionValue="value"
+        [options]="reasonOptions"
+        [fluid]="true"
+      />
+    </div>
+
+    <div class="dt-field">
+      <label for="adjustment-justification">
+        <span i18n="@@adjustment.field.justification">Justificativa</span>
+        <span class="dt-field__required" aria-hidden="true">*</span>
+      </label>
+      <textarea
+        id="adjustment-justification"
+        pTextarea
+        rows="3"
+        formControlName="justification"
+        aria-required="true"
+        aria-describedby="adjustment-justification-help"
+        [attr.aria-invalid]="justificationControl.touched && justificationControl.invalid"
+      ></textarea>
+      <p
+        id="adjustment-justification-help"
+        class="dt-field__help"
+        i18n="@@adjustment.field.justification.help"
+      >
+        Este texto aparece no extrato que o cliente recebe. Mínimo de 10 caracteres.
+      </p>
+      @if (justificationControl.touched && justificationControl.invalid) {
+        <p
+          class="dt-field__error"
+          role="alert"
+          aria-live="polite"
+          i18n="@@adjustment.error.justification"
+        >
+          A justificativa precisa ter ao menos 10 caracteres.
+        </p>
+      }
+    </div>
+
+    <!--
+      Prévia do saldo resultante. Obrigatória: o ajuste é imutável (RN-236) e a única correção é um
+      estorno que fica no extrato para sempre.
+    -->
+    <section class="dt-preview" aria-live="polite">
+      <h4 class="dt-preview__title" i18n="@@adjustment.preview.title">Saldo após o ajuste</h4>
+      <dl class="dt-preview__figures">
+        <div>
+          <dt i18n="@@adjustment.preview.available">Disponível</dt>
+          <dd class="dt-duration" [class.dt-severity-critical]="previewInvalid()">
+            {{ previewAvailable() | duration }}
+          </dd>
+        </div>
+        <div>
+          <dt i18n="@@adjustment.preview.remaining">Restante</dt>
+          <dd class="dt-duration" [class.dt-severity-critical]="previewRemaining() < 0">
+            {{ previewRemaining() | duration }}
+          </dd>
+        </div>
+        <div>
+          <dt i18n="@@adjustment.preview.rate">Consumo</dt>
+          <dd class="dt-duration">{{ previewRate() | consumptionRate }}</dd>
+        </div>
+      </dl>
+
+      @if (previewInvalid()) {
+        <p class="dt-preview__warning" role="alert" i18n="@@adjustment.preview.negative">
+          Este débito deixaria o saldo disponível negativo e será recusado.
+        </p>
+      }
+    </section>
+
+    <!-- FM-05: ação primária à direita, cancelar à esquerda dela. -->
+    <footer class="dt-adjustment-dialog__actions">
+      <p-button
+        type="button"
+        severity="secondary"
+        [text]="true"
+        i18n-label="@@action.cancel"
+        label="Cancelar"
+        (onClick)="onCancel()"
+      />
+      <p-button
+        type="submit"
+        i18n-label="@@adjustment.action.apply"
+        label="Aplicar ajuste"
+        [loading]="submitting()"
+        [disabled]="submitting()"
+      />
+    </footer>
+  </form>
+</p-dialog>

@@ -70,7 +70,14 @@ public final class TicketEvents {
             String contractCode)
             implements DomainEvent {}
 
-    /** RN-312: reabertura automática ao receber work log. Notifica o responsável após o commit. */
-    public record TicketReopenedEvent(UUID ticketId, String ticketKey, UUID workLogId)
+    /**
+     * RN-312: reabertura automática ao receber work log. Notifica o responsável após o commit.
+     *
+     * @param assigneeId responsável no momento da reabertura; nulo quando o ticket não tem um. Vai
+     *     no evento para que o consumidor não precise reconsultar o ticket — BR-181 permite
+     *     identificadores, e é justamente o identificador que o destinatário exige
+     */
+    public record TicketReopenedEvent(
+            UUID ticketId, String ticketKey, UUID workLogId, UUID assigneeId)
             implements DomainEvent {}
 }

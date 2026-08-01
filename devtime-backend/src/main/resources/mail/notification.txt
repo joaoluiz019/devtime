@@ -1,0 +1,13 @@
+Olá, {{recipientName}}.
+
+{{title}}
+
+{{body}}
+
+Acesse o DevTime para ver os detalhes:
+{{actionUrl}}
+
+Você está recebendo este e-mail porque as notificações do tipo "{{typeLabel}}" estão
+ativas na sua conta. Para alterar, acesse Configurações > Notificações.
+
+Equipe DevTime

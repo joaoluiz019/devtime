@@ -85,6 +85,46 @@ body {
   color: var(--dt-color-danger);
 }
 
+/**
+ * Campo de formulário (FM-03, FR-103, FR-107, FR-108).
+ *
+ * Global porque a estrutura rótulo → controle → ajuda → erro se repete em todo formulário do
+ * produto, e reescrevê-la por componente faria a mensagem de erro aparecer em posição diferente
+ * conforme a tela — o oposto do que FR-103 exige.
+ */
+.dt-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-field label {
+  font-size: var(--dt-text-sm);
+  line-height: var(--dt-text-sm-line);
+  font-weight: 500;
+}
+
+/* FM-03: campo obrigatório é marcado visualmente, além de `aria-required` no controle. */
+.dt-field__required {
+  margin-left: var(--dt-space-1);
+  color: var(--dt-color-danger);
+}
+
+.dt-field__help {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
+/* FR-103: o erro fica sob o campo, nunca em toast, e nunca é comunicado só pela cor (DS-05). */
+.dt-field__error {
+  margin: 0;
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+  line-height: var(--dt-text-xs-line);
+}
+
 /* Conteúdo visível apenas a leitores de tela, para anúncios de aria-live (A11Y-05). */
 .dt-visually-hidden {
   position: absolute;

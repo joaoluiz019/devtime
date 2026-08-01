@@ -15,6 +15,8 @@ module.exports = {
   collectCoverageFrom: [
     'src/app/**/*.ts',
     '!src/app/**/*.spec.ts',
+    // Fábricas de dados de teste não são código de produção.
+    '!src/app/**/*.fixture.ts',
     '!src/app/**/*.routes.ts',
     '!src/app/app.config.ts',
   ],

@@ -1,0 +1,113 @@
+<p-dialog
+  [visible]="visible()"
+  [modal]="true"
+  [draggable]="false"
+  [style]="{ width: '34rem' }"
+  [header]="title"
+  (onHide)="onCancel()"
+>
+  <form class="dt-close-dialog" [formGroup]="form" (ngSubmit)="onConfirm()">
+    <!-- Conteúdo obrigatório do diálogo de pré-fechamento (§10 de pages.md). -->
+    <dl class="dt-close-dialog__figures">
+      <div>
+        <dt i18n="@@close.available">Total disponível</dt>
+        <dd class="dt-duration">{{ balance().availableMinutes | duration }}</dd>
+      </div>
+      <div>
+        <dt i18n="@@close.consumed">Total consumido</dt>
+        <dd class="dt-duration">{{ balance().consumedMinutes | duration }}</dd>
+      </div>
+      <div>
+        <dt>{{ balanceLabel() }}</dt>
+        <dd class="dt-duration" [class.dt-severity-critical]="isOverage()">
+          {{ balanceDisplay() | duration }}
+        </dd>
+      </div>
+      <div>
+        <dt i18n="@@close.carriedOut">Será transportado</dt>
+        <!-- CE-D-05: sem a prévia do servidor, exibimos "—", nunca um número calculado aqui. -->
+        <dd
+          class="dt-duration dt-close-dialog__unknown"
+          i18n-title="@@close.unavailable.tooltip"
+          title="Informado pelo servidor apenas ao concluir o fechamento"
+        >
+          —
+        </dd>
+      </div>
+      <div>
+        <dt i18n="@@close.lockedWorkLogs">Registros a travar</dt>
+        <dd
+          class="dt-duration dt-close-dialog__unknown"
+          i18n-title="@@close.unavailable.tooltip"
+          title="Informado pelo servidor apenas ao concluir o fechamento"
+        >
+          —
+        </dd>
+      </div>
+    </dl>
+
+    <p class="dt-close-dialog__note" i18n="@@close.preview.unavailable">
+      O total transportado e a contagem de registros travados são confirmados pelo servidor no
+      momento do fechamento e aparecem no resumo do resultado.
+    </p>
+
+    <p class="dt-close-dialog__warning" role="alert">
+      <i class="pi pi-lock" aria-hidden="true"></i>
+      <span i18n="@@close.warning">
+        Após fechar, o relatório deste período não muda mais e os registros ficam bloqueados para
+        edição.
+      </span>
+    </p>
+
+    @if (early()) {
+      <div class="dt-field">
+        <!-- RN-239: fechamento antecipado congela um período que ainda está recebendo horas. -->
+        <div class="dt-close-dialog__confirm">
+          <p-checkbox inputId="close-confirmed" formControlName="confirmed" [binary]="true" />
+          <label for="close-confirmed" i18n="@@close.field.confirmed">
+            Entendo que este período ainda não terminou e quero fechá-lo mesmo assim.
+          </label>
+        </div>
+        @if (confirmedControl.touched && missingConfirmation()) {
+          <p class="dt-field__error" role="alert" aria-live="polite" i18n="@@close.error.confirmed">
+            Marque a confirmação para fechar um período antecipadamente.
+          </p>
+        }
+      </div>
+
+      <div class="dt-field">
+        <label for="close-reason" i18n="@@close.field.reason">
+          Motivo do fechamento antecipado
+        </label>
+        <textarea
+          id="close-reason"
+          pTextarea
+          rows="2"
+          formControlName="earlyClosingReason"
+          aria-describedby="close-reason-help"
+        ></textarea>
+        <p id="close-reason-help" class="dt-field__help" i18n="@@close.field.reason.help">
+          Registrado em auditoria.
+        </p>
+      </div>
+    }
+
+    <footer class="dt-close-dialog__actions">
+      <p-button
+        type="button"
+        severity="secondary"
+        [text]="true"
+        i18n-label="@@action.cancel"
+        label="Cancelar"
+        (onClick)="onCancel()"
+      />
+      <p-button
+        type="submit"
+        i18n-label="@@close.action.confirm"
+        label="Fechar período"
+        [loading]="submitting()"
+        [disabled]="submitting()"
+      />
+    </footer>
+  </form>
+</p-dialog>

@@ -173,17 +173,28 @@ Não é um componente novo; é a **política de aplicação** de `p-button`.
 
 ---
 
-### 6.4 `dt-balance-bar`
+### 6.4 `dt-consumption-gauge`
 
 Barra de progresso de consumo do contrato.
 
+> **Nome sincronizado com a implementação (T-011-44).** Este componente era chamado
+> `dt-balance-bar` nesta seção. O nome canônico é `dt-consumption-gauge`, fixado em §21.2 de
+> `specs/011-bank-hours/spec.md` e referenciado por nome em três pontos de `specs/010-dashboard/`
+> (T-010-14, `spec.md` §492, `tests.md`). Renomear do outro lado quebraria a feature seguinte.
+
 | Propriedade | Tipo | Descrição |
 |---|---|---|
-| `availableMinutes` | `number` | Total disponível |
-| `consumedMinutes` | `number` | Consumido |
-| `size` | `'sm' \| 'md' \| 'lg'` | Densidade |
-| `showLabels` | `boolean` | Exibe valores numéricos |
-| `showProjection` | `boolean` | Marca a projeção de consumo |
+| `rate` | `number` | Taxa de consumo percentual, como vem do servidor |
+| `thresholds` | `readonly number[]` | Limiares marcados sobre o trilho; padrão `[50, 80]` |
+
+**Implementado sem `p-progressBar`:** além de não marcar limiares (BB-04) nem distinguir o excedente
+(BB-03), o `p-progressBar` da versão 21 emite `aria-level="{valor}%"` por host binding — atributo
+inválido para `role="progressbar"`, que produz duas violações de axe-core e não é sobrescrevível de
+fora. FR-140 exige zero violações. A marcação própria mantém a mesma semântica ARIA de BB-05.
+
+O total disponível, o consumido e o restante são exibidos por `dt-balance-summary`, que compõe este
+medidor. A marcação de projeção (`showProjection`) depende do bloco `projection` de §9.1 de
+`04-api/contracts.md`, ainda não emitido — ver §9.1.1 daquele documento.
 
 **Comportamento visual:**
 
@@ -205,32 +216,39 @@ Excedido (105%)  ▓▓▓▓▓▓▓▓▓▓  vermelho ✕ 42:00 / 40:00 · e
 
 ---
 
-### 6.5 `dt-balance-statement`
+### 6.5 `dt-balance-breakdown` e `dt-period-statement`
 
 Extrato explicativo do saldo — materializa o momento de verdade MV-02.
 
-| Propriedade | Tipo |
-|---|---|
-| `statement` | `PeriodStatement` (resposta de `/statement`) |
-| `expandable` | `boolean` |
+> **Divisão sincronizada com a implementação (T-011-44).** Esta seção descrevia um único
+> `dt-balance-statement` com sete linhas agregadas. A API entregue devolve **lançamentos**
+> cronológicos e um bloco `balance` (§9.2 de `04-api/contracts.md`), o que separa a
+> responsabilidade em dois componentes, ambos nomeados em §21.2 de `specs/011-bank-hours/spec.md`.
 
-**Renderização:**
+| Componente | Responsabilidade | Propriedades |
+|---|---|---|
+| `dt-balance-breakdown` | Composição do saldo: contratado + transportado + ajustes − consumido | `balance` |
+| `dt-period-statement` | Lançamentos em ordem cronológica, com saldo acumulado | `entries`, `total`, `hasMore` |
+
+**Renderização de `dt-balance-breakdown`:**
 
 | Linha | Estilo |
 |---|---|
-| `CONTRACTED`, `CARRIED_IN`, `ADJUSTMENT` | Texto normal, valor à direita com sinal `+` |
-| `SUBTOTAL_AVAILABLE` | Negrito, com linha superior |
-| `CONSUMED` | Valor com sinal `−`, clicável (abre os registros) |
-| `BALANCE` | Negrito, cor por sinal, com linha superior dupla |
-| `NON_BILLABLE` | Cor secundária, marcado como informativo |
+| Contratado, transportado, ajustes | Texto normal, valor à direita com sinal |
+| Total disponível | Negrito, com linha superior |
+| Consumido | Valor com sinal `−` |
+| Saldo | Negrito, cor por sinal, com linha superior dupla |
 
 | # | Regra |
 |---|---|
 | BS-01 | Linhas de valor zero são exibidas, nunca ocultadas (EX-02) |
-| BS-02 | Cada ajuste exibe motivo, justificativa, autor e data ao expandir |
-| BS-03 | Linhas com `drillDown` são navegáveis por clique e por teclado |
-| BS-04 | Renderizada como `<table>` com cabeçalhos associados (A11Y-12) |
+| BS-02 | Cada ajuste exibe motivo, justificativa e data em `dt-adjustment-list` |
+| BS-04 | Renderizado como `<table>` com cabeçalhos associados por `scope` (A11Y-12) |
 | BS-05 | Falha no cálculo exibe "—" com alerta, nunca um número (CE-D-05) |
+
+**Pendências declaradas:** BS-03 (`drillDown` navegável) depende do campo `drillDown`, que a API não
+emite; o autor do ajuste não é exibido porque `AdjustmentResponse.appliedBy` traz apenas o UUID, e
+FR-129/CA-09 proíbem identificador técnico na interface.
 
 ---
 
@@ -241,7 +259,7 @@ Extrato explicativo do saldo — materializa o momento de verdade MV-02.
 | `contract` | `ContractSummary` |
 | `compact` | `boolean` |
 
-**Composição:** nome do contrato, cliente com cor de identificação, selo de status, `dt-balance-bar`, dias restantes, indicador de projeção e ação rápida de registrar horas.
+**Composição:** nome do contrato, cliente com cor de identificação, selo de status, `dt-consumption-gauge`, dias restantes, indicador de projeção e ação rápida de registrar horas.
 
 | # | Regra |
 |---|---|
@@ -450,7 +468,7 @@ Encapsula `p-confirmDialog` com regras de segurança.
 |---|---|---|
 | CE-CO-01 | `dt-duration-input` recebe valor acima do máximo | Exibe erro sob o campo; não trunca automaticamente |
 | CE-CO-02 | `dt-timer-bar` sem conexão | Continua contando localmente com indicador de reconexão; ações desabilitadas |
-| CE-CO-03 | `dt-balance-bar` com `availableMinutes = 0` | Renderiza sem barra, exibindo apenas o consumido |
+| CE-CO-03 | `dt-balance-summary` com `availableMinutes = 0` | Renderiza sem medidor, exibindo apenas o consumido |
 | CE-CO-04 | `dt-data-table` com 500 colunas de configuração | Impossível — máximo de 20 colunas por tabela |
 | CE-CO-05 | `dt-markdown-view` com HTML malicioso | Já sanitizado no servidor; o cliente nunca usa `innerHTML` com conteúdo bruto |
 | CE-CO-06 | `dt-attachment-list` com anexo em verificação | Item exibido com estado "verificando" e download desabilitado |
@@ -477,7 +495,7 @@ Encapsula `p-confirmDialog` com regras de segurança.
 | CA-04 | Zero violações do axe-core em todos os componentes |
 | CA-05 | `dt-duration-input` aceita todos os formatos da tabela §6.2 |
 | CA-06 | `dt-timer-bar` exibe o tempo correto após recarga, hibernação e reconexão |
-| CA-07 | `dt-balance-bar` respeita exatamente as faixas de severidade |
+| CA-07 | `dt-consumption-gauge` respeita exatamente as faixas de severidade |
 | CA-08 | Toda tabela possui estado vazio configurado |
 | CA-09 | Todo gráfico possui alternativa em tabela |
 | CA-10 | Toda ação destrutiva descreve seu impacto antes da confirmação |

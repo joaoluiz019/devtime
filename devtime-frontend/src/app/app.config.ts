@@ -12,6 +12,7 @@ import {
 import {
   PreloadAllModules,
   provideRouter,
+  withComponentInputBinding,
   withInMemoryScrolling,
   withPreloading,
 } from '@angular/router';
@@ -41,6 +42,8 @@ export const appConfig: ApplicationConfig = {
       withPreloading(PreloadAllModules),
       // FR-088: a posição de rolagem é restaurada ao navegar de volta.
       withInMemoryScrolling({ scrollPositionRestoration: 'enabled', anchorScrolling: 'enabled' }),
+      // Parâmetros de rota chegam como `input()` na página, mantendo FR-021 também no roteamento.
+      withComponentInputBinding(),
     ),
     provideHttpClient(
       withFetch(),

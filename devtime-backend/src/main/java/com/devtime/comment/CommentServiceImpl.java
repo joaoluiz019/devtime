@@ -58,6 +58,7 @@ public class CommentServiceImpl implements CommentService {
     private final CommentEditPolicy editPolicy;
     private final MentionExtractor mentionExtractor;
     private final TicketService ticketService;
+    private final com.devtime.shared.event.DomainEventPublisher events;
     private final UserService userService;
     private final AuditService auditService;
     private final TenantContext tenantContext;
@@ -142,6 +143,18 @@ public class CommentServiceImpl implements CommentService {
                         false,
                         "mentionCount",
                         saved.getMentionedUserIds().length));
+
+        // §15 de specs/013: publicado após a persistência e consumido APÓS O COMMIT — uma falha
+        // de e-mail não pode reverter um comentário já escrito (CP-16, TX-06).
+        var ticket = ticketService.getRef(ticketId);
+        events.publish(
+                new com.devtime.comment.event.CommentEvents.CommentCreatedEvent(
+                        saved.getId(),
+                        ticketId,
+                        ticket.key(),
+                        saved.getAuthorId(),
+                        assigneeOf(ticketId),
+                        List.of(saved.getMentionedUserIds())));
 
         // §28: nem o corpo, nem trecho dele.
         log.info(
@@ -230,6 +243,17 @@ public class CommentServiceImpl implements CommentService {
      */
     private void requireTicket(UUID ticketId) {
         ticketService.getById(ticketId);
+    }
+
+    /**
+     * RN-607: responsável do ticket, destinatário de {@code TICKET_COMMENTED}.
+     *
+     * <p>Resolvido aqui e enviado no evento para que {@code 013} não precise reconsultar o ticket —
+     * BR-181 permite identificadores, e é o identificador que o destinatário exige.
+     */
+    private UUID assigneeOf(UUID ticketId) {
+        var assignee = ticketService.getById(ticketId).assignee();
+        return assignee == null ? null : assignee.id();
     }
 
     private String requireBody(String rawBody) {

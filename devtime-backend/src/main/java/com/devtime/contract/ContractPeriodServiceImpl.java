@@ -71,6 +71,22 @@ public class ContractPeriodServiceImpl implements ContractPeriodService {
                                 () -> EntityNotFoundException.of(ContractPeriod.class, periodId)));
     }
 
+    /** RN-605 (ver {@link ContractPeriodService#findEndingOn}). Consulta de job; sem permissão. */
+    @Override
+    public List<com.devtime.contract.dto.ContractResponses.PeriodReminderView> findEndingOn(
+            LocalDate endDate) {
+        return repository.findOpenEndingOn(endDate).stream()
+                .map(
+                        period ->
+                                new com.devtime.contract.dto.ContractResponses.PeriodReminderView(
+                                        period.getTenantId(),
+                                        period.getId(),
+                                        period.getContractId(),
+                                        period.getLabel(),
+                                        period.getEndDate()))
+                .toList();
+    }
+
     /**
      * §4.6 de state-machines.md: {@code OPEN} e {@code REOPENED} aceitam escrita de work log.
      *

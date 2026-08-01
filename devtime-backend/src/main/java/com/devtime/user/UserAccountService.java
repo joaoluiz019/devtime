@@ -94,4 +94,22 @@ public interface UserAccountService {
 
     /** {@code UnlockExpiredAccountsJob}: desbloqueio em lote (T-001-36). */
     int unlockExpiredAccounts();
+
+    /**
+     * Substitui as chaves de notificação em {@code user.preferences} (entities.md §6.2.1).
+     *
+     * <p>Interface pública para {@code 013-notifications}, que serve {@code PATCH
+     * /notifications/preferences}. As demais chaves de {@code preferences} — tema, painel,
+     * categoria padrão — <b>não</b> são tocadas: uma alteração de preferência de notificação não
+     * pode apagar o tema escolhido pelo usuário.
+     *
+     * <p>Fica aqui, e não em {@code 013}, porque {@code preferences} é coluna de {@code users} e
+     * AR-02 impede que outra feature a alcance. A auditoria da alteração pertence a {@code
+     * 002-users} (§18 da spec 013).
+     *
+     * @param emailNotifications nulo mantém o valor atual — atualização parcial (§9.2)
+     * @param mutedNotificationTypes nulo mantém o valor atual
+     */
+    void updateNotificationPreferences(
+            UUID userId, Boolean emailNotifications, java.util.List<String> mutedNotificationTypes);
 }

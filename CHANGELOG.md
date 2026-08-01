@@ -8,6 +8,190 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint — Banco de horas (frontend)** · `specs/011-bank-hours`
+
+Escopo acordado: frontend de `011`, cujo backend já estava `BACKEND_DONE`. A implementação foi
+**interrompida antes de qualquer código** para reportar três divergências entre documentos; a
+resolução acordada foi tratar o backend implementado como verdade e sincronizar a documentação.
+
+Compartilhado (`shared/`)
+
+- `dt-balance-summary`, `dt-consumption-gauge` e `dt-partial-badge` nascem em `shared/` porque
+  `010-dashboard` os reutiliza por nome (T-010-14). Recriá-los lá produziria duas representações
+  visuais do mesmo saldo, que divergiriam.
+- `dt-consumption-gauge` **não** usa `p-progressBar`. Além de não marcar limiares (BB-04) nem
+  distinguir o excedente (BB-03), a versão 21 do componente emite `aria-level="{valor}%"` por host
+  binding — atributo inválido para `role="progressbar"`, que gera duas violações de axe-core e não
+  é sobrescrevível de fora. FR-140 exige zero violações. O bug foi encontrado pelo teste, não em
+  revisão.
+- `dt-duration-input` com `allowNegative`, exigido por FR-112 para o campo de minutos do ajuste, e
+  o parser dos oito formatos da tabela §6.2 de `components.md` (CA-05).
+- `consumptionRatePipe` com `HALF_UP` explícito: `toFixed` sozinho devolve `83,6%` para `83.65`,
+  divergindo do relatório do servidor no dígito que o cliente confere.
+- `criticalityOf` em `shared/utils`, única fonte da tabela de severidade §5.3.
+
+Banco de horas (`features/contracts/`)
+
+- `PeriodApi` espelhando os sete endpoints publicados, sem transformação (FR-062) e sem tratamento
+  de erro (FR-063).
+- `PeriodStore` e `StatementStore` providos na rota de P16, não em `root` — o estado morre com a
+  tela e trocar de organização não deixa saldo de outro tenant em memória (FR-051).
+- `dt-adjustment-dialog` com **prévia do saldo resultante**. O ajuste é imutável (RN-236) e só se
+  corrige por estorno, que fica para sempre no extrato do cliente: a prévia é a única defesa contra
+  um valor digitado errado (risco R-08). A prévia é exibição, não cálculo canônico — o número que
+  fica na tela depois de aplicar vem da API (CE-F-05, RP-03).
+- Estorno implementado como novo ajuste de sinal contrário (FA-05); não há caminho de edição.
+- Página P16 em `/contracts/:id/periods/:periodId` sob `permissionGuard(['PERIOD_VIEW'])`, com os
+  quatro estados: esqueleto, erro com nova tentativa, vazio e normal.
+- Sete códigos `DEVTIME-22xx` acrescentados ao mapa de mensagens localizadas (FR-071).
+
+### Corrigido
+
+- `04-api/contracts.md` §9.1 e §9.2 e `05-ui/components.md` §6.4 e §6.5 sincronizados com o contrato
+  publicado no OpenAPI. O que a especificação previa e o backend não emite está preservado em
+  §9.1.1 e §9.2.1 como escopo pendente, em vez de removido.
+
+### Pendente
+
+- `dt-projection-chart` e a marcação de projeção: `burnRate` e `projectedConsumption` não são
+  expostos por nenhum DTO.
+- Prévia de fechamento (T-011-29/T-011-31): sem endpoint. "Será transportado" e "registros a travar"
+  aparecem como "—" — calcular carry-over no cliente reproduziria a fórmula canônica, que é
+  exatamente o que RP-03 aponta como origem de divergência de saldo.
+- Resumos por categoria e por ticket em P16, e paginação por cursor do extrato.
+- Autor do ajuste: a API devolve apenas o UUID, e FR-129/CA-09 proíbem identificador técnico na
+  interface.
+- Navegação até P16 pela interface, que depende de P13/P14 (feature `004`).
+
+**Sprint S8 — Notificações (backend)** · `specs/013-notifications`
+
+Escopo acordado: backend de `013-notifications`, com testes e documentação. Frontend não foi
+solicitado. **O alerta de "ticket parado" pedido no escopo não existe em nenhum documento** — a
+lacuna está reportada abaixo e nada foi inventado (IA-01, CG-02).
+
+Banco
+
+- `V019__create_notifications.sql` — tabela e cinco índices. O único `(recipient_id, dedupe_key)`
+  é a garantia estrutural de RN-601: sem ele, duas avaliações concorrentes do mesmo limiar
+  criariam duas notificações idênticas e o `dedupeKey` seria apenas convenção. Ele **não** é
+  parcial por `deleted_at` — uma notificação que o usuário excluiu não deve ser recriada pela
+  avaliação seguinte; excluir é dizer "já vi isso".
+- `idx_notifications_unread` é **parcial** sobre `read_at IS NULL`. É o que mantém a contagem
+  barata: em um usuário com 5.000 notificações e 3 não lidas, o índice tem 3 entradas — e a
+  contagem é consultada ao carregar toda tela.
+- Coluna `email_attempts`, exigida pela idempotência do `EmailRetryJob` (§22.4 da spec). Sem
+  contador não há como limitar a três tentativas; `entities.md` §6.18 não a declara, e a lacuna
+  está registrada abaixo.
+
+Deduplicação — o núcleo
+
+- A inserção é tentada **sem verificação prévia** (CP-03). Verificar antes de inserir abriria uma
+  janela de corrida entre a verificação e a inserção — exatamente o cenário de duas avaliações
+  concorrentes do mesmo limiar. O índice único decide, e a violação é sucesso silencioso.
+- Cada destinatário é inserido em transação própria (`REQUIRES_NEW`): sem isso, a violação
+  esperada marcaria a transação como `rollback-only` e o segundo destinatário deixaria de ser
+  notificado por causa do primeiro.
+- `NotificationCommand.dedupeKeyFor` é uma **função** do destinatário, não um texto. §6.1 define os
+  dois formatos: `CONTRACT_USAGE:{periodId}:{threshold}` é a mesma chave para todos, enquanto
+  `ADJUSTMENT:{adjustmentId}:{userId}` e `TICKET_COMMENT:{commentId}:{userId}` incluem a pessoa.
+
+Geração
+
+- `ConsumptionAlertPolicy` lê `contract.notificationThresholds`, **nunca** 50/80/100 fixos (CP-05):
+  valores fixos fariam a notificação divergir do painel do mesmo contrato. A política não decide se
+  já notificou — monta um comando por limiar ultrapassado, sempre, e a deduplicação faz o resto.
+- Contrato sem saldo disponível não avalia limiar algum (CE-10): um modelo de horas abertas não tem
+  teto a ultrapassar. A verificação é sobre `availableMinutes`, e não sobre o tipo do contrato,
+  porque AR-02 impede esta feature de conhecer `ContractType`.
+- `RecipientResolver` exclui o **autor da ação** de todo conjunto (NT-05). Ninguém é avisado do que
+  acabou de fazer, incluindo quem atribui um ticket a si mesmo — o caso mais comum de todos.
+- Em cronômetro, o destinatário é sempre o dono, inclusive no encerramento forçado: quem encerrou
+  não recebe, quem teve o cronômetro encerrado recebe (OWN-05, FA-20).
+- CE-N-07: um responsável também mencionado recebe **uma** notificação, do tipo mais específico.
+  O filtro é da regra, não do `dedupeKey` — as duas chaves são distintas por construção.
+
+Entrega
+
+- A in-app é criada **antes** de qualquer decisão sobre e-mail (§6.2). Não é organização de código:
+  RN-610 exige que a falha de envio não impeça a notificação, e criar primeiro garante isso
+  estruturalmente.
+- `EmailDispatchPolicy` verifica as duas chaves independentes de RN-608, e **ignora ambas** em tipo
+  crítico (§9.1): um contrato excedido e um anexo infectado são enviados de qualquer forma.
+- O contador de tentativas é incrementado **antes** do envio: uma queda no meio da chamada ao
+  provedor deixaria a tentativa não contabilizada, e o limite de três deixaria de valer.
+- O backoff é o intervalo de 5 minutos do job, não uma espera no processo — uma tentativa a cada
+  5, 10 e 15 minutos dá tempo ao provedor sem manter thread bloqueada.
+
+Fluxo em tempo real
+
+- Registro por `recipientId`, **nunca por tenant** (SG-03): um fluxo por organização entregaria a
+  cada conectado as notificações dos colegas.
+- `NotificationStreamRegistry` **não** é um `*Service`, divergindo do nome em §22.2 da spec:
+  `SseEmitter` é um tipo web e BR-069 proíbe que um serviço conheça a camada HTTP. É o adaptador da
+  borda, ao lado do controller.
+- Toda falha de publicação é engolida por decisão: a notificação já está persistida, e uma exceção
+  interromperia a criação para os destinatários seguintes. ST-05 garante que nada se perde.
+
+Fora desta feature
+
+- `014-comments` passou a publicar `CommentCreatedEvent` com responsável e mencionados resolvidos,
+  como §15 da spec prevê. Comentários de **sistema** não geram evento: narram um fato que a feature
+  de origem já notificou.
+- Os eventos de cronômetro ganharam `ticketId`, e `TimerAbandonedEvent` ganhou `recoverableUntil`:
+  o consumidor precisa da chave legível e do prazo, e recalcular a janela de 7 dias fora de
+  `AbandonedTimerPolicy` a duplicaria.
+- `TicketReopenedEvent` ganhou `assigneeId` pelo mesmo motivo.
+- `MembershipService.activeMemberIdsWithRoles`, `ContractService.notificationThresholdsOf` e
+  `findEndingOn`, `ContractPeriodService.findEndingOn` e
+  `UserAccountService.updateNotificationPreferences` foram publicados como interfaces das features
+  donas dos dados — nenhuma tabela é alcançada de fora da sua feature (AR-02).
+
+### Lacuna de especificação — alerta de "ticket parado"
+
+**Tarefa:** escopo da sprint, item "Ticket parado".
+**Documentos consultados:** `docs/02-domain/business-rules.md` §12 (matriz de notificações),
+`docs/04-api/notifications.md` §6 (catálogo completo), `specs/013-notifications/spec.md` §6.1.
+**Lacuna:** nenhum dos três define um alerta de ticket sem movimentação. A matriz de RN-607 cobre
+`TICKET_ASSIGNED`, `TICKET_COMMENTED`, `TICKET_MENTIONED` e `TICKET_BLOCKED`; não há tipo, gatilho,
+limiar de inatividade, destinatário nem chave de deduplicação para "parado". Uma busca por
+`estagnado`, `inatividade`, `sem atualização` e `staleDays` em `docs/` e `specs/` não retorna nada
+aplicável.
+**Impacto:** o item não foi implementado. Todo o restante do escopo está entregue.
+**O que precisa ser decidido para desbloquear:** (a) o gatilho — dias sem alteração de status,
+sem comentário ou sem registro de horas; (b) o limiar, e se é configurável por tenant ou por
+contrato; (c) os destinatários — responsável, relator ou ambos; (d) a severidade; (e) a chave de
+deduplicação, que precisa evitar um alerta diário sobre o mesmo ticket parado.
+**Recomendação:** definir em `business-rules.md` §12 antes de implementar, porque a chave de
+deduplicação é a decisão difícil: sem um discriminador que avance, o alerta será emitido uma única
+vez e nunca mais; com um discriminador diário, vira o ruído que RN-601 existe para evitar.
+
+### Conflitos entre documentos resolvidos por IA-11
+
+| # | Conflito | Resolução |
+|:--:|---|---|
+| 1 | `notifications.md` §9.1 define `digestMode` e `quietHours` nas preferências; `entities.md` §6.2.1 não os inclui, e `specs/013` §4 e RS-08 declaram digest **fora do roadmap** | Prevalece `entities.md` (02-domain > 04-api). Nenhum dos dois foi implementado; `DEVTIME-4002` fica reservado para não mudar o significado de um código publicado |
+| 2 | `notifications.md` §9.1 chama o campo de `mutedTypes`; `entities.md` §6.2.1 e `GET /auth/me` usam `mutedNotificationTypes` | Prevalece `entities.md`. Duas grafias para a mesma preferência obrigariam o cliente a conhecer as duas |
+| 3 | `notifications.md` §6 lista `CONTRACT_USAGE_50/80/100` como tipos; §6.1 da spec e RN-602 derivam os limiares de `contract.notificationThresholds` | Um único tipo `CONTRACT_USAGE`, com o limiar no `dedupeKey` e na severidade. Tipos fixos quebrariam um contrato com `[70, 90]` (CP-05) |
+| 4 | RN-003 torna lógica toda exclusão; RN-609 e §19.1 exigem **remoção** após 90 dias da leitura | A exclusão pelo usuário é lógica (estado "Excluída" de §10); a purga é física, porque uma exclusão lógica manteria o dado indefinidamente e descumpriria a retenção declarada. É a única exclusão física de entidade de domínio no sistema |
+| 5 | `specs/013` §13.3 aloca `V035`/`V036`; `database.md` §8.1 aloca `V019` a `notifications` | Prevalece `database.md`, como em `V013`–`V016` |
+| 6 | `entities.md` §6.18 não declara contador de tentativas de e-mail; §22.4 da spec exige idempotência "por contador por notificação" | Coluna `email_attempts` acrescentada. Sem ela, RN-610 não tem como limitar a três |
+
+### Pendências desta sprint
+
+- Frontend de `013`: P25, P28 e o sino global. Não foi solicitado.
+- **Alerta de "ticket parado"**: bloqueado por lacuna de especificação (acima).
+- `MEMBER_JOINED`, `MEMBER_REMOVED`, `EXPORT_COMPLETED`, `EXPORT_FAILED` e `ATTACHMENT_INFECTED`
+  estão no catálogo sem produtor — chegam com `002`, `012` e `015`.
+- `TICKET_BLOCKED` do catálogo de §6 não foi declarado: `007` não publica evento de bloqueio, e um
+  tipo que nunca ocorre apareceria na tela de preferências sem propósito.
+- **Testes de integração não executados nesta máquina**: Testcontainers exige Docker, indisponível
+  no ambiente. Eles compilam; as suítes puras — 452 testes, incluindo ArchUnit — estão verdes.
+- Teste de concorrência com 100 avaliações **simultâneas** (T-013-03): a suíte cobre 100 avaliações
+  sequenciais, que provam a deduplicação; a corrida real exige execução paralela contra o banco.
+- SSE limitado a deploy de instância única (OB-08): o registro de conexões vive em memória.
+
+### Adicionado
+
 **Sprints S5, S6 e S7 — Registro de horas, cronômetro e banco de horas (backend)** ·
 `specs/008-worklogs`, `specs/009-timer`, `specs/011-bank-hours`
 

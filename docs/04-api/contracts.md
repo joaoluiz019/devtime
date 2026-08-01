@@ -302,19 +302,25 @@ Permitido **apenas** em `DRAFT` (nenhum período nem registro existe). Nos demai
 
 ## 9. Banco de horas
 
-### 9.1 `GET /api/v1/contract-periods/{id}/balance`
+### 9.1 `GET /api/v1/contract-periods/{id}`
 
 **Objetivo:** retornar os números do saldo, para exibição em cards e barras de progresso.
+
+> **Sincronizado com a implementação (T-011-44).** A rota é `GET /contract-periods/{id}`, sem o
+> sufixo `/balance`. O `PeriodBalanceResponse` publicado **não** contém `source`, `severity`,
+> `projection`, `financial` nem `calculatedAt`, e contém `sequence`, `isPartial` e `reopenCount`, que
+> a especificação anterior não previa. O bloco abaixo é o contrato real; o anterior está preservado
+> em §9.1.1 como escopo pendente.
 
 ```json
 {
   "periodId": "...",
   "contractId": "...",
+  "sequence": 7,
   "label": "2026-07",
   "startDate": "2026-07-01",
   "endDate": "2026-07-31",
   "status": "OPEN",
-  "source": "LIVE",
   "contractedMinutes": 2400,
   "carriedInMinutes": 300,
   "adjustmentMinutes": 60,
@@ -324,104 +330,94 @@ Permitido **apenas** em `DRAFT` (nenhum período nem registro existe). Nos demai
   "remainingMinutes": -140,
   "overageMinutes": 140,
   "consumptionRate": 105.07,
-  "severity": "CRITICAL",
-  "projection": {
-    "elapsedWorkDays": 20,
-    "totalWorkDays": 23,
-    "burnRateMinutesPerWorkDay": 145,
-    "projectedConsumedMinutes": 3335,
-    "projectionStatus": "WILL_EXCEED"
-  },
-  "financial": {
-    "currency": "BRL",
-    "hourlyRate": "150.0000",
-    "overageRate": "180.0000",
-    "regularMinutes": 2760,
-    "regularValue": "6900.0000",
-    "overageValue": "420.0000",
-    "totalValue": "7320.0000"
-  },
-  "calculatedAt": "2026-07-28T14:32:10-03:00"
+  "isPartial": true,
+  "reopenCount": 0,
+  "currency": "BRL"
 }
 ```
 
 | Campo | Regra |
 |---|---|
-| `source` | `LIVE` para períodos abertos; `SNAPSHOT` para fechados (RN-701/702) |
-| `financial` | Omitido sem `CONTRACT_VIEW_FINANCIAL` ou quando o contrato não tem `hourlyRate` (CE-09) |
-| `projection` | Omitido em períodos fechados e em contratos `HOURLY_OPEN` |
-| `calculatedAt` | Instante do cálculo; em snapshots, o instante do fechamento |
+| `consumptionRate` | Percentual com 2 casas, `HALF_UP`; nunca ponto flutuante binário |
+| `isPartial` | Verdadeiro em `OPEN` e `REOPENED` (RN-702). Obrigatório na exibição — `dt-partial-badge` |
+| `reopenCount` | Quantas vezes o período já foi reaberto |
+| `currency` | Moeda do contrato, para os contextos que exibem valores |
+
+#### 9.1.1 Campos especificados e ainda não implementados
+
+Permanecem como escopo pendente, sem produtor no backend. Nenhum consumidor de frontend depende
+deles hoje; a tela P16 exibe "—" onde o dado não existe, nunca um valor calculado no cliente
+(CE-D-05).
+
+| Campo | Origem | Bloqueio |
+|---|---|---|
+| `source` | RN-701/702 | Não emitido; o período fechado já é servido do snapshot internamente |
+| `severity` | design-system.md §5.3 | Derivado no cliente a partir de `consumptionRate`, pela tabela normativa |
+| `projection` | T-011-12 | `burnRate` e `projectedConsumption` não são expostos por nenhum DTO |
+| `financial` | T-011-13, CE-09 | Sem bloco monetário, não há o que ocultar por `CONTRACT_VIEW_FINANCIAL` |
+| `calculatedAt` | — | Não emitido |
 
 ### 9.2 `GET /api/v1/contract-periods/{id}/statement`
 
-**Objetivo:** o **extrato explicativo** — o momento de verdade MV-02 da persona Rafael (US-047). Cada linha explica um componente do saldo.
+**Objetivo:** o **extrato explicativo** — o momento de verdade MV-02 da persona Rafael (US-047).
+Cada linha é um lançamento que moveu o saldo, com o acumulado após o movimento.
+
+> **Sincronizado com a implementação (T-011-44).** O extrato entregue é uma **lista cronológica de
+> lançamentos**, não uma razão contábil de sete linhas agregadas. Cada work log é uma linha própria
+> (`type: "WORK_LOG"`), e os tipos `SUBTOTAL_AVAILABLE`, `CONSUMED`, `BALANCE` e `NON_BILLABLE` não
+> são emitidos: esses quatro números vêm do bloco `balance`, incluído na mesma resposta. As
+> agregações `consumptionByCategory`, `consumptionByUser` e `topTickets` também não são emitidas.
+> A forma anterior está preservada em §9.2.1 como escopo pendente.
 
 ```json
 {
   "periodId": "...",
-  "label": "2026-07",
-  "status": "OPEN",
-  "source": "LIVE",
-  "lines": [
-    { "order": 1, "type": "CONTRACTED", "label": "Horas contratadas",
-      "minutes": 2400, "signal": "POSITIVE",
-      "description": "40:00 conforme o contrato CT-0001" },
+  "balance": { "...": "PeriodBalanceResponse completo, ver §9.1" },
+  "entries": [
+    { "type": "CONTRACTED", "referenceId": null, "date": "2026-07-01",
+      "description": "40:00 conforme o contrato CT-0001",
+      "minutes": 2400, "runningBalanceMinutes": 2400 },
 
-    { "order": 2, "type": "CARRIED_IN", "label": "Transportado de 2026-06",
-      "minutes": 300, "signal": "POSITIVE",
+    { "type": "CARRIED_IN", "referenceId": "...", "date": "2026-07-01",
       "description": "Saldo de 05:00 transportado (política CAPPED, teto 05:00)",
-      "reference": { "type": "CONTRACT_PERIOD", "id": "...", "label": "2026-06" } },
+      "minutes": 300, "runningBalanceMinutes": 2700 },
 
-    { "order": 3, "type": "ADJUSTMENT", "label": "Ajuste manual",
-      "minutes": 60, "signal": "POSITIVE",
+    { "type": "ADJUSTMENT", "referenceId": "...", "date": "2026-07-12",
       "description": "Cortesia por indisponibilidade do ambiente",
-      "reference": { "type": "PERIOD_ADJUSTMENT", "id": "..." },
-      "appliedBy": { "id": "...", "name": "Rafael Mendes" },
-      "appliedAt": "2026-07-12T10:00:00-03:00" },
+      "minutes": 60, "runningBalanceMinutes": 2760 },
 
-    { "order": 4, "type": "SUBTOTAL_AVAILABLE", "label": "Total disponível",
-      "minutes": 2760, "signal": "TOTAL",
-      "description": "46:00 disponíveis para consumo neste período" },
-
-    { "order": 5, "type": "CONSUMED", "label": "Horas consumidas (faturáveis)",
-      "minutes": 2900, "signal": "NEGATIVE",
-      "description": "48:20 em 62 registros de horas",
-      "drillDown": "/api/v1/work-logs?contractPeriodId=...&billable=true" },
-
-    { "order": 6, "type": "BALANCE", "label": "Saldo",
-      "minutes": -140, "signal": "TOTAL",
-      "description": "Excedente de 02:20" },
-
-    { "order": 7, "type": "NON_BILLABLE", "label": "Horas não faturáveis",
-      "minutes": 195, "signal": "INFO",
-      "description": "03:15 registradas sem consumir o saldo",
-      "drillDown": "/api/v1/work-logs?contractPeriodId=...&billable=false" }
-  ],
-  "consumptionByCategory": [
-    { "categoryId": "...", "name": "Desenvolvimento", "color": "#6366F1",
-      "minutes": 1980, "percentage": 68.28 },
-    { "categoryId": "...", "name": "Reunião", "color": "#F59E0B",
-      "minutes": 560, "percentage": 19.31 }
-  ],
-  "consumptionByUser": [
-    { "userId": "...", "name": "Rafael Mendes", "minutes": 2900, "percentage": 100.0 }
-  ],
-  "topTickets": [
-    { "ticketId": "...", "key": "CT-0001-42", "title": "Corrigir checkout", "minutes": 720 }
+    { "type": "WORK_LOG", "referenceId": "...", "date": "2026-07-12",
+      "description": "Corrigir cálculo de frete",
+      "minutes": -120, "runningBalanceMinutes": 2640 }
   ]
 }
 ```
+
+| Campo | Regra |
+|---|---|
+| `type` | `CONTRACTED`, `CARRIED_IN`, `ADJUSTMENT` ou `WORK_LOG` |
+| `minutes` | Positivo credita saldo, negativo consome |
+| `runningBalanceMinutes` | Saldo acumulado **após** o lançamento; a última linha fecha com o saldo |
+| `referenceId` | Identificador do recurso de origem; `null` na linha de horas contratadas |
 
 **Regras do extrato:**
 
 | # | Regra |
 |---|---|
-| EX-01 | As linhas seguem sempre a mesma ordem e os mesmos tipos, permitindo renderização estável |
-| EX-02 | Linhas de valor zero são **incluídas**, com `minutes: 0` — a ausência de uma linha confundiria mais que a presença de um zero |
-| EX-03 | Cada linha de ajuste é individual; não há agregação |
-| EX-04 | `drillDown` fornece a URL exata que reproduz o número, permitindo conferência |
-| EX-05 | `consumptionByUser` é omitido para `MEMBER` (IDG-01) |
+| EX-01 | Os lançamentos vêm em ordem cronológica estável |
+| EX-02 | Lançamento de valor zero é **incluído** — a ausência confundiria mais que a presença de um zero |
+| EX-03 | Cada ajuste é uma linha individual; não há agregação |
 | EX-06 | Em períodos fechados, todos os dados vêm do snapshot |
+
+#### 9.2.1 Escopo pendente do extrato
+
+| Item | Origem | Consequência hoje |
+|---|---|---|
+| `lines[]` agregado (7 tipos com `label`, `signal`, `order`) | `components.md` §6.5 | A interface monta a composição do saldo a partir de `balance` — `dt-balance-breakdown` |
+| `drillDown` por linha | EX-04 | Não há navegação do extrato para a listagem de work logs |
+| `consumptionByCategory`, `consumptionByUser`, `topTickets` | §10 de `pages.md` | P16 não exibe resumos por categoria, usuário ou ticket |
+| Paginação por cursor | T-011-11 | `entries[]` vem completo; a janela é aplicada no cliente (`StatementStore`) |
+| `EX-05` — omitir `consumptionByUser` para `MEMBER` | IDG-01 | Sem efeito enquanto o campo não existir |
 
 ---
 

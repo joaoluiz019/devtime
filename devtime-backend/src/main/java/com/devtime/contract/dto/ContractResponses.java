@@ -114,6 +114,22 @@ public final class ContractResponses {
             int nonBillableMinutes,
             String currency) {}
 
+    /**
+     * Contrato próximo do fim, para o lembrete de RN-606.
+     *
+     * <p>Carrega o {@code tenantId} porque o job que a consome percorre <b>todos</b> os tenants e
+     * precisa definir o contexto a cada iteração (BR-049) — sem ele, a resolução de destinatários
+     * usaria a organização errada.
+     */
+    @Schema(name = "ContractReminderView")
+    public record ContractReminderView(
+            UUID tenantId, UUID contractId, String code, String name, LocalDate endDate) {}
+
+    /** Período próximo do fechamento, para o lembrete de RN-605. Mesma razão para o tenant. */
+    @Schema(name = "PeriodReminderView")
+    public record PeriodReminderView(
+            UUID tenantId, UUID periodId, UUID contractId, String label, LocalDate endDate) {}
+
     /** Item de {@code periodsPreview} (contracts.md §5 e §6). */
     @Schema(name = "PeriodPreviewItem")
     public record PeriodPreviewItem(
