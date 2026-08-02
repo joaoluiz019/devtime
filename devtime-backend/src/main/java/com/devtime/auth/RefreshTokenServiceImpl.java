@@ -100,6 +100,20 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
     }
 
     @Override
+    @Transactional
+    public int revokeAllOfInTenant(UUID userId, UUID tenantId) {
+        // RT-07 / CE-U-10: apenas as sessões daquela organização. O membro que participa de outra
+        // continua com acesso a ela (RN-459).
+        return repository.revokeAllByUserIdAndTenantId(userId, tenantId, clock.instant());
+    }
+
+    @Override
+    @Transactional
+    public int revokeAllInTenant(UUID tenantId) {
+        return repository.revokeAllByTenantId(tenantId, clock.instant());
+    }
+
+    @Override
     public List<ActiveSession> listActive(UUID userId) {
         return repository.findLiveByUserId(userId, clock.instant()).stream()
                 .map(

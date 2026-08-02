@@ -75,6 +75,23 @@ public class Tenant extends BaseEntity {
     private String planCode;
 
     /**
+     * Instante do cancelamento (V030).
+     *
+     * <p>Não deriva de {@code updatedAt}: qualquer alteração posterior — inclusive uma exportação —
+     * reiniciaria a retenção de 30 dias de RN-008.
+     */
+    @Column(name = "cancelled_at")
+    private java.time.Instant cancelledAt;
+
+    /** RN-008: {@code cancelledAt + 30 dias}. Serve ao {@code TenantPurgeJob}. */
+    @Column(name = "purge_scheduled_at")
+    private java.time.Instant purgeScheduledAt;
+
+    /** users.md §6.3: motivo declarado pelo titular, para análise de churn. */
+    @Column(name = "cancellation_reason", length = 500)
+    private String cancellationReason;
+
+    /**
      * Preferências operacionais do tenant (entities.md §6.1.1).
      *
      * <p>CF-04: valores padrão de negócio ficam aqui, não em configuração global da aplicação —

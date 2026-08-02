@@ -307,6 +307,16 @@ Acesso somente leitura do cliente final aos próprios contratos.
 | Divisão automática de sessão na virada do dia | RN-108 decidiu o contrário deliberadamente | Se o feedback indicar confusão recorrente |
 | Arredondamento para cima | PR-03; cobraria tempo não trabalhado | Nunca |
 | Timer que continua sozinho após inatividade | Registraria tempo não trabalhado | Nunca |
+| **Liberação manual de anexo `FAILED`** | OB-02 de `specs/015-attachments`: converteria três camadas de defesa em uma caixa de diálogo, e quem clica em "liberar mesmo assim" não tem como avaliar o risco | Somente por alteração de RN-803 em `02-domain/business-rules.md` **antes** do código, com trilha de auditoria e restrição de papel |
+| **Versionamento de anexo na aplicação** | RS-09 e §4 de `specs/015-attachments`: um novo anexo substitui na prática, e RN-011 torna todos os campos imutáveis. Não confundir com o versionamento **de objeto no storage** (SG-03 de `integrations.md`), que está implementado | Se surgir demanda de histórico de revisões de documento; exige revisar RN-011 e CP-13 |
+
+> **Sobre a liberação manual de anexo `FAILED` (registrada em S11 por T-015-31).** É a decisão
+> que mais provavelmente sofrerá pressão de usuário: alguém com um arquivo importante
+> inacessível pedirá exceção. O ponto de OB-02 é que a exceção não é um caso particular — ela é
+> um caminho, e um caminho que existe é usado. A alternativa oferecida ao usuário é reenviar o
+> arquivo, o que reinicia a verificação e resolve o caso legítimo. Hoje **nenhum** parâmetro,
+> papel ou configuração do sistema libera um arquivo não verificado, e existe teste de inspeção
+> que falha se alguém acrescentar um.
 
 **Regra:** um item marcado como "Nunca" só pode ser reconsiderado por ADR que emende explicitamente o não-objetivo ou princípio correspondente.
 

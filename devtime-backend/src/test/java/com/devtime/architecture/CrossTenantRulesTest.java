@@ -81,13 +81,20 @@ class CrossTenantRulesTest {
                                 + " (ART-013); memberships é a exceção da seleção de tenant;"
                                 + " TimerRepository é a exceção de RN-150 — o limite de um cronômetro"
                                 + " ativo é por usuário entre TODOS os tenants (CE-13), e com filtro de"
-                                + " tenant a regra seria inaplicável")
+                                + " tenant a regra seria inaplicável;"
+                                + " AttachmentRepository é a exceção dos jobs de plataforma de"
+                                + " 015-attachments — a fila de verificação e a detecção de"
+                                + " binários órfãos percorrem todos os tenants, definindo o"
+                                + " contexto a cada item (BR-049), e a verificação é assíncrona"
+                                + " justamente para não depender de uma requisição de usuário"
+                                + " estabelecendo um tenant")
                 .containsOnly(
                         "UserRepository",
                         "MembershipRepository",
                         "RefreshTokenRepository",
                         "VerificationTokenRepository",
-                        "TimerRepository");
+                        "TimerRepository",
+                        "AttachmentRepository");
     }
 
     private List<JavaMethod> annotatedMethods() {

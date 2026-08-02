@@ -60,6 +60,24 @@ public class UserAccountServiceImpl implements UserAccountService {
     }
 
     @Override
+    public java.util.Map<UUID, UserAccount> findAllByIds(java.util.Collection<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        return repository.findAllByIdIn(userIds).stream()
+                .map(this::toAccount)
+                .collect(java.util.stream.Collectors.toMap(UserAccount::id, account -> account));
+    }
+
+    @Override
+    public java.util.List<UUID> findIdsMatching(String term) {
+        if (term == null || term.isBlank()) {
+            return java.util.List.of();
+        }
+        return repository.findIdsMatching(term.trim().toLowerCase(java.util.Locale.ROOT));
+    }
+
+    @Override
     public UserAccount require(UUID userId) {
         return findById(userId).orElseThrow(() -> EntityNotFoundException.of(User.class, userId));
     }

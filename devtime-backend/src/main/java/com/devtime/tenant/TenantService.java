@@ -1,6 +1,11 @@
 package com.devtime.tenant;
 
 import com.devtime.tenant.dto.TenantCommands.NewTenant;
+import com.devtime.tenant.dto.TenantRequests.TenantCancelRequest;
+import com.devtime.tenant.dto.TenantRequests.TenantSettingsRequest;
+import com.devtime.tenant.dto.TenantRequests.TenantUpdateRequest;
+import com.devtime.tenant.dto.TenantResponses.TenantCancelResponse;
+import com.devtime.tenant.dto.TenantResponses.TenantResponse;
 import com.devtime.tenant.dto.TenantViews.SessionSnapshot;
 import com.devtime.tenant.dto.TenantViews.TenantOption;
 import com.devtime.tenant.dto.TenantViews.TenantView;
@@ -11,8 +16,13 @@ import java.util.UUID;
 /**
  * Leitura e provisionamento de organização, consumidos por {@code 001-authentication}.
  *
- * <p>Escopo deliberadamente restrito ao que a sessão exige. Edição de dados e configurações,
- * cancelamento e exportação pertencem a {@code 002-users} e não são expostos aqui.
+ * <p>As quatro primeiras operações servem à sessão e são consumidas por {@code 001-authentication}.
+ * As demais são a gestão da organização de {@code 002-users} (§22.2) e não possuem consumidor fora
+ * da própria feature — {@code auth} nunca as chama.
+ *
+ * <p>A exportação completa (E-06) <b>não</b> está aqui: ela depende do mecanismo assíncrono de
+ * {@code report_executions}, que pertence a {@code 012-reports} e ainda não existe. A lacuna foi
+ * reportada em vez de contornada com um mecanismo paralelo.
  */
 public interface TenantService {
 
@@ -50,4 +60,36 @@ public interface TenantService {
      * @return vazio quando não existe vínculo entre o usuário e a organização
      */
     Optional<SessionSnapshot> sessionSnapshot(UUID tenantId, UUID userId);
+
+    /** users.md §6.1: dados completos da organização da sessão, com {@code settings} tipado. */
+    TenantResponse currentDetail();
+
+    /**
+     * users.md §6.1: atualização parcial dos dados da organização.
+     *
+     * @throws com.devtime.shared.error.BusinessRuleException {@code DEVTIME-2004} em conflito de
+     *     versão (RN-004), {@code DEVTIME-2000} para fuso inválido
+     */
+    TenantResponse update(TenantUpdateRequest request);
+
+    /**
+     * users.md §6.2: atualização parcial das 10 chaves operacionais.
+     *
+     * <p>CE-03/CP-03: <b>nada é recalculado</b>. Alterar {@code roundingMinutes} ou {@code
+     * timezone} vale apenas para registros futuros — recalcular mudaria relatórios já entregues ao
+     * cliente, o que ART-005 proíbe.
+     */
+    TenantResponse updateSettings(TenantSettingsRequest request);
+
+    /**
+     * users.md §6.3: cancela a organização, com senha e confirmação digitada (SG-04).
+     *
+     * @throws com.devtime.shared.error.BusinessRuleException {@code DEVTIME-1011} para senha
+     *     incorreta, {@code DEVTIME-2000} para confirmação divergente, {@code DEVTIME-2010} quando
+     *     há período em {@code CLOSING} (CX-12)
+     */
+    TenantCancelResponse cancel(TenantCancelRequest request);
+
+    /** RN-008: tenants cuja retenção de 30 dias venceu, para o {@code TenantPurgeJob}. */
+    int purgeExpiredCancellations();
 }

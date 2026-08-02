@@ -253,9 +253,9 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | Nº | Feature | Spec | Tasks | Aceite | Testes | Status |
 |:--:|---|:--:|:--:|:--:|:--:|---|
 | 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁷ |
-| 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁴ |
 | 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ |
-| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_PARTIAL` ² |
+| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ² ¹⁵ |
 | 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ |
 | 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ |
 | 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ |
@@ -266,7 +266,7 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
 | 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹¹ |
 | 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
-| 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹³ |
 
 > Atualizar a coluna **Status** é obrigatório no PR que conclui a feature (MN-03).
 
@@ -312,6 +312,24 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 |:--:|---|
 | ⁷ | `001` — backend completo: cadastro atômico (organização + conta + vínculo OWNER + 9 categorias + token, em uma transação), verificação de e-mail idempotente, login na ordem normativa da §6.1, bloqueio e desbloqueio de conta (RN-453), rotação de refresh com detecção de reuso em cadeia (RN-005), seleção e troca de organização, recuperação e alteração de senha, sessões ativas com ownership, consumo e aceite de convite, rate limit em banco, e-mail transacional pós-commit e jobs de limpeza. O `TenantContextFilter` passou a aplicar os passos 2 a 4 de `permissions.md` §4.1 (T-001-14). **Pendentes:** frontend (T-001-39 a T-001-52), `TenantPurgeJob` (depende do cancelamento de organização, que é `002`), `activeTimer` em `GET /auth/me` (depende de `009`) e a emissão de convites (`002`; aqui só se consome). Três lacunas de documentação foram reportadas e resolvidas: `verification_tokens` e `rate_limit_counters` ausentes de `database.md` §8.1, e `users.last_failed_login_at`, exigida pela janela de 15 minutos de RN-453 |
 
+**Nota da sprint S11 (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹³ | `015` — backend completo: infraestrutura de storage privado (MinIO/S3 por `StoragePort`, com bloqueio de acesso público, versionamento de objeto e retenção de 30 dias aplicados na inicialização — SG-01/SG-03) e verificador antivírus (`AntivirusPort` sobre ClamAV `INSTREAM`); ordem normativa de §6.1 integral, com o tamanho validado **antes** de qualquer leitura de conteúdo e o binário gravado **depois** da validação de assinatura; `MagicNumberValidator` cruzando assinatura × tipo declarado nos 9 tipos, com heurística de binário para texto e verificação do manifesto interno nos formatos Office; `FileNameSanitizer` e `StorageKeyGenerator` opaco; checksum SHA-256 em fluxo; deduplicação restrita ao tenant com contagem de referências na exclusão; máquina de §4.9 com até 3 tentativas e remoção do binário como efeito de entrada em `INFECTED`; `DownloadGuard` no serviço com redirecionamento para URL assinada; `ScanWorkerJob` e `OrphanBinaryJob` (que **alerta sem remover**); trilha completa de §18, incluindo todo download. Migrations `V023` (tabela, `CHECK` XOR de alvo, de tamanho e de tentativas) e `V024` (os 6 índices, com o coberto de quota). **`ATTACHMENT_INFECTED` ganhou produtor**, fechando a pendência da nota ¹¹. **Quatro divergências entre documentos foram reportadas e resolvidas em favor de `02-domain/`**, com `04-api/tickets.md` §11 sincronizado: `DEVTIME-2708`/`2709`/`2710` retirados por duplicarem `DEVTIME-2701` e `DEVTIME-2703`; `checksumSha256` e `downloadUrl` removidos da resposta (CP-07); campo `description` inexistente no modelo; e a numeração das migrations seguindo `database.md` §8.1 (`V023`/`V024`) e não a spec (`V038`/`V039`). **Defeito pré-existente corrigido:** `period_snapshots.checksum` era `CHAR(64)`, que a validação de schema do Hibernate recusa em banco limpo — `V029` corrige de forma aditiva, sem alterar `V020` (BR-035). **Pendentes:** frontend (T-015-18 a T-015-23), que depende de P19 e do frontend de `007`/`014`, inexistentes; teste de carga de uploads concorrentes (T-015-29), que exige infraestrutura de carga; e o endpoint de quota, que a spec prevê como DTO (§23) e componente (`dt-quota-indicator`) mas não lista em §14 — publicado como `GET /api/v1/attachments/quota` e a lacuna reportada |
+
+**Nota da sprint de `002-users` (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁴ | `002` — backend entregue: perfil e preferências com os padrões de §6.2.1 aplicados na leitura e mescla que preserva chaves desconhecidas; avatar com validação de tamanho, allowlist e assinatura binária cruzada; organização com `settings` tipado, validação de faixa e validação cruzada dos limiares de cronômetro, sem recálculo de nenhum registro existente (CE-03/ART-005); cancelamento com senha, confirmação digitada e guarda de período em `CLOSING`, revogando as sessões por evento consumido em `001`; gestão de membros com a ordem normativa de §6.1 (RN-456 antes de hierarquia, RN-455 por último com **lock pessimista** na contagem de OWNERs), convite com token de 7 dias emitido por porta sobre `001`, remoção que preserva os registros e devolve as contagens, e suspensão que descarta o cronômetro; trilha de auditoria consultável somente por `GET`, com recorte padrão de 30 dias, teto de 90 e IP mascarado. Migration `V030` (colunas de cancelamento — lacuna de `database.md` §7.1 reportada). **`MEMBER_JOINED` e `MEMBER_REMOVED` ganharam produtor**, fechando a pendência da nota ¹¹. **Dois ciclos de criação de beans foram corrigidos na raiz** ao separar `PasswordEncoderConfiguration` e `MethodSecurityConfiguration` de `SecurityConfig`: com `TenantServiceImpl` passando a declarar `@PreAuthorize`, a configuração de segurança HTTP e a de método fechavam ciclo com a cadeia de filtros. **Onze divergências entre `specs/002-users` e `docs/04-api/users.md` foram reportadas e resolvidas em favor do segundo** (hierarquia de `project-constitution.md` §9), com §11.2 daquele documento registrando cada uma. **Pendentes:** frontend (T-002-28 a T-002-39); **exportação de dados do tenant (E-06/T-002-17), bloqueada por `report_executions`, que pertence a `012-reports`**; redimensionamento do avatar para 256×256, que exige decisão de biblioteca de imagem (o JDK não decodifica WebP); `AuditArchiveJob`, cujo destino de arquivamento não está especificado; e os blocos `stats` de `users.md` §6.1 e §7.1, que dependem de contadores públicos inexistentes em `003`, `004`, `008`, `009` e `015` |
+
+**Nota da sprint de jobs de `004` (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁵ | `004` — fecha a pendência da nota ²: `GeneratePeriodsJob` (RN-213, cria o período seguinte como `SCHEDULED` com até três dias de antecedência, apenas para contrato `ACTIVE` com `autoRenew` e sem sucessor), `OpenScheduledPeriodsJob` (`SCHEDULED → OPEN`) e `AutoEndContractsJob` (FA-05, delegando a `ContractService.end` para não duplicar o truncamento de RN-214). O quarto job da §22.4, `ContractEndingReminderJob`, já havia sido entregue por `013` e não foi duplicado. A materialização de períodos foi extraída para `PeriodMaterializer`, agora compartilhada por ativação, retomada e renovação automática — pelo mesmo motivo que a prévia compartilha `PeriodGenerator` com a geração real (CA-01). **Duas regras não implementadas foram descobertas pelo banco e corrigidas:** a guarda de §11 (`SCHEDULED → OPEN` exige o anterior `CLOSED`), que o índice `uq_periods_single_open` rejeitava, e um **defeito pré-existente em `013`** — `NotificationJobs` construía a sessão de plataforma com `userId` nulo, que o construtor canônico de `TenantSession` recusava, fazendo **toda iteração dos lembretes de RN-605 e RN-606 falhar silenciosamente** dentro do `catch`. Corrigido com `TenantSession.system(...)`, e `TenantContext.requireUserId()` passou a falhar alto em sessão sem usuário, em vez de devolver `null`. **Divergência aceita e registrada:** RS-06 prevê execução às 03:00 no fuso do tenant; o agendamento é único, no fuso do servidor, porque a janela de três dias de RN-213 absorve qualquer fuso. **Pendentes:** frontend (T-004-32 a T-004-37 e T-004-41); `POST /contracts/{id}/duplicate`; guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`); e `RolloverExpiryJob`/`AutoClosePeriodJob` de `011`, que estes jobs desbloqueiam |
+
 **Interfaces públicas publicadas nesta sprint:**
 
 | Interface | Consumidor previsto |
@@ -356,6 +374,18 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `TicketTransitionService.reopenOnWorkLog(ticketId, workLogId)` | `008` (RN-312) |
 | `TicketActivitySource.activityOf(ticketId)` | Implementada por `014`; `008` acrescenta os work logs |
 | `SystemCommentService.emit(...)` · `CommentService.existsForComment(...)` | `007` (RN-815), `015` (INV-ATT-01) |
+| `TenantService.currentDetail` · `update` · `updateSettings` · `cancel` · `purgeExpiredCancellations` | Fronteira HTTP de `002` |
+| `MembershipService.search` · `getById` · `changeRole` · `suspend` · `reactivate` · `remove` | Fronteira HTTP de `002` |
+| `InvitationService.*` | Fronteira HTTP de `002` (a emissão; o aceite é de `001`) |
+| `UserProfileService.*` · `AuditLogService.search` | Fronteira HTTP de `002` |
+| `UserAccountService.findAllByIds(...)` · `findIdsMatching(...)` | `002` (listagem e busca de membros) |
+| `AuditActorNameResolver` (declarada em `audit`) | Implementada por `user` — evita o ciclo `audit ↔ user` |
+| `InvitationTokenPort` (declarada em `tenant`) | Implementada por `001` — evita o ciclo `tenant ↔ auth` |
+| `MemberRemovalPorts.{TicketReassignmentSource, TimerDiscardSource, WorkLogCountSource, PeriodClosingStateSource}` (declaradas em `tenant`) | Implementadas por `007`, `009`, `008` e `004` |
+| `TicketRepository.findByAssigneeAndStatusIn` · `WorkLogRepository.countByUserId` · `ContractPeriodRepository.existsClosingInTenant` | Suportam os ports acima |
+| `RefreshTokenService.revokeAllOfInTenant(...)` · `revokeAllInTenant(...)` | `002` (RT-07, RN-008), consumidos por evento |
+| `ContractMaintenanceService.*` · `PeriodMaterializer.materialize(...)` | Jobs de `004` (§22.4); a materialização também serve à ativação e à retomada |
+| `TenantSession.system(tenantId, role, permissions)` | Todo job de plataforma (BR-049, JB-06) |
 
 ---
 

@@ -92,6 +92,13 @@ class ResendMailAdapterTest {
 
     private DevTimeProperties properties() {
         return new DevTimeProperties(
-                null, null, null, null, new MailProps(FROM, MailProvider.RESEND, "re_teste"));
+                null,
+                null,
+                null,
+                null,
+                new MailProps(FROM, MailProvider.RESEND, "re_teste"),
+                null,
+                null,
+                null);
     }
 }

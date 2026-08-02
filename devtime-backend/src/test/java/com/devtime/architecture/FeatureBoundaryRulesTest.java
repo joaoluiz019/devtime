@@ -39,6 +39,7 @@ class FeatureBoundaryRulesTest {
                     "tag",
                     "ticket",
                     "comment",
+                    "attachment",
                     "worklog",
                     "timer",
                     "notification");

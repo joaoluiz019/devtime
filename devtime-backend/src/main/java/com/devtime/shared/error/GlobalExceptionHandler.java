@@ -24,6 +24,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 /**
  * Tradução global de exceções em Problem Details (backend.md §12, ADR-017 EX-01).
@@ -91,6 +92,26 @@ public class GlobalExceptionHandler {
         logClientError(ErrorCode.VALIDATION_FAILED, request, exception);
         return factory.create(
                 ErrorCode.VALIDATION_FAILED, HttpStatus.BAD_REQUEST, Map.of(), request);
+    }
+
+    /**
+     * RN-801: o contêiner recusou a parte por tamanho, antes de a aplicação ver o conteúdo.
+     *
+     * <p>É a primeira das duas camadas de tamanho descritas em {@code application.yml}: esta
+     * protege o processo contra exaustão (SG-11, CA-03) e o {@code UploadValidator} produz o mesmo
+     * erro quando a requisição chega por outro caminho. Sem este mapeamento, um arquivo grande
+     * demais responderia {@code 500} genérico em vez do {@code DEVTIME-2701} / {@code 413} que a
+     * spec documenta — e o usuário não saberia que o problema é o tamanho.
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ProblemDetail handleUploadTooLarge(
+            MaxUploadSizeExceededException exception, HttpServletRequest request) {
+        logClientError(ErrorCode.ATTACHMENT_TOO_LARGE, request, exception);
+        return factory.create(
+                ErrorCode.ATTACHMENT_TOO_LARGE,
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                Map.of("maxBytes", exception.getMaxUploadSize()),
+                request);
     }
 
     @ExceptionHandler({AuthenticationException.class, InvalidAccessTokenException.class})

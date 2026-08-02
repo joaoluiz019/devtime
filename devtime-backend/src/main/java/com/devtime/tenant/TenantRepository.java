@@ -29,4 +29,22 @@ public interface TenantRepository extends SoftDeleteRepository<Tenant> {
     java.util.List<Tenant> findAllByIdIn(
             @org.springframework.data.repository.query.Param("ids")
                     java.util.Collection<java.util.UUID> ids);
+
+    /**
+     * RN-008: organizações cuja retenção de 30 dias venceu.
+     *
+     * <p>Em lote e com limite por execução (BR-186): a purga é varredura diária, e processar tudo
+     * em uma transação bloquearia o job atrás de um único tenant grande.
+     */
+    @org.springframework.data.jpa.repository.Query(
+            """
+            SELECT t FROM Tenant t
+             WHERE t.status = com.devtime.tenant.domain.TenantStatus.CANCELLED
+               AND t.purgeScheduledAt IS NOT NULL
+               AND t.purgeScheduledAt <= :reference
+            """)
+    java.util.List<Tenant> findPurgeDue(
+            @org.springframework.data.repository.query.Param("reference")
+                    java.time.Instant reference,
+            org.springframework.data.domain.Pageable pageable);
 }

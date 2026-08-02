@@ -195,7 +195,10 @@ class JwtServiceTest {
                                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
                                 securityProps(SECRET),
                                 appProps(),
-                                mailProps()),
+                                mailProps(),
+                                null,
+                                null,
+                                null),
                         clock);
         String token =
                 otherIssuer.issueAccessToken(
@@ -215,7 +218,10 @@ class JwtServiceTest {
                                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
                                 securityProps(SECRET),
                                 appProps(),
-                                mailProps()),
+                                mailProps(),
+                                null,
+                                null,
+                                null),
                         clock);
         String token =
                 otherAudience.issueAccessToken(
@@ -280,7 +286,10 @@ class JwtServiceTest {
                 new DevTimeProperties.CorsProps(List.of("http://localhost:4200")),
                 securityProps(secret),
                 appProps(),
-                mailProps());
+                mailProps(),
+                null,
+                null,
+                null);
     }
 
     private static DevTimeProperties.AppProps appProps() {

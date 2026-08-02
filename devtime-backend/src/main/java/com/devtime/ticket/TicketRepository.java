@@ -80,6 +80,23 @@ public interface TicketRepository extends SoftDeleteRepository<Ticket> {
     List<UUID> findContractIdsByParticipant(@Param("userId") UUID userId);
 
     /**
+     * FA-09 de {@code specs/002-users}: tickets abertos de um responsável.
+     *
+     * <p>Tenant-scoped pelo filtro automático (ART-022): a remoção de um membro só alcança os
+     * tickets da organização em que ele foi removido, mesmo que ele participe de outras.
+     */
+    @Query(
+            """
+            SELECT t FROM Ticket t
+             WHERE t.assigneeId = :assigneeId
+               AND t.status IN :statuses
+            """)
+    List<Ticket> findByAssigneeAndStatusIn(
+            @Param("assigneeId") UUID assigneeId,
+            @Param("statuses")
+                    java.util.Collection<com.devtime.ticket.domain.TicketStatus> statuses);
+
+    /**
      * RN-308: incremento atômico dos totais desnormalizados.
      *
      * <p>CP-12 proíbe reagregar todos os work logs do ticket: a operação dispara em toda escrita de

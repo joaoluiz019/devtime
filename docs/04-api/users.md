@@ -553,6 +553,46 @@ sequenceDiagram
 
 ---
 
+## 11.1 Estado da implementação (sprint de `002-users` — backend)
+
+Sincronizado com `devtime-backend/src/main/java/com/devtime/{user,tenant,audit}` (T-002-48).
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GET`/`PATCH /users/me`, `PATCH /users/me/preferences` | ✅ Implementado | Preferências devolvidas já tipadas, com os padrões de `entities.md` §6.2.1 aplicados na leitura |
+| `POST`/`DELETE /users/me/avatar` | ⚠️ Parcial | Validação de tamanho, allowlist e assinatura binária completas; o **redimensionamento para 256×256** não foi implementado — o JDK não decodifica WebP e a escolha de biblioteca de imagem exige decisão registrada. Lacuna reportada |
+| `GET`/`PATCH /tenant`, `PATCH /tenant/settings` | ✅ Implementado | `settings` validado por faixa e por validação cruzada; alteração **não** recalcula nada (ART-005) |
+| Bloco `stats` de §6.1 | ⚠️ Adiado | `activeClients`, `activeContracts` e `storageUsedBytes` exigiriam contadores públicos em `003`, `004` e `015`, inexistentes. Omitido em vez de emitir zeros, que seriam lidos como "nenhum cliente cadastrado" |
+| `POST /tenant/logo` | ⚠️ Não implementado | `logoUrl` é editável por `PATCH /tenant`; o upload dedicado usa o mesmo caminho do avatar e entra com o redimensionamento |
+| `POST /tenant/cancel` | ✅ Implementado | Exige senha e a confirmação exata `CANCELAR`; revoga as sessões da organização e agenda a purga para +30 dias (RN-008) |
+| `GET /tenant/export` | ❌ Bloqueado | Depende do mecanismo assíncrono de `report_executions`, que pertence a `012-reports` (F3) e ainda não existe. Implementar um mecanismo paralelo criaria duas formas de acompanhar execução assíncrona. **Lacuna reportada** |
+| `GET /members`, `GET /members/{id}` | ✅ Implementado | Filtros `role`, `status` e `search`; `availableActions` calculado a partir do papel do requisitante (ME-06) |
+| Bloco `stats` de §7.1 | ⚠️ Adiado | Mesma razão do bloco de §6.1: exige agregações por membro em `008` e `009` sem interface pública |
+| `POST`/`GET`/`DELETE /members/invitations`, `POST .../resend` | ✅ Implementado | Token de 7 dias emitido por `001` através de porta (`InvitationTokenPort`); reenvio invalida o anterior (RN-457) |
+| `PATCH /members/{id}/role` | ✅ Implementado | Ordem normativa de §6.1 da spec; atualiza `roleChangedAt`, que invalida os access tokens do alvo (IMP-04) |
+| `POST /members/{id}/suspend` e `/reactivate` | ✅ Implementado | A suspensão descarta o cronômetro ativo (RN-460) e revoga as sessões daquele tenant |
+| `DELETE /members/{id}` | ✅ Implementado | Devolve `workLogsPreserved`, `ticketsReassigned`, `reassignedTo` e `activeTimerDiscarded` |
+| `GET /audit-logs` | ✅ Implementado | Somente `GET`; sem intervalo aplica 30 dias, teto de 90 dias (`DEVTIME-3001`), IP mascarado |
+| Jobs | ⚠️ Parcial | `TenantPurgeJob`, `ExpiredInvitationJob` e `AuditPartitionJob` implementados. **`AuditArchiveJob` não**: o destino do arquivamento de partições com mais de 12 meses não está especificado em documento algum — desanexar a partição sem destino tornaria a trilha inconsultável. Lacuna reportada |
+
+### 11.2 Divergências resolvidas nesta sprint
+
+Resolvidas em favor deste documento, que prevalece sobre `specs/` na hierarquia de `project-constitution.md` §9.
+
+| # | Divergência | Resolução |
+|---|---|---|
+| 1 | `specs/002-users` §17.2 usa `DEVTIME-2001` para convite duplicado; §7.2 deste documento usa `DEVTIME-2459` | `DEVTIME-2459` |
+| 2 | A spec trata erro de `settings` como `DEVTIME-2000`/400; §6.2 define `DEVTIME-2020` e `DEVTIME-2021`, ambos 422 | Os dois códigos específicos, com `DEVTIME-2000` reservado às demais faixas |
+| 3 | Faixa de `timerAutoAbandonMinutes`: a spec diz ≤ 2880, §6.2 diz ≤ 1440 | ≤ 1440 |
+| 4 | Faixa de `timerLongRunningMinutes`: a spec diz 30–1440, §6.2 diz 60–1440 | 60–1440 |
+| 5 | `notificationThresholds`: a spec diz 1–200 com máximo de 5; §6.2 diz 1 a 5 valores entre 1 e 500 | 1 a 5 valores entre 1 e 500 |
+| 6 | Cancelamento: a spec prevê `202` e `confirmationName`; §6.3 prevê `200` com `confirmation = CANCELAR` | §6.3 |
+| 7 | Remoção de membro: a spec prevê `204`; §7.4 prevê `200` com o bloco `impact` | §7.4 |
+| 8 | Filtros de auditoria: a spec usa `occurredAtFrom`/`occurredAtTo` sem teto; §10.1 usa `occurredFrom`/`occurredTo` com teto de 90 dias | §10.1 |
+| 9 | Avatar: RS-08 da spec diz 10 MB; §5.3 diz 2 MB | 2 MB |
+| 10 | Senha incorreta no cancelamento: a spec indica `DEVTIME-1003`/401, código já publicado em `authentication.md` §8 com outro significado | `DEVTIME-1011` (senha atual incorreta), reusado por ART-113 proibir mudar o significado de um código publicado |
+| 11 | Migrations `V007`–`V009` previstas na spec já estavam ocupadas em `database.md` §8.1 | `audit_logs` e o índice de OWNERs já existiam desde F0 (`V004`, `V006`); a única migration nova é `V030`, com as colunas de cancelamento ausentes de `database.md` §7.1 — lacuna reportada |
+
 ## 12. Casos especiais
 
 | # | Caso | Comportamento |

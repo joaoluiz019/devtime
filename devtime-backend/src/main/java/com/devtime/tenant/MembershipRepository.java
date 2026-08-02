@@ -88,4 +88,58 @@ public interface MembershipRepository extends SoftDeleteRepository<Membership> {
             """)
     List<UUID> findActiveUserIdsByRoleIn(
             @Param("roles") java.util.Collection<com.devtime.shared.security.Role> roles);
+
+    /**
+     * RN-455 / CX-02: OWNERs ativos do tenant, com <b>lock pessimista</b>.
+     *
+     * <p>O lock é o que torna a regra correta sob concorrência (BR-124). Duas transações rebaixando
+     * OWNERs diferentes ao mesmo tempo leriam a mesma contagem e ambas passariam; com o lock, a
+     * segunda espera a primeira e enxerga o estado já reduzido.
+     *
+     * <p>Usa {@code idx_memberships_tenant_role}, que já é parcial por {@code status = 'ACTIVE'}.
+     */
+    @org.springframework.data.jpa.repository.Lock(
+            jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+            """
+            SELECT m FROM Membership m
+             WHERE m.role = com.devtime.shared.security.Role.OWNER
+               AND m.status = com.devtime.tenant.domain.MembershipStatus.ACTIVE
+            """)
+    List<Membership> lockActiveOwners();
+
+    /**
+     * Listagem de membros (users.md §7.1).
+     *
+     * <p>Os filtros nulos são neutralizados na própria consulta em vez de exigirem uma {@code
+     * Specification}: são apenas dois, ambos de igualdade sobre enum.
+     *
+     * @param userIds recorte pelo termo de busca, já resolvido em {@code users}; nulo desativa o
+     *     filtro
+     */
+    @Query(
+            """
+            SELECT m FROM Membership m
+             WHERE (:status IS NULL OR m.status = :status)
+               AND (:role IS NULL OR m.role = :role)
+               AND (:userIds IS NULL OR m.userId IN :userIds)
+            """)
+    org.springframework.data.domain.Page<Membership> search(
+            @Param("status") MembershipStatus status,
+            @Param("role") com.devtime.shared.security.Role role,
+            @Param("userIds") java.util.Collection<UUID> userIds,
+            org.springframework.data.domain.Pageable pageable);
+
+    /** RN-457: convites cujo prazo de 7 dias venceu, para o {@code ExpiredInvitationJob}. */
+    @CrossTenant(reason = "O job varre convites vencidos de todas as organizações (BR-049)")
+    @Query(
+            """
+            SELECT m FROM Membership m
+             WHERE m.status = com.devtime.tenant.domain.MembershipStatus.INVITED
+               AND m.invitedAt IS NOT NULL
+               AND m.invitedAt <= :threshold
+            """)
+    List<Membership> findExpiredInvitations(
+            @Param("threshold") java.time.Instant threshold,
+            org.springframework.data.domain.Pageable pageable);
 }

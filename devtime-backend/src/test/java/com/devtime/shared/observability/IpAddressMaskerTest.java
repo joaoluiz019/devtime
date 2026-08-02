@@ -1,4 +1,4 @@
-package com.devtime.auth;
+package com.devtime.shared.observability;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -442,55 +442,139 @@ Conversa paginada por **cursor**, com as respostas carregadas junto de suas raí
 
 ## 11. Anexos
 
-### 11.1 `POST /api/v1/tickets/{id}/attachments`
+> **Sincronizado com o backend implementado em S11** (T-015-30). Quatro divergências desta seção
+> foram resolvidas em favor de `02-domain/business-rules.md` §17, que precede `04-api/` na hierarquia
+> IA-11, e de `specs/015-attachments` §23 — todas registradas em `CHANGELOG.md`.
 
-**Request:** `multipart/form-data` com o campo `file` e, opcionalmente, `description`.
+### 11.1 `GET /api/v1/tickets/{id}/attachments`
 
-**Validações (RN-801, RN-802):**
+Lista os anexos do ticket. Permissão `ATTACHMENT_VIEW` — todos os cinco papéis.
 
-| Validação | Regra | Erro |
-|---|---|---|
-| Tamanho | ≤ 10 MB | `413 DEVTIME-2701` |
-| Tipo declarado | Deve constar na allowlist | `415 DEVTIME-2702` |
-| Assinatura binária | *Magic number* deve coincidir com o tipo declarado | `415 DEVTIME-2702` |
-| Quota do tenant | Espaço disponível | `413 DEVTIME-2708` |
-| Limite por ticket | Máximo 20 (RN-806) | `422 DEVTIME-2704` |
-
-**Allowlist de tipos:**
-
-| Categoria | Tipos |
-|---|---|
-| Imagem | `image/png`, `image/jpeg`, `image/gif`, `image/webp` |
-| Documento | `application/pdf`, `text/plain`, `text/csv` |
-| Office | `.docx`, `.xlsx`, `.pptx` (tipos OOXML completos) |
-| Arquivo | `application/zip` |
-
-> `image/svg+xml` é **explicitamente proibido** por ser vetor de XSS (AN-06 de `security.md`).
-
-**Response `201 Created`:**
+**Response `200 OK`:**
 
 ```json
 {
-  "id": "...", "fileName": "print-erro-checkout.png",
-  "contentType": "image/png", "sizeBytes": 245760,
-  "checksumSha256": "e3b0c442...",
-  "scanStatus": "PENDING",
-  "downloadUrl": null,
-  "uploadedBy": { "id": "...", "name": "Camila Torres" },
-  "createdAt": "2026-07-22T15:05:00-03:00",
-  "message": "Arquivo em verificação de segurança. O download ficará disponível em instantes."
+  "attachments": [
+    {
+      "id": "...",
+      "ticketId": "...",
+      "commentId": null,
+      "fileName": "print-erro-checkout.png",
+      "originalFileName": "print erro checkout.png",
+      "contentType": "image/png",
+      "sizeBytes": 245760,
+      "scanStatus": "CLEAN",
+      "uploadedBy": { "id": "...", "name": "Camila Torres" },
+      "createdAt": "2026-07-22T15:05:00-03:00",
+      "canDownload": true,
+      "canDelete": true
+    }
+  ],
+  "count": 1,
+  "maxCount": 20
 }
 ```
 
-### 11.2 `GET /api/v1/attachments/{id}/download`
+> **`storageKey` e `checksumSha256` nunca aparecem** (CP-07 de `specs/015`). A `storageKey`
+> revelaria a estrutura do storage; o `checksum` permitiria verificar se um arquivo específico
+> existe no tenant sem tê-lo — canal de inferência análogo ao que a deduplicação restrita ao tenant
+> evita.
+>
+> **`canDownload` e `canDelete` são calculados no servidor**, a partir de `scanStatus` (RN-803) e de
+> OWN-07. O cliente não reimplementa nenhuma das duas: duas definições de "pode baixar" divergem na
+> primeira mudança.
+>
+> **`maxCount`** é o limite de RN-806 para este tipo de alvo. Existe para a UI desabilitar o envio
+> antes da tentativa, em vez de deixar o usuário selecionar um arquivo para receber `422`.
 
-**Response `302 Found`** com `Location` apontando para uma URL assinada, válida por 15 minutos (RN-712).
+### 11.2 `POST /api/v1/tickets/{id}/attachments`
+
+**Request:** `multipart/form-data` com o campo `file`. Permissão `ATTACHMENT_UPLOAD`.
+
+**Ordem de validação (normativa — §6.1 de `specs/015`):**
+
+| # | Verificação | Falha |
+|:--:|---|---|
+| 1 | Permissão `ATTACHMENT_UPLOAD` | `403 DEVTIME-1101` |
+| 2 | Exatamente um alvo: ticket **ou** comentário (INV-ATT-01) | `422 DEVTIME-2000` |
+| 3 | Alvo existe no tenant | `404 DEVTIME-2002` |
+| 4 | Limite de anexos no alvo (RN-806) | `422 DEVTIME-2704` |
+| 5 | `sizeBytes ≤ 10 MB` (RN-801) | `413 DEVTIME-2701` |
+| 6 | Quota do tenant não excedida (RN-801) | `413 DEVTIME-2701` |
+| 7 | `contentType` declarado está na allowlist (RN-802) | `415 DEVTIME-2702` |
+| 8 | **Assinatura binária coincide com o `contentType`** (RN-802) | `415 DEVTIME-2702` |
+
+> **A ordem é normativa.** O tamanho (5) precede a verificação de tipo (7 e 8) porque um arquivo de
+> 500 MB deve ser rejeitado antes de qualquer leitura de conteúdo. A assinatura (8) é separada da
+> allowlist (7) porque são defesas independentes: o passo 7 confia no que o cliente **declara**, o
+> passo 8 verifica o que o arquivo **é**. Um executável renomeado para `.pdf` com
+> `contentType: application/pdf` passa em 7 e falha em 8.
+
+**Allowlist de tipos e assinaturas (RN-802):**
+
+| Categoria | `contentType` | Assinatura verificada |
+|---|---|---|
+| Imagem | `image/png` | `89 50 4E 47 0D 0A 1A 0A` |
+| Imagem | `image/jpeg` | `FF D8 FF` |
+| Imagem | `image/gif` | `47 49 46 38` |
+| Imagem | `image/webp` | `52 49 46 46` + `57 45 42 50` no offset 8 |
+| Documento | `application/pdf` | `25 50 44 46` |
+| Texto | `text/plain`, `text/csv` | Sem assinatura — heurística de binário nos primeiros 8 KB e UTF-8 válido |
+| Compactado | `application/zip` | `50 4B 03 04` |
+| Office | `.docx`, `.xlsx`, `.pptx` | `50 4B 03 04` + manifesto `[Content_Types].xml` coerente |
+
+> `image/svg+xml` é **explicitamente proibido** por ser vetor de XSS (AN-06 de `security.md`).
+
+**Response `201 Created`**, com header `Location: /api/v1/attachments/{id}`:
+
+```json
+{
+  "id": "...",
+  "ticketId": "...",
+  "commentId": null,
+  "fileName": "print-erro-checkout.png",
+  "originalFileName": "print erro checkout.png",
+  "contentType": "image/png",
+  "sizeBytes": 245760,
+  "scanStatus": "PENDING",
+  "uploadedBy": { "id": "...", "name": "Camila Torres" },
+  "createdAt": "2026-07-22T15:05:00-03:00",
+  "canDownload": false,
+  "canDelete": true
+}
+```
+
+> **`201` não libera o download.** O anexo nasce em `PENDING` e `canDownload` é `false` até a
+> verificação antivírus concluir (RN-803). A UI comunica o estado explicitamente — um botão
+> desabilitado sem explicação faz o usuário acreditar que o sistema está com defeito.
+
+### 11.3 `GET` e `POST /api/v1/comments/{id}/attachments`
+
+Mesmo contrato de §11.1 e §11.2, com o comentário como alvo. **O limite é 5** (RN-806), independente
+dos 20 do ticket: os limites são por alvo, e um ticket no limite não impede seus comentários de
+receberem anexos.
+
+### 11.4 `GET /api/v1/attachments/{id}/download`
+
+**Response `302 Found`** com `Location` apontando para uma URL assinada, válida por 15 minutos
+(RN-712, SG-08). O binário **nunca passa pela aplicação**: o cliente busca direto no storage, que é
+privado.
 
 | Status | Código | Situação |
 |---|---|---|
+| `302` | — | `scanStatus = CLEAN` — único estado que libera o download |
 | `409` | `DEVTIME-2703` | `scanStatus = PENDING` — ainda em verificação |
-| `403` | `DEVTIME-2709` | `scanStatus = INFECTED` |
-| `409` | `DEVTIME-2710` | `scanStatus = FAILED` — verificação não concluída |
+| `403` | `DEVTIME-2703` | `scanStatus = INFECTED` — o binário já foi removido do storage |
+| `409` | `DEVTIME-2703` | `scanStatus = FAILED` — três tentativas esgotadas, **permanentemente** |
+| `404` | `DEVTIME-2002` | Anexo inexistente ou de outro tenant |
+
+> **Não existe liberação manual de um arquivo `FAILED`** (§6.3 de `specs/015`, CP-02). Nenhum
+> parâmetro, papel ou configuração libera um arquivo não verificado. A alternativa oferecida ao
+> usuário é reenviar o arquivo, o que reinicia a verificação. Rever essa decisão exige alterar
+> `business-rules.md` **antes** do código.
+>
+> **Todo download é auditado** (`ATTACHMENT_DOWNLOADED`): é o momento em que conteúdo binário sai do
+> sistema, e a trilha é a única forma de responder quem acessou o quê.
 
 ```mermaid
 stateDiagram-v2
@@ -501,6 +585,39 @@ stateDiagram-v2
     FAILED --> PENDING: nova tentativa (até 3)
     INFECTED --> [*]
 ```
+
+### 11.5 `DELETE /api/v1/attachments/{id}`
+
+**Response `204 No Content`.** Exclusão lógica (RN-003). O binário é removido do storage **apenas**
+se este for o último registro que referencia a mesma `storageKey` (RN-805).
+
+| Permissão | Alcance |
+|---|---|
+| `ATTACHMENT_DELETE_OWN` | O próprio anexo (OWN-07). **Sem janela temporal** — diferente de comentários, o autor exclui a qualquer momento |
+| `ATTACHMENT_DELETE_ANY` | Qualquer anexo do tenant. `OWNER`, `ADMIN` e `MANAGER` |
+
+| Status | Código | Situação |
+|---|---|---|
+| `403` | `DEVTIME-1103` | Não é quem enviou e não possui `ATTACHMENT_DELETE_ANY` |
+| `404` | `DEVTIME-2002` | Anexo inexistente ou de outro tenant |
+
+### 11.6 `GET /api/v1/attachments/quota`
+
+Consumo de armazenamento da organização (RN-801). Permissão `ATTACHMENT_VIEW`.
+
+```json
+{ "usedBytes": 734003200, "limitBytes": 1073741824, "percentage": 68 }
+```
+
+> Conta apenas registros não excluídos com binário presente. O limite é fixo em 1 GB no MVP; em F6
+> passa a vir do plano (`future/018-subscriptions`).
+
+### 11.7 Não existe rota de atualização
+
+Todos os campos relevantes são imutáveis (RN-011), e `scanStatus` é alterado apenas pelo
+verificador. **A ausência é a implementação da regra**: alterar o `contentType` após a verificação
+permitiria burlar a validação de assinatura, e uma rota que aceitasse alterar `scanStatus` seria o
+caminho de liberação manual que CP-02 proíbe.
 
 ---
 
@@ -534,16 +651,21 @@ stateDiagram-v2
 | `DEVTIME-2313` | 422 | Limite de 10 tags excedido |
 | `DEVTIME-2314` | 422 | Motivo do bloqueio obrigatório |
 | `DEVTIME-2315` | 422 | Contrato de destino de outro cliente |
-| `DEVTIME-2701` | 413 | Arquivo excede o tamanho máximo |
-| `DEVTIME-2702` | 415 | Tipo de arquivo não permitido |
-| `DEVTIME-2703` | 409 | Arquivo em verificação |
-| `DEVTIME-2704` | 422 | Limite de anexos atingido |
+| `DEVTIME-2000` | 422 | Nenhum alvo ou dois alvos informados no anexo (INV-ATT-01) |
+| `DEVTIME-2701` | **413** | Arquivo acima de 10 MB **ou** quota de armazenamento excedida (RN-801) |
+| `DEVTIME-2702` | **415** | Tipo fora da allowlist **ou** assinatura binária divergente do tipo declarado (RN-802) |
+| `DEVTIME-2703` | **409 / 403** | Download bloqueado por verificação: `409` em `PENDING` e `FAILED`, `403` em `INFECTED` (RN-803) |
+| `DEVTIME-2704` | 422 | Limite de anexos no alvo — 20 por ticket, 5 por comentário (RN-806) |
 | `DEVTIME-2705` | 422 | Corpo do comentário fora de 1–10.000 caracteres |
 | `DEVTIME-2706` | 409 | Janela de edição do comentário expirada |
 | `DEVTIME-2707` | 409 | Comentário de sistema é imutável |
-| `DEVTIME-2708` | 413 | Quota de armazenamento esgotada |
-| `DEVTIME-2709` | 403 | Arquivo bloqueado por ameaça detectada |
-| `DEVTIME-2710` | 409 | Verificação de segurança não concluída |
+
+> **`DEVTIME-2708`, `DEVTIME-2709` e `DEVTIME-2710` foram retirados** na sincronização de S11
+> (T-015-30). Eles duplicavam condições que `02-domain/business-rules.md` §17 já atribui a
+> `DEVTIME-2701` (quota) e a `DEVTIME-2703` (`INFECTED` e `FAILED`), e `02-domain/` precede
+> `04-api/` na hierarquia IA-11. Os três **nunca foram implementados nem publicados**, então a
+> retirada não quebra contrato — e um código aposentado nunca é reutilizado (EX-03), de modo que a
+> faixa permanece reservada.
 
 ## 14. Critérios de aceite
 

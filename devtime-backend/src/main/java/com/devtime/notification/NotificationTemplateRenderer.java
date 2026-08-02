@@ -187,11 +187,48 @@ public class NotificationTemplateRenderer {
                 "O ticket " + ticketKey + " recebeu um novo comentário.");
     }
 
+    /**
+     * §6 de notifications.md: convite aceito.
+     *
+     * <p>Usa o nome de exibição, não o e-mail: ART-084 proíbe o endereço em claro fora do canal de
+     * e-mail, e a notificação é lida na central por todos os {@code OWNER} e {@code ADMIN}.
+     */
+    public RenderedText memberJoined(String memberName) {
+        return new RenderedText(
+                "Novo membro na organização", memberName + " aceitou o convite e já tem acesso.");
+    }
+
+    /** §6 de notifications.md: membro removido. */
+    public RenderedText memberRemoved(String memberName, long preservedWorkLogs) {
+        return new RenderedText(
+                "Membro removido da organização",
+                memberName
+                        + " foi removido. Os "
+                        + preservedWorkLogs
+                        + " registros de horas dele permanecem nos relatórios e no saldo.");
+    }
+
     /** RN-813 / CE-N-07: mais específico que {@link #ticketCommented}. */
     public RenderedText ticketMentioned(String ticketKey) {
         return new RenderedText(
                 "Você foi mencionado",
                 "Você foi mencionado em um comentário do ticket " + ticketKey + ".");
+    }
+
+    /**
+     * RN-803 / §15 de {@code specs/015}: ameaça detectada em anexo.
+     *
+     * <p><b>O nome do arquivo não entra</b> (§19.1 de {@code specs/015}, CP-19). É texto livre e
+     * pode conter dado pessoal, e uma notificação é entregue por e-mail — o canal que menos
+     * controla onde o texto termina. Quem enviou reconhece o arquivo pelo ticket e pelo momento.
+     */
+    public RenderedText attachmentInfected(String threat) {
+        return new RenderedText(
+                "Ameaça detectada em anexo",
+                "Um arquivo que você enviou foi bloqueado pela verificação de segurança ("
+                        + threat
+                        + "). O arquivo foi removido e não pode ser baixado. Envie novamente um"
+                        + " arquivo íntegro.");
     }
 
     /**

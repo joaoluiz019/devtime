@@ -29,6 +29,25 @@ public interface UserAccountService {
     Optional<UserAccount> findById(UUID userId);
 
     /**
+     * Carga em lote das contas, para a listagem de membros (users.md §7.1).
+     *
+     * <p>Em lote porque a listagem exibe e-mail, nome e avatar de cada membro: uma consulta por
+     * linha transformaria a tela de equipe em N+1 (QY-03).
+     *
+     * @return mapa por identificador; identificadores inexistentes ficam ausentes
+     */
+    java.util.Map<UUID, UserAccount> findAllByIds(java.util.Collection<UUID> userIds);
+
+    /**
+     * Identificadores cujo nome ou e-mail contém o termo (filtro {@code search} de users.md §7.1).
+     *
+     * <p>Resolvido aqui e não por {@code join} em {@code memberships}: {@code users} é tabela
+     * global (ART-013) e pertence a esta feature. Quem chama cruza os identificadores com os
+     * vínculos do próprio tenant, o que preserva o isolamento.
+     */
+    java.util.List<UUID> findIdsMatching(String term);
+
+    /**
      * @throws com.devtime.shared.error.EntityNotFoundException {@code DEVTIME-2002} quando a conta
      *     não existe
      */

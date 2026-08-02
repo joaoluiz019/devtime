@@ -8,6 +8,238 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint de jobs de `004-contracts` — Ciclo de vida automático de contratos e períodos**
+
+Fecha a pendência mais antiga da fila: `004` estava em `BACKEND_PARTIAL` desde S3, e os três jobs
+que faltavam bloqueavam também `RolloverExpiryJob` e `AutoClosePeriodJob` de `011`.
+
+- `GeneratePeriodsJob` (RN-213) cria o período seguinte como `SCHEDULED` quando faltam três dias ou
+  menos. Nasce `SCHEDULED` e não `OPEN` porque o ciclo só passa a valer no seu `startDate`: abrir
+  antes permitiria registrar horas em um período que ainda não começou.
+- `OpenScheduledPeriodsJob` faz `SCHEDULED → OPEN`. `AutoEndContractsJob` encerra o contrato cuja
+  vigência terminou, **delegando** a `ContractService.end` — duplicar a transição criaria dois
+  encerramentos com efeitos possivelmente divergentes, e o automático precisa ser indistinguível do
+  manual.
+- `PeriodMaterializer` foi extraído de `ContractServiceImpl`: ativação, retomada e renovação
+  automática passam pelo mesmo caminho, pela mesma razão que a prévia e a geração real compartilham
+  `PeriodGenerator` (CA-01).
+- O quarto job da §22.4, `ContractEndingReminderJob`, já existia em `013-notifications`. Nada foi
+  duplicado.
+
+**Duas regras ausentes descobertas durante a implementação**
+
+- A guarda de §11 — `SCHEDULED → OPEN` exige o período anterior `CLOSED` — não estava implementada.
+  O índice `uq_periods_single_open` a rejeitou no primeiro teste. Adiar a abertura é o comportamento
+  correto: o ciclo anterior ainda recebe horas, e quem decide que ele terminou é o fechamento.
+- **Defeito pré-existente em `013-notifications`:** `NotificationJobs` construía a sessão de
+  plataforma com `userId` nulo, que o construtor canônico de `TenantSession` recusava. Toda iteração
+  dos lembretes de RN-605 e RN-606 lançava e era engolida pelo `catch` do próprio job — os lembretes
+  **nunca** notificavam, sem nenhum sintoma além de uma linha de log. Corrigido com a fábrica
+  `TenantSession.system(...)`, que torna a ausência de usuário explícita e intencional (é o que faz
+  a trilha registrar `actorType = SYSTEM`, CE-S-06). `TenantContext.requireUserId()` passou a falhar
+  alto nessa sessão, em vez de devolver `null` a quem espera um identificador.
+
+**Divergência aceita:** RS-06 prevê a geração às 03:00 *no fuso do tenant*. O agendamento é único,
+no fuso do servidor: a janela de três dias de RN-213 absorve qualquer fuso, e um agendamento por
+fuso multiplicaria execuções e locks sem mudar o resultado.
+
+**Pendentes de `004`:** frontend, `POST /contracts/{id}/duplicate` e a guarda de cronômetro ativo em
+`suspend`/`end` (`DEVTIME-2212`).
+
+**Sprint de `002-users` — Conta, Organização, Membros e Auditoria** · `specs/002-users`
+
+Próxima da fila pela §4 de `implementation-order.md`: ordem 2, `P0`, com `001-authentication` em
+`BACKEND_DONE`. Entrega backend, testes e documentação.
+
+Antes do código, **onze divergências** entre `specs/002-users` e `docs/04-api/users.md` foram
+reportadas e resolvidas em favor do segundo, pela hierarquia de `project-constitution.md` §9
+(`04-api/` prevalece sobre `specs/`). Todas estão tabeladas em `users.md` §11.2. A mais consequente:
+a spec indica `DEVTIME-1003`/401 para senha incorreta no cancelamento, mas esse código já está
+publicado em `authentication.md` §8 com o significado "usuário sem organização ativa" — ART-113
+proíbe mudar o significado de um código publicado, então o fluxo usa `DEVTIME-1011`.
+
+Perfil e preferências (`features/user/`)
+
+- `UserProfileService` opera **sempre** sobre o titular da sessão: nenhuma assinatura aceita um
+  identificador de usuário, o que elimina por construção a classe de erro "esqueci de verificar o
+  ownership".
+- `UserPreferencesCodec` aplica os padrões de `entities.md` §6.2.1 **na leitura**, e a escrita é
+  mescla, nunca substituição — um cliente antigo não apaga uma preferência introduzida depois dele.
+- `AvatarValidator` repete a defesa em duas camadas de `015`: tamanho antes de qualquer leitura de
+  conteúdo, tipo declarado contra allowlist e assinatura binária **cruzada** contra o tipo
+  declarado. WebP exige o rótulo de formato além do contêiner RIFF, que também hospeda WAV e AVI.
+
+Organização (`features/tenant/`)
+
+- `TenantSettingsValidator` valida o **valor efetivo** — mescla do que veio na requisição com o
+  persistido —, e não a requisição isolada: enviar apenas `timerLongRunningMinutes = 1200` sobre um
+  `timerAutoAbandonMinutes = 960` inverteria os limiares sem que a requisição, sozinha, revelasse o
+  problema.
+- Alterar `settings` **não recalcula nada** (CE-03, CP-03, ART-005). Um cliente que recebeu um
+  relatório não pode vê-lo mudar porque o prestador ajustou uma configuração hoje.
+- Cancelamento exige senha **e** a digitação de `CANCELAR` (SG-04), verifica ausência de período em
+  `CLOSING` (CX-12) e agenda a purga para +30 dias. A purga é exclusão **lógica**: P-03 e ART-051
+  proíbem `DELETE` físico, e a obrigação de guarda do documento fiscal é de cinco anos.
+- Migration `V030` acrescenta `cancelled_at`, `purge_scheduled_at` e `cancellation_reason`.
+  **Lacuna reportada**: `database.md` §7.1 e `entities.md` §6.1 não preveem coluna alguma para o
+  instante do cancelamento, mas `users.md` §6.3 exige devolver `dataRetainedUntil`. Derivar de
+  `updated_at` seria incorreto — qualquer alteração posterior reiniciaria a retenção.
+
+Membros
+
+- `MemberGuards` concentra as três guardas **na ordem normativa de §6.1**, e a ordem é a regra:
+  auto-alteração (RN-456) antes de hierarquia, porque um OWNER tentando se rebaixar precisa ler "não
+  é possível alterar o próprio papel"; último OWNER (RN-455) por último, porque é a única que custa
+  uma consulta com **lock pessimista**. Sem o lock, dois ADMINs rebaixando OWNERs distintos ao mesmo
+  tempo leriam a mesma contagem e ambos passariam, deixando o tenant sem proprietário — estado do
+  qual não há saída pela própria API.
+- `MemberRemovalOrchestrator` aplica RN-458 e RN-460 **dentro** da transação: um membro sem acesso
+  com cronômetro ativo produziria, ao ser encerrado, um registro sem autor válido. A resposta
+  devolve quantos registros foram preservados — sem esse número, remover um membro parece apagar o
+  trabalho dele.
+- O convite emite o token por `InvitationTokenPort`, implementada em `001`. A inversão evita o ciclo
+  `tenant → auth → tenant`: a emissão é autenticada e pertence a `002`, o aceite é público e
+  pertence a `001`, mas o token continua vivendo onde os outros dois fluxos de token vivem.
+
+Auditoria
+
+- `GET /audit-logs` é **somente leitura por construção** — a classe do controller não possui outro
+  verbo, que é como INV-AUD-01 e CP-05 se manifestam na camada HTTP.
+- Sem intervalo informado aplica 30 dias; acima de 90 dias devolve `DEVTIME-3001`. `audit_logs` é
+  particionada por mês e cresce de 5 a 10× mais rápido que `work_logs`: uma consulta sem recorte
+  varreria todas as partições, e seria a operação mais cara do sistema disponível a um clique.
+- `AuditActorNameResolver` é declarada em `audit` e implementada em `user`. `user` já depende de
+  `audit` — toda alteração de perfil é auditada —, então a chamada direta fecharia um ciclo (BR-008).
+
+Correções estruturais
+
+- `PasswordEncoderConfiguration` e `MethodSecurityConfiguration` foram separadas de `SecurityConfig`.
+  Com `TenantServiceImpl` passando a declarar `@PreAuthorize`, a configuração de segurança HTTP
+  fechava ciclo de criação de beans com a cadeia de filtros por dois caminhos distintos. Separar
+  resolve na raiz: o codificador depende apenas de configuração, e a segurança de método apenas do
+  avaliador de permissões.
+- `IpAddressMasker` saiu de `auth` para `shared/observability`: a máscara de IP é controle de
+  privacidade transversal (ART-084), e a trilha de auditoria passou a ser o segundo consumidor.
+
+`MEMBER_JOINED` e `MEMBER_REMOVED` ganharam produtor, fechando a pendência registrada em
+`notifications.md` §14.
+
+**Pendências desta feature**
+
+- Frontend (T-002-28 a T-002-39).
+- **Exportação de dados do tenant (E-06)**: depende do mecanismo assíncrono de `report_executions`,
+  que pertence a `012-reports` (F3) e não existe. Construir um mecanismo paralelo criaria duas
+  formas de acompanhar execução assíncrona.
+- **Redimensionamento do avatar para 256×256**: o JDK não decodifica WebP, e escolher uma biblioteca
+  de imagem é decisão que exige registro.
+- **`AuditArchiveJob`**: nenhum documento especifica o destino do arquivamento de partições com mais
+  de 12 meses, e desanexar sem destino tornaria a trilha inconsultável.
+- Blocos `stats` de `users.md` §6.1 e §7.1: exigem contadores públicos em `003`, `004`, `008`, `009`
+  e `015` que não existem. Omitidos em vez de preenchidos com zeros, pela mesma razão que levou
+  `005-categories` a omitir o bloco `usage`.
+
+**Sprint S11 — Anexos** · `specs/015-attachments`
+
+Escopo acordado: upload, download, versionamento, permissões, comentários, validações, auditoria,
+testes e documentação. Última feature da fila (ordem 15 de 15), com `014-comments` e `007-tickets`
+em `BACKEND_DONE`.
+
+Antes de qualquer código, um item do escopo foi reportado como conflito e resolvido com o
+solicitante: **"versionamento"**. `specs/015-attachments` §4 e RS-09 mantêm o versionamento *de
+arquivo* fora do roadmap, e CP-13 proíbe qualquer rota de atualização; já `integrations.md` §6.2
+SG-03 exige versionamento *de objeto no storage*, com retenção de 30 dias. Foi implementado o
+segundo. As duas coisas coexistem sem contradição porque atuam em camadas distintas — o storage
+guarda versões do binário, o domínio expõe um anexo imutável.
+
+Infraestrutura (`shared/`) — pré-requisito bloqueante de T-015-01 e T-015-02
+
+- `StoragePort` e `S3StorageAdapter` (S3 e compatíveis; MinIO em desenvolvimento). Nenhuma feature
+  conhece o SDK; a biblioteca vence apenas na fronteira de integração (CE-G-07).
+- `StorageBucketInitializer` aplica, na inicialização, as três propriedades que nenhum código
+  corrige depois: **bloqueio de acesso público** (SG-01 — R-08 classifica um bucket acidentalmente
+  público como risco crítico), **versionamento habilitado** e **expiração de versões anteriores em
+  30 dias** (SG-03). Sem a regra de expiração o versionamento tornaria a remoção do binário exigida
+  por RN-805 e INV-ATT-06 apenas aparente.
+- `AntivirusPort` e `ClamAvAdapter`, falando `INSTREAM` direto no socket. **Nunca lança**: qualquer
+  falha vira `FAILED`, que mantém o download bloqueado (AV-02). Uma exceção propagada transformaria
+  a indisponibilidade do verificador em erro de requisição de quem apenas consultou um anexo.
+- MinIO e ClamAV no `docker-compose.yml`. O backend depende de `service_started` do ClamAV, e não de
+  `service_healthy`: a primeira carga da base de assinaturas leva minutos, e bloquear a subida
+  transformaria uma degradação prevista (CE-I-03) em indisponibilidade total.
+
+Anexos (`features/attachment/`)
+
+- Ordem normativa de §6.1 **integral** (BR-062). Duas decisões dentro dela são fáceis de inverter e
+  caras: o tamanho é validado **antes** de qualquer leitura de conteúdo (CE-02, SG-11) e o binário é
+  gravado **depois** da validação de assinatura (CP-04). Ambas têm teste próprio — o primeiro conta
+  quantas vezes o conteúdo foi aberto.
+- `MagicNumberValidator` é a classe central (OB-01). A verificação é **cruzada**: pergunta se a
+  assinatura é a do tipo declarado, não se a assinatura é conhecida. A segunda forma aceitaria um
+  PDF válido declarado como `image/png`, porque a assinatura do PDF é perfeitamente conhecida. A
+  suíte foi escrita antes do validador e tem 19 casos negativos cruzados.
+- Manifesto interno lido nos formatos Office, com teto rígido de 64 KB e **uma única entrada**: §6.2
+  exige a leitura e CP-17 proíbe descomprimir o ZIP; o teto é o que concilia as duas, porque nenhuma
+  bomba de descompressão sobrevive a um limite que não depende do que o arquivo declara.
+- `StorageKeyGenerator` produz chave opaca `{tenantId}/attachments/{yyyy}/{MM}/{checksum}`. O nome do
+  arquivo não participa (CP-05): derivar a chave do nome reintroduziria, pela porta dos fundos, o
+  vetor que `FileNameSanitizer` fecha.
+- Deduplicação restrita ao tenant pelo **filtro de tenant**, não por uma cláusula no código — o que
+  a torna consequência da arquitetura em vez de algo que alguém pode remover (CP-06).
+- Máquina de §4.9 com até 3 tentativas. `INFECTED` remove o binário **no mesmo método** que muda o
+  estado (INV-ATT-06): separar as duas mudanças deixaria um instante em que o registro está
+  infectado e o arquivo continua disponível.
+- `OrphanBinaryJob` **alerta sem remover** (CP-10). Remover com base numa inferência sobre a
+  contagem de referências é irreversível se a contagem tiver defeito — mesmo princípio de
+  `WorkLogConsistencyJob` e `SnapshotIntegrityJob`.
+- **Nenhuma rota de atualização e nenhum caminho de liberação manual** (CP-02, CP-13). A ausência é
+  a implementação da regra, e `NoManualReleasePathTest` a torna verificável: se alguém acrescentar a
+  rota, o teste falha apontando para a decisão documentada.
+- `ATTACHMENT_INFECTED` ganhou produtor, fechando a pendência registrada na nota ¹¹ de
+  `implementation-order.md`. É o único evento em que **NT-05 não se aplica**: quem enviou é
+  exatamente quem precisa saber, e sem o aviso veria apenas um download que não funciona.
+
+Testes
+
+- **EICAR isolado e dentro de ZIP, contra um ClamAV real** (DoD-02). É o gatilho de acionamento do
+  risco crítico da feature. Um dublê programado para responder `INFECTED` provaria apenas que o
+  dublê responde o que foi programado para responder.
+- Remoção do binário comprovada **por acesso direto ao storage** (DoD-06), com MinIO real.
+
+### Corrigido
+
+- **`period_snapshots.checksum` era `CHAR(64)`** (`V020`, feature 011). O PostgreSQL reporta `CHAR`
+  como `bpchar`, e a validação de schema do Hibernate — obrigatória por ART-054 — recusa a
+  divergência contra o `String(64)` da entidade, **impedindo a aplicação de iniciar em banco limpo**.
+  O defeito não aparecia porque nenhum banco havia sido migrado do zero desde `V020`; foi encontrado
+  pela suíte de `015`, que sobe um banco limpo. Corrigido por `V029`, de forma aditiva — `V020` está
+  mesclada e não foi alterada (BR-035, IA-03).
+- **`FlywayMigrationIntegrationTest` verificava uma lista desatualizada de migrations**, omitindo
+  `V015`, `V016`, `V018`–`V020` e `V028`, que existem. O teste falhava em qualquer execução com
+  banco limpo.
+- **`StorageBucketInitializer` derrubava o contexto quando o storage estava ausente.** O SDK sinaliza
+  indisponibilidade por `SdkClientException`, que não é `S3Exception`. SG-05 e IN-04 exigem que falha
+  de storage seja degradação — o registro de horas continua funcionando sem anexos.
+
+### Alterado
+
+- **`docs/04-api/tickets.md` §11 sincronizado com o comportamento implementado** (T-015-30). Quatro
+  divergências foram resolvidas em favor de `02-domain/`, que precede `04-api/` na hierarquia IA-11:
+  - `DEVTIME-2708` (quota), `DEVTIME-2709` (`INFECTED`) e `DEVTIME-2710` (`FAILED`) **retirados**:
+    duplicavam condições que `business-rules.md` §17 já atribui a `DEVTIME-2701` e `DEVTIME-2703`.
+    Nunca foram implementados nem publicados, então a retirada não quebra contrato; os códigos
+    permanecem reservados, porque um código aposentado nunca é reutilizado (EX-03).
+  - `checksumSha256` e `downloadUrl` **removidos** do exemplo de resposta (CP-07): o checksum
+    permitiria verificar se um arquivo específico existe no tenant sem tê-lo.
+  - Campo `description` no upload **removido**: não existe em `entities.md` §6.17 nem em §23 da spec.
+  - Acrescentados os endpoints de listagem, de anexo em comentário, de exclusão e de quota, ausentes
+    da seção.
+- **Numeração das migrations seguindo `database.md` §8.1** (`V023`/`V024`) e não `specs/015` §13.3
+  (`V038`/`V039`) — mesmo critério já aplicado a `V022` por `014-comments`. §8.1 reserva
+  explicitamente estes dois números a `attachments`.
+- `docs/07-backlog/future.md`: registradas a decisão de OB-02 (ausência de liberação manual) e a
+  fronteira entre versionamento de arquivo e versionamento de objeto no storage.
+
+
 **Sprint — Banco de horas (frontend)** · `specs/011-bank-hours`
 
 Escopo acordado: frontend de `011`, cujo backend já estava `BACKEND_DONE`. A implementação foi

@@ -35,18 +35,23 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
                                         + " ORDER BY installed_rank",
                                 String.class);
 
-        // F0 (fundação) seguido de F1. As lacunas são intencionais: V015 e V016 estão reservadas a
-        // `timers` e `work_logs` em database.md §8.1, e V018–V021 às features de F2 e F3.
-        // Reaproveitar um número faria a numeração divergir do documento que a define.
+        // A sequência acompanha database.md §8.1. A única lacuna é `V021` (`report_executions`),
+        // reservada a `012-reports` e ainda não implementada — reaproveitar o número faria a
+        // numeração divergir do documento que a define (ART-053).
         //
         // V025 a V027 pertencem à feature 001 e vêm depois de V023/V024 (reservadas a
         // `attachments` e aos índices de F4) porque `verification_tokens`, `rate_limit_counters` e
         // `users.last_failed_login_at` não constavam de database.md §8.1 — a lacuna foi reportada e
-        // o documento atualizado com estas três entradas ao fim da sequência.
+        // o documento atualizado com estas três entradas ao fim da sequência. `V028` é a migration
+        // incremental de `work_log_tags` (CE-O-03), e `V029` corrige o tipo de
+        // `period_snapshots.checksum` sem alterar `V020`, que já está mesclada (BR-035). `V030`
+        // acrescenta as colunas de cancelamento de organização, ausentes de database.md §7.1 —
+        // lacuna reportada na sprint de `002-users`.
         assertThat(versions)
                 .containsExactly(
                         "001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011",
-                        "012", "013", "014", "017", "022", "025", "026", "027");
+                        "012", "013", "014", "015", "016", "017", "018", "019", "020", "022", "023",
+                        "024", "025", "026", "027", "028", "029", "030");
     }
 
     @Test

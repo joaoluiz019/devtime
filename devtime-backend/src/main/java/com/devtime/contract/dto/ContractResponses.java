@@ -130,6 +130,17 @@ public final class ContractResponses {
     public record PeriodReminderView(
             UUID tenantId, UUID periodId, UUID contractId, String label, LocalDate endDate) {}
 
+    /**
+     * Alvo de um job de manutenção de {@code 004} (§22.4).
+     *
+     * <p>Carrega o {@code tenantId} pelo mesmo motivo de {@link ContractReminderView}: a varredura
+     * é de plataforma e o contexto precisa ser definido a cada iteração (BR-049, JB-06). Carrega
+     * apenas identificadores — o job não decide nada com base no conteúdo, apenas delega ao serviço
+     * tenant-scoped, que recarrega a entidade sob o contexto correto.
+     */
+    @Schema(name = "MaintenanceTarget")
+    public record MaintenanceTarget(UUID tenantId, UUID entityId, UUID contractId) {}
+
     /** Item de {@code periodsPreview} (contracts.md §5 e §6). */
     @Schema(name = "PeriodPreviewItem")
     public record PeriodPreviewItem(

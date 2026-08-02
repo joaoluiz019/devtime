@@ -32,6 +32,52 @@ services:
       timeout: 5s
       retries: 10
 
+  # integrations.md §6.2: object storage. MinIO em desenvolvimento, S3 em produção — o mesmo
+  # adapter atende os dois, e o modo de caminho é usado em ambos para que o ambiente local não
+  # exercite um caminho de código diferente.
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: devtime-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
+    ports:
+      # SG-01: o bucket é privado. A porta exposta serve ao backend e ao console de operação; o
+      # bloqueio de acesso público é aplicado pela aplicação na inicialização, não pela rede.
+      - '${STORAGE_PORT:-9000}:9000'
+      - '${STORAGE_CONSOLE_PORT:-9001}:9001'
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # integrations.md §6.3: verificador antivírus. RS-03 o torna dependência obrigatória — sem ele
+  # nenhum download de anexo é liberado (RN-803, AV-02).
+  clamav:
+    image: clamav/clamav:1.4
+    container_name: devtime-clamav
+    restart: unless-stopped
+    environment:
+      # AV-04: base de assinaturas atualizada diariamente pelo freshclam do próprio contêiner.
+      CLAMAV_NO_FRESHCLAMD: 'false'
+    ports:
+      - '${ANTIVIRUS_PORT:-3310}:3310'
+    volumes:
+      - clamav-signatures:/var/lib/clamav
+    healthcheck:
+      # A primeira carga da base leva minutos; o intervalo de start_period evita que o
+      # orquestrador reinicie um contêiner que apenas ainda não terminou de subir.
+      test: ['CMD-SHELL', 'clamdcheck.sh || exit 1']
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 180s
+
   backend:
     build:
       context: ../devtime-backend
@@ -41,8 +87,23 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_healthy
+      # Deliberadamente `service_started`, e não `service_healthy`: a primeira carga da base de
+      # assinaturas leva minutos, e a indisponibilidade do verificador é degradação prevista
+      # (integrations.md §4) — os anexos acumulam em PENDING e nenhum download é liberado (CE-I-03).
+      # Bloquear a subida do backend transformaria uma degradação em indisponibilidade total.
+      clamav:
+        condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: ${DEVTIME_PROFILE:-local}
+      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_BUCKET: ${STORAGE_BUCKET}
+      STORAGE_REGION: ${STORAGE_REGION}
+      STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
+      STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
+      ANTIVIRUS_HOST: clamav
+      ANTIVIRUS_PORT: 3310
       DEVTIME_DB_URL: jdbc:postgresql://postgres:5432/${DEVTIME_DB_NAME}
       DEVTIME_DB_USERNAME: ${DEVTIME_DB_USERNAME}
       DEVTIME_DB_PASSWORD: ${DEVTIME_DB_PASSWORD}
@@ -66,4 +127,10 @@ services:
 
 volumes:
   postgres-data:
+    driver: local
+  minio-data:
+    driver: local
+  # Persistir a base de assinaturas evita rebaixar o verificador a cada reinício: sem o volume,
+  # todo `docker compose up` recomeçaria com anexos acumulando em PENDING por minutos.
+  clamav-signatures:
     driver: local

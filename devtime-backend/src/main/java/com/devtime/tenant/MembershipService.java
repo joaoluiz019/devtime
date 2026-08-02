@@ -73,4 +73,40 @@ public interface MembershipService {
      *     INVITED} — CP-09 proíbe reativar um {@code REMOVED}
      */
     void activate(UUID membershipId, Role role);
+
+    /** users.md §7.1: membros da organização, com filtros de papel, situação e busca. */
+    com.devtime.shared.pagination.PageResponse<
+                    com.devtime.tenant.dto.MemberResponses.MemberResponse>
+            search(
+                    Role role,
+                    com.devtime.tenant.dto.TenantViews.MembershipState status,
+                    String search,
+                    org.springframework.data.domain.Pageable pageable);
+
+    /** users.md §7: detalhe do membro; vínculo de outro tenant responde 404 (ART-024). */
+    com.devtime.tenant.dto.MemberResponses.MemberResponse getById(UUID membershipId);
+
+    /**
+     * users.md §7.3: altera o papel na ordem normativa de §6.1.
+     *
+     * <p>A invalidação dos access tokens do alvo (IMP-04) é consequência de {@code roleChangedAt},
+     * comparado a cada requisição pelo {@code SessionValidationService} — não depende de o cliente
+     * fazer nada.
+     */
+    com.devtime.tenant.dto.MemberResponses.MemberResponse changeRole(
+            UUID membershipId, com.devtime.tenant.dto.MemberRequests.RoleUpdateRequest request);
+
+    /** §4.3 de state-machines.md: {@code ACTIVE → SUSPENDED}; descarta o cronômetro (RN-460). */
+    com.devtime.tenant.dto.MemberResponses.MemberResponse suspend(UUID membershipId);
+
+    /** §4.3: {@code SUSPENDED → ACTIVE}. */
+    com.devtime.tenant.dto.MemberResponses.MemberResponse reactivate(UUID membershipId);
+
+    /**
+     * users.md §7.4: remove o membro preservando registros (RN-458).
+     *
+     * @param reassignTicketsTo novo responsável pelos tickets abertos; nulo usa quem executa
+     */
+    com.devtime.tenant.dto.MemberResponses.MemberRemovalResponse remove(
+            UUID membershipId, UUID reassignTicketsTo);
 }

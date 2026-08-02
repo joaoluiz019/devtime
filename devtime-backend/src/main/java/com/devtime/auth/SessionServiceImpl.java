@@ -2,6 +2,7 @@ package com.devtime.auth;
 
 import com.devtime.auth.dto.AuthResponses.ActiveSessionListResponse;
 import com.devtime.auth.dto.AuthResponses.ActiveSessionResponse;
+import com.devtime.shared.observability.IpAddressMasker;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;

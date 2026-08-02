@@ -220,9 +220,11 @@ public class NotificationJobs {
      */
     private int inTenant(UUID tenantId, java.util.function.IntSupplier action) {
         var previous = tenantContext.session().orElse(null);
+        // Sessão de plataforma sem usuário. Antes construída pelo construtor canônico, que rejeita
+        // userId nulo: toda iteração destes jobs falhava e era engolida pelo catch abaixo, deixando
+        // os lembretes de RN-605 e RN-606 sem efeito. Defeito corrigido junto com T-004-29.
         tenantContext.set(
-                new TenantSession(
-                        null, tenantId, null, Role.OWNER, RolePermissions.of(Role.OWNER), null));
+                TenantSession.system(tenantId, Role.OWNER, RolePermissions.of(Role.OWNER)));
         try {
             return action.getAsInt();
         } catch (RuntimeException failure) {

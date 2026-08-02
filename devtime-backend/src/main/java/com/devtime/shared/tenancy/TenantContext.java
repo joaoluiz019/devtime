@@ -66,11 +66,16 @@ public class TenantContext {
     /**
      * Retorna o usuário autenticado.
      *
-     * @throws TenantContextNotInitializedException se não houver sessão
+     * <p>Falha também quando a sessão é de <b>sistema</b> ({@link TenantSession#system}), que não
+     * possui usuário: devolver {@code null} faria um job gravar {@code createdBy} nulo em um campo
+     * que o chamador acredita preenchido, e o defeito só apareceria muito depois, na trilha. Quem
+     * pode operar sem usuário usa {@link #currentUserId()} e trata o {@link Optional} (CG-06).
+     *
+     * @throws TenantContextNotInitializedException se não houver sessão ou se ela for de sistema
      */
     public UUID requireUserId() {
         TenantSession session = CURRENT.get();
-        if (session == null) {
+        if (session == null || session.userId() == null) {
             throw new TenantContextNotInitializedException();
         }
         return session.userId();

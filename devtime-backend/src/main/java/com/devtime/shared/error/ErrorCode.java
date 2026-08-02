@@ -89,6 +89,18 @@ public enum ErrorCode {
     IDEMPOTENCY_CONFLICT("DEVTIME-2007", HttpStatus.CONFLICT, "error.idempotency.conflict"),
     /** Transição de estado inválida; a resposta inclui {@code availableTransitions} (EX-09). */
     INVALID_STATE_TRANSITION("DEVTIME-2010", HttpStatus.CONFLICT, "error.state.invalidTransition"),
+    /**
+     * RN-164 / {@code users.md} §6.2: {@code timerAutoAbandonMinutes} menor ou igual a {@code
+     * timerLongRunningMinutes}.
+     *
+     * <p>Registrado por 002-users. O limiar de abandono precisa ser posterior ao de alerta; a
+     * inversão faria o cronômetro ser abandonado antes de o usuário ser avisado.
+     */
+    TIMER_THRESHOLDS_INCONSISTENT(
+            "DEVTIME-2020", HttpStatus.UNPROCESSABLE_ENTITY, "error.settings.timerThresholds"),
+    /** RN-113 / {@code users.md} §6.2: {@code roundingMinutes} fora de {0, 5, 6, 10, 15, 30}. */
+    ROUNDING_MINUTES_UNSUPPORTED(
+            "DEVTIME-2021", HttpStatus.UNPROCESSABLE_ENTITY, "error.settings.roundingMinutes"),
     TERMINAL_STATE("DEVTIME-2011", HttpStatus.CONFLICT, "error.state.terminal"),
 
     // ── Conta e organização · DEVTIME-2450–2499 (authentication.md §8) ───────────────────────
@@ -97,6 +109,15 @@ public enum ErrorCode {
             "DEVTIME-2451", HttpStatus.UNPROCESSABLE_ENTITY, "error.password.policyViolation"),
     /** RN-452 / INV-USR-01: e-mail já pertence a um usuário não excluído. */
     EMAIL_ALREADY_REGISTERED("DEVTIME-2452", HttpStatus.CONFLICT, "error.email.alreadyRegistered"),
+    /**
+     * RN-455 / INV-TEN-02: a operação deixaria o tenant sem nenhum {@code OWNER} ativo.
+     *
+     * <p>É o erro mais consequente da feature 002: um tenant sem proprietário é irrecuperável pela
+     * própria API — ninguém restante teria permissão para promover alguém.
+     */
+    LAST_OWNER_REQUIRED("DEVTIME-2455", HttpStatus.CONFLICT, "error.membership.lastOwner"),
+    /** RN-456 / OWN-06: ninguém altera o próprio papel, nem sendo {@code OWNER}. */
+    SELF_ROLE_CHANGE("DEVTIME-2456", HttpStatus.FORBIDDEN, "error.membership.selfRoleChange"),
     /** RN-457: convite expirado (7 dias) ou invalidado por reenvio. */
     INVITATION_EXPIRED("DEVTIME-2457", HttpStatus.GONE, "error.invitation.expired"),
     /** Convite desconhecido ou revogado. */
@@ -313,7 +334,42 @@ public enum ErrorCode {
     /** RN-507: nome normalizado já existente no tenant. */
     TAG_NAME_DUPLICATED("DEVTIME-2604", HttpStatus.CONFLICT, "error.tag.nameDuplicated"),
 
-    // ── Comentários · DEVTIME-2700–2799 (tickets.md §13) ─────────────────────────────────────
+    // ── Anexos · DEVTIME-2700–2704 (spec 015 §12, business-rules.md §17) ─────────────────────
+    /**
+     * RN-801: arquivo acima de 10 MB <b>ou</b> quota do tenant excedida.
+     *
+     * <p>Um único código para as duas condições porque é assim que business-rules.md §17 e a spec o
+     * registram. Os detalhes distinguem o caso: o excesso de tamanho carrega {@code sizeBytes} e
+     * {@code maxBytes}; a quota carrega {@code usedBytes} e {@code limitBytes}, exigido por FA-09
+     * ("informando o consumo atual").
+     *
+     * <p>{@code 413} é o status de ambos, e não {@code 422}: o servidor está recusando uma carga
+     * grande demais, que é exatamente a semântica de {@code Payload Too Large}.
+     */
+    ATTACHMENT_TOO_LARGE("DEVTIME-2701", HttpStatus.PAYLOAD_TOO_LARGE, "error.attachment.tooLarge"),
+    /**
+     * RN-802: tipo fora da allowlist <b>ou</b> assinatura binária divergente do tipo declarado.
+     *
+     * <p>OB-01: são defesas de naturezas diferentes — o passo 7 de §6.1 confia no que o cliente
+     * declara, o passo 8 verifica o que o arquivo é. Compartilham o código porque a resposta ao
+     * usuário é a mesma e distinguir informaria a um atacante qual das duas camadas o barrou.
+     */
+    ATTACHMENT_TYPE_NOT_ALLOWED(
+            "DEVTIME-2702", HttpStatus.UNSUPPORTED_MEDIA_TYPE, "error.attachment.typeNotAllowed"),
+    /**
+     * RN-803: download bloqueado por verificação.
+     *
+     * <p>Único código com <b>dois</b> status: {@code 409} em {@code PENDING} e {@code FAILED}
+     * (§12), {@code 403} em {@code INFECTED}. A distinção é deliberada e visível ao usuário —
+     * "aguarde" e "foi bloqueado" exigem reações diferentes, e CP-20 proíbe desabilitar o download
+     * sem explicar. O status é definido por quem lança; este é o padrão.
+     */
+    ATTACHMENT_NOT_SCANNED("DEVTIME-2703", HttpStatus.CONFLICT, "error.attachment.notScanned"),
+    /** RN-806: 20 anexos por ticket, 5 por comentário. Os limites são por alvo (CX-19). */
+    ATTACHMENT_LIMIT_EXCEEDED(
+            "DEVTIME-2704", HttpStatus.UNPROCESSABLE_ENTITY, "error.attachment.limitExceeded"),
+
+    // ── Comentários · DEVTIME-2705–2799 (tickets.md §13) ─────────────────────────────────────
     /** RN-811: corpo fora de 1–10.000 caracteres após aparar. */
     COMMENT_BODY_INVALID(
             "DEVTIME-2705", HttpStatus.UNPROCESSABLE_ENTITY, "error.comment.bodyInvalid"),
@@ -322,6 +378,16 @@ public enum ErrorCode {
             "DEVTIME-2706", HttpStatus.CONFLICT, "error.comment.editWindowExpired"),
     /** RN-815 / INV-CMT-03: comentário de sistema é imutável (tickets.md §10.2). */
     COMMENT_SYSTEM_IMMUTABLE("DEVTIME-2707", HttpStatus.CONFLICT, "error.comment.systemImmutable"),
+
+    // ── Relatórios e exportação · DEVTIME-3000–3099 (reports.md §13) ─────────────────────────
+    /**
+     * Intervalo de consulta acima do máximo permitido pelo endpoint.
+     *
+     * <p>Registrado por 002-users para a trilha de auditoria, cujo teto é de 90 dias ({@code
+     * users.md} §10.1). {@code reports.md} §13 usa o mesmo código com teto de 366 dias: a condição
+     * é a mesma — intervalo grande demais —, e o limite pertence ao endpoint, não ao código.
+     */
+    DATE_RANGE_EXCEEDED("DEVTIME-3001", HttpStatus.BAD_REQUEST, "error.dateRange.exceeded"),
 
     // ── Notificações · DEVTIME-4000–4099 (notifications.md §12) ──────────────────────────────
     /**

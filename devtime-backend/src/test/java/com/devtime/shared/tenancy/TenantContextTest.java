@@ -90,11 +90,16 @@ class TenantContextTest {
     }
 
     @Test
-    @DisplayName("TenantSession exige userId")
-    void sessionMustRequireUserId() {
-        assertThatThrownBy(
-                        () -> new TenantSession(null, tenantId, null, Role.OWNER, Set.of(), null))
-                .isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("BR-049: a sessão de sistema não possui usuário, e requireUserId falha alto")
+    void systemSessionHasNoUser() {
+        context.set(TenantSession.system(tenantId, Role.OWNER, Set.of()));
+
+        // CE-S-06: é o que faz a trilha registrar actorType = SYSTEM.
+        assertThat(context.currentUserId()).isEmpty();
+        assertThat(context.requireTenantId()).isEqualTo(tenantId);
+        // CG-06: quem precisa de usuário não recebe null silenciosamente.
+        assertThatThrownBy(context::requireUserId)
+                .isInstanceOf(TenantContextNotInitializedException.class);
     }
 
     @Test

@@ -68,6 +68,18 @@ spring:
           timeout: 5000
           writetimeout: 5000
 
+  # RN-801 / CA-03: o limite de tamanho é aplicado pelo contêiner, antes de qualquer leitura de
+  # conteúdo pela aplicação. `UploadValidator` repete a verificação na camada de serviço — as duas
+  # não são redundância: esta protege o processo contra exaustão (SG-11), aquela produz o erro de
+  # negócio documentado quando a requisição chega por outro caminho.
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      # Um único arquivo por requisição, mais os campos do formulário.
+      max-request-size: 11MB
+      # Acima de 512 KB o conteúdo vai para disco em vez de permanecer no heap (CP-14).
+      file-size-threshold: 512KB
+
   mvc:
     problemdetails:
       # Desabilitado de propósito. Habilitado, o Spring Boot registra seu próprio
@@ -121,6 +133,27 @@ devtime:
     # ART-083: chave do Resend só por variável de ambiente. Obrigatória quando provider=resend;
     # a validação de MailProps recusa a inicialização se faltar (CF-03).
     resend-api-key: ${RESEND_API_KEY:}
+  # integrations.md §6.2: object storage privado, acesso por URL assinada (SG-01, T-015-01).
+  storage:
+    endpoint: ${STORAGE_ENDPOINT}
+    bucket: ${STORAGE_BUCKET}
+    region: ${STORAGE_REGION:us-east-1}
+    access-key: ${STORAGE_ACCESS_KEY}
+    secret-key: ${STORAGE_SECRET_KEY}
+    # SG-08 / RN-712: 15 minutos. Curto o bastante para que uma URL vazada expire antes de
+    # circular; longo o bastante para um download de 10 MB em conexão ruim.
+    download-url-ttl: PT15M
+  # integrations.md §6.3: ClamAV. RS-03 — dependência obrigatória (T-015-02).
+  antivirus:
+    host: ${ANTIVIRUS_HOST:localhost}
+    port: ${ANTIVIRUS_PORT:3310}
+    connect-timeout: PT5S
+    # Verificação de 10 MB com base de assinaturas carregada. Esgotado, o veredito é FAILED e o
+    # download continua bloqueado (AV-02).
+    read-timeout: PT60S
+  attachment:
+    max-file-size-bytes: 10485760 # RN-801: 10 MB
+    tenant-quota-bytes: 1073741824 # RN-801: 1 GB no plano gratuito
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS}
   security:
@@ -177,6 +210,23 @@ devtime:
     from: ${MAIL_FROM:nao-responda@devtime.test}
     provider: ${MAIL_PROVIDER:smtp}
     resend-api-key: ${RESEND_API_KEY:}
+  storage:
+    # Sobrescritos pelo Testcontainers do MinIO em IntegrationTestSupport; os valores aqui só
+    # permitem que o contexto inicie em testes que não tocam storage.
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:9000}
+    bucket: ${STORAGE_BUCKET:devtime-test}
+    region: ${STORAGE_REGION:us-east-1}
+    access-key: ${STORAGE_ACCESS_KEY:devtime}
+    secret-key: ${STORAGE_SECRET_KEY:devtime-secret}
+    download-url-ttl: PT15M
+  antivirus:
+    host: ${ANTIVIRUS_HOST:localhost}
+    port: ${ANTIVIRUS_PORT:3310}
+    connect-timeout: PT2S
+    read-timeout: PT30S
+  attachment:
+    max-file-size-bytes: 10485760
+    tenant-quota-bytes: 1073741824
   cors:
     allowed-origins: ${DEVTIME_CORS_ALLOWED_ORIGINS:http://localhost:4200}
   security:

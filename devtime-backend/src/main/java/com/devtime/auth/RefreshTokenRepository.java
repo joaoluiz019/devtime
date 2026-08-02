@@ -96,6 +96,18 @@ public interface RefreshTokenRepository extends SoftDeleteRepository<RefreshToke
             @Param("tenantId") UUID tenantId,
             @Param("revokedAt") Instant revokedAt);
 
+    /** RN-008: o cancelamento da organização derruba todas as sessões dela, de todos os membros. */
+    @Modifying
+    @Query(
+            """
+            UPDATE RefreshToken t
+               SET t.revokedAt = :revokedAt, t.updatedAt = :revokedAt
+             WHERE t.tenantId = :tenantId
+               AND t.revokedAt IS NULL
+            """)
+    int revokeAllByTenantId(
+            @Param("tenantId") UUID tenantId, @Param("revokedAt") Instant revokedAt);
+
     /**
      * RT-08: exclusão lógica dos tokens encerrados há mais de 30 dias.
      *

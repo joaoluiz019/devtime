@@ -19,7 +19,9 @@ import org.springframework.stereotype.Repository;
  * requisição (BR-041).
  */
 @Repository
-public interface AuditLogRepository extends JpaRepository<AuditLog, AuditLogId> {
+public interface AuditLogRepository
+        extends JpaRepository<AuditLog, AuditLogId>,
+                org.springframework.data.jpa.repository.JpaSpecificationExecutor<AuditLog> {
 
     @Query(
             """

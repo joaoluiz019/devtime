@@ -26,4 +26,17 @@ public class EntityNotFoundException extends BusinessRuleException {
     public static EntityNotFoundException of(Class<?> entityType, UUID id) {
         return new EntityNotFoundException(entityType.getSimpleName(), id);
     }
+
+    /**
+     * Variante para quando a entidade ausente pertence a <b>outra</b> feature.
+     *
+     * <p>AR-02 proíbe referenciar a classe de entidade de outra feature, e é exatamente o caso de
+     * {@code 015-attachments} ao validar que o comentário alvo existe (INV-ATT-01): o tipo precisa
+     * aparecer na resposta, mas a classe não pode ser importada. Passar o nome preserva a fronteira
+     * sem alterar o contrato — a resposta continua sendo {@code 404 DEVTIME-2002} com o mesmo
+     * {@code entityType} que a sobrecarga por classe produziria.
+     */
+    public static EntityNotFoundException of(String entityType, UUID id) {
+        return new EntityNotFoundException(entityType, id);
+    }
 }

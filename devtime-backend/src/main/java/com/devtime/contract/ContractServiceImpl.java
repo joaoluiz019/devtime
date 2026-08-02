@@ -76,6 +76,7 @@ public class ContractServiceImpl implements ContractService {
     private final ContractChangeGuards changeGuards;
     private final PeriodGenerator periodGenerator;
     private final PeriodContiguityValidator contiguityValidator;
+    private final PeriodMaterializer periodMaterializer;
     private final ClientService clientService;
     private final CategoryService categoryService;
     private final AuditService auditService;
@@ -559,57 +560,21 @@ public class ContractServiceImpl implements ContractService {
 
     // ── Apoio ───────────────────────────────────────────────────────────────────────────────
 
-    /** Passos 1 a 10 da §6.2, materializando o plano em entidades persistidas. */
+    /**
+     * Passos 1 a 10 da §6.2, delegados a {@link PeriodMaterializer}.
+     *
+     * <p>A materialização saiu desta classe quando a geração automática de {@code S4} passou a
+     * precisar do mesmo caminho: ativação, retomada e o {@code GeneratePeriodsJob} produzem
+     * períodos sob as mesmas regras.
+     */
     private List<ContractPeriod> generatePeriods(
             Contract contract,
             LocalDate previousEndDate,
             int previousSequence,
             int count,
             PeriodStatus status) {
-        PeriodSpec spec = specOf(contract);
-        List<PeriodPlan> plans =
-                previousEndDate == null
-                        ? periodGenerator.generate(spec, count)
-                        : periodGenerator.generateAfter(
-                                spec, previousEndDate, previousSequence, count);
-
-        // Passo 10: contiguidade verificada antes de qualquer escrita (RN-216).
-        contiguityValidator.assertContiguous(contract.getId(), previousEndDate, plans);
-
-        List<ContractPeriod> created = new ArrayList<>();
-        for (PeriodPlan plan : plans) {
-            ContractPeriod period = new ContractPeriod();
-            period.setContractId(contract.getId());
-            period.setSequence(plan.sequence());
-            period.setLabel(plan.label());
-            period.setStartDate(plan.startDate());
-            period.setEndDate(plan.endDate());
-            period.setStatus(status);
-            period.setContractedMinutes(plan.contractedMinutes());
-            // Passo 9: congela os valores do contrato no período (§6.7 de entities.md).
-            period.setHourlyRateSnapshot(contract.getHourlyRate());
-            period.setOverageRateSnapshot(contract.getOverageRate());
-            period.setCurrency(contract.getCurrency());
-            created.add(periodRepository.save(period));
-
-            auditService.recordSystemAction(
-                    "PERIOD_CREATED",
-                    "ContractPeriod",
-                    created.get(created.size() - 1).getId(),
-                    Map.of(
-                            "sequence", String.valueOf(plan.sequence()),
-                            "startDate", plan.startDate().toString(),
-                            "endDate", plan.endDate().toString(),
-                            "contractedMinutes", String.valueOf(plan.contractedMinutes())));
-            log.info(
-                    "período gerado contractId={} sequence={} {} a {} contractedMinutes={}",
-                    contract.getId(),
-                    plan.sequence(),
-                    plan.startDate(),
-                    plan.endDate(),
-                    plan.contractedMinutes());
-        }
-        return created;
+        return periodMaterializer.materialize(
+                contract, previousEndDate, previousSequence, count, status);
     }
 
     /** CE-ME-09: fecha a lacuna entre o último período e a data corrente. */

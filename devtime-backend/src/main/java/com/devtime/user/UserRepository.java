@@ -55,4 +55,20 @@ public interface UserRepository extends SoftDeleteRepository<User> {
     @CrossTenant(reason = "users é tabela global (ART-013); o job percorre todas as contas")
     @Query("SELECT u FROM User u WHERE u.lockedUntil IS NOT NULL AND u.lockedUntil <= :reference")
     List<User> findLockExpired(@Param("reference") java.time.Instant reference);
+
+    /**
+     * Filtro {@code search} da listagem de membros (users.md §7.1).
+     *
+     * <p>O termo chega já em minúsculas de quem chama. A comparação é por {@code LIKE} sobre nome e
+     * e-mail — os dois campos que a tela exibe e pelos quais o usuário procura.
+     */
+    @CrossTenant(
+            reason = "users é tabela global (ART-013); o chamador cruza com os vínculos do tenant")
+    @Query(
+            """
+            SELECT u.id FROM User u
+             WHERE lower(u.fullName) LIKE CONCAT('%', :term, '%')
+                OR lower(u.email) LIKE CONCAT('%', :term, '%')
+            """)
+    List<java.util.UUID> findIdsMatching(@Param("term") String term);
 }

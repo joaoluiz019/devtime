@@ -7,15 +7,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.access.PermissionEvaluator;
-import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
@@ -32,7 +27,6 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
  */
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -48,7 +42,6 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final TenantContextFilter tenantContextFilter;
     private final ProblemDetailAuthenticationEntryPoint problemDetailHandler;
-    private final PermissionEvaluator permissionEvaluator;
     private final DevTimeProperties properties;
 
     @Bean
@@ -158,20 +151,5 @@ public class SecurityConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
         return source;
-    }
-
-    /** ART-081 / PW-01: BCrypt custo 12. O custo vem de configuração validada (CF-01). */
-    @Bean
-    PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(properties.security().bcryptStrength());
-    }
-
-    /** Registra {@link DevTimePermissionEvaluator} para uso em {@code hasPermission(...)}. */
-    @Bean
-    DefaultMethodSecurityExpressionHandler methodSecurityExpressionHandler() {
-        DefaultMethodSecurityExpressionHandler handler =
-                new DefaultMethodSecurityExpressionHandler();
-        handler.setPermissionEvaluator(permissionEvaluator);
-        return handler;
     }
 }

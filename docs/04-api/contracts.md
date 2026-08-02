@@ -703,7 +703,7 @@ Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/contrac
 | Campos derivados de consumo (`severity`, `burnRate`, `projection`) | ⚠️ Adiado | Idem — `004` nunca calcula saldo (fronteira de §4 da spec) |
 | `POST /contracts/{id}/duplicate` | ⚠️ Não implementado | Fora do recorte acordado para S3 |
 | `/contract-periods/*` — saldo, extrato, ajustes, fechamento e reabertura | ✅ Implementado em S7 | Ver §16.1 |
-| Geração automática de períodos (RN-213) e jobs | ⚠️ Adiado para S4 | O gerador já suporta a geração encadeada (`generateAfter`), usada na retomada |
+| Geração automática de períodos (RN-213) e jobs | ✅ Implementado em S4 | Ver §16.2 |
 | Guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`) | ⚠️ Pendente | `009-timer` já publica `PeriodActiveTimerSource`; a guarda de `suspend`/`end` continua fora do recorte de `004` |
 | `overageRate` ausente | ✅ Implementado | Assume `hourlyRate`, conforme §5 |
 | `status` enviado em `PATCH` | ℹ️ Rejeitado com `400` | O campo não existe no DTO e `fail-on-unknown-properties = true` (F0) rejeita a desserialização — barreira mais forte que ignorar, e mais explícita para quem integra |
@@ -726,6 +726,21 @@ Sincronizado com o código em `devtime-backend/src/main/java/com/devtime/contrac
 | `RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02) | ⚠️ Pendentes | Dependem dos jobs de geração de período de `004`, ainda pendentes de S4 |
 | `estimatedValue`, `burnRate`, `projectedConsumption` | ⚠️ Adiados | Campos derivados de exibição; consumidos por `010-dashboard` |
 | Frontend P16 | ⚠️ Fora do escopo | Não solicitado na sprint |
+
+### 16.2 Jobs de ciclo de vida (sprint de `004` — T-004-29 e T-004-30)
+
+Sincronizado com `ContractSchedulingJobs` e `ContractMaintenanceService`.
+
+| Item | Estado | Observação |
+|---|---|---|
+| `GeneratePeriodsJob` (RN-213) | ✅ Implementado | 03:00; cria o período seguinte como `SCHEDULED` quando faltam ≤ 3 dias, só para contrato `ACTIVE` com `autoRenew` |
+| `OpenScheduledPeriodsJob` | ✅ Implementado | 00:05; `SCHEDULED → OPEN` quando o `startDate` chegou **e** o período anterior está `CLOSED` |
+| `AutoEndContractsJob` (FA-05) | ✅ Implementado | 00:10; delega a `ContractService.end`, que trunca o período corrente (RN-214) e decrementa `activeContractsCount` |
+| `ContractEndingReminderJob` (RN-606) | ✅ Implementado em S8 | Pertence a `013-notifications`; nenhuma duplicação foi criada aqui |
+| Idempotência (CA-11) | ✅ Comprovada | Teste reexecuta cada operação; a varredura exclui períodos com sucessor e o índice único é a segunda barreira |
+| Isolamento por tenant (JB-06) | ✅ Implementado | Varredura de plataforma, contexto definido por item; falha em um tenant não interrompe os demais (JB-04, CX-11) |
+| Execução às 03:00 **no fuso do tenant** (RS-06) | ⚠️ Divergência aceita | O agendamento é único, no fuso do servidor. A janela de três dias de RN-213 absorve qualquer fuso: o período nasce com até 72 h de antecedência. Um agendamento por fuso multiplicaria execuções e locks sem alterar o resultado |
+| `carriedInMinutes` na abertura (§11) | ⚠️ Parcial | Aplicado pelo fechamento quando o período seguinte já existe. O caso em que o fechamento ocorre antes da geração continua registrado como pendência em §16.1 (RN-229/FA-10) |
 
 ## 17. Dependências e impactos
 

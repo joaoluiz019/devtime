@@ -165,4 +165,69 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
                                 com.devtime.contract.domain.PeriodStatus.REOPENED)
             """)
     List<ContractPeriod> findOpenEndingOn(@Param("endDate") LocalDate endDate);
+
+    /**
+     * CX-12 de {@code specs/002-users}: existe período em {@code CLOSING} no tenant da sessão?
+     *
+     * <p>Tenant-scoped pelo filtro automático (ART-022), ao contrário de {@link #findStuckClosing},
+     * que é varredura de plataforma. {@code EXISTS} porque a pergunta é binária — carregar os
+     * períodos para contá-los seria trabalho descartado.
+     */
+    @Query(
+            """
+            SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM ContractPeriod p
+             WHERE p.status = com.devtime.contract.domain.PeriodStatus.CLOSING
+            """)
+    boolean existsClosingInTenant();
+
+    /**
+     * RN-213: períodos abertos cujo fim está a {@code ≤ 3} dias e que ainda não têm sucessor.
+     *
+     * <p>Varredura de plataforma, como {@link #findOpenEndingOn}. Três condições fazem o trabalho e
+     * nenhuma delas é dispensável:
+     *
+     * <ul>
+     *   <li>o contrato precisa estar {@code ACTIVE} — um contrato suspenso interrompe a geração
+     *       (FA-03), e um encerrado não deve receber período novo (RN-214);
+     *   <li>{@code autoRenew} precisa estar ligado — é o que o usuário controla;
+     *   <li><b>não pode existir sucessor</b>. Sem esse {@code NOT EXISTS}, uma segunda execução no
+     *       mesmo dia criaria o período de novo. O índice único {@code (contract_id, sequence)} é a
+     *       segunda barreira, não a primeira (R-04).
+     * </ul>
+     */
+    @Query(
+            """
+            SELECT p FROM ContractPeriod p, Contract c
+             WHERE c.id = p.contractId
+               AND c.status = com.devtime.contract.domain.ContractStatus.ACTIVE
+               AND c.autoRenew = true
+               AND p.status = com.devtime.contract.domain.PeriodStatus.OPEN
+               AND p.endDate <= :threshold
+               AND NOT EXISTS (
+                     SELECT 1 FROM ContractPeriod n
+                      WHERE n.contractId = p.contractId
+                        AND n.sequence > p.sequence)
+             ORDER BY p.endDate ASC
+            """)
+    List<ContractPeriod> findRenewalDue(
+            @Param("threshold") LocalDate threshold,
+            org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * §22.4: períodos {@code SCHEDULED} cujo {@code startDate} já chegou.
+     *
+     * <p>{@code <=} e não {@code =}: se o job falhar por um dia, o período precisa abrir na
+     * execução seguinte. Uma comparação por igualdade deixaria o contrato sem período aberto até
+     * intervenção manual.
+     */
+    @Query(
+            """
+            SELECT p FROM ContractPeriod p
+             WHERE p.status = com.devtime.contract.domain.PeriodStatus.SCHEDULED
+               AND p.startDate <= :reference
+             ORDER BY p.startDate ASC
+            """)
+    List<ContractPeriod> findScheduledDue(
+            @Param("reference") LocalDate reference,
+            org.springframework.data.domain.Pageable pageable);
 }

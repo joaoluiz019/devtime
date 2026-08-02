@@ -75,6 +75,16 @@ public class DedupeKeyBuilder {
         return join("ADJUSTMENT", adjustmentId, recipientId.toString());
     }
 
+    /** §6 de notifications.md: {@code MEMBER_JOINED:{membershipId}}. */
+    public String memberJoined(UUID membershipId) {
+        return join("MEMBER_JOINED", membershipId, null);
+    }
+
+    /** §6 de notifications.md: {@code MEMBER_REMOVED:{membershipId}}. */
+    public String memberRemoved(UUID membershipId) {
+        return join("MEMBER_REMOVED", membershipId, null);
+    }
+
     /** RN-163: {@code TIMER_LONG:{timerId}}. */
     public String timerLongRunning(UUID timerId) {
         return join("TIMER_LONG", timerId, null);

@@ -64,6 +64,12 @@ public interface RefreshTokenService {
     /** RN-454 / RT-06: revoga todas menos a corrente. */
     int revokeAllOfExcept(UUID userId, UUID keptSessionId);
 
+    /** RT-07: suspensão ou remoção de vínculo derruba as sessões daquele tenant, e só delas. */
+    int revokeAllOfInTenant(UUID userId, UUID tenantId);
+
+    /** RN-008: cancelamento da organização derruba as sessões de todos os seus membros. */
+    int revokeAllInTenant(UUID tenantId);
+
     /** Sessões vivas do usuário (§5.11). */
     List<ActiveSession> listActive(UUID userId);
 

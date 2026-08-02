@@ -1,4 +1,4 @@
-package com.devtime.auth;
+package com.devtime.shared.observability;
 
 /**
  * Máscara parcial de endereço IP para exibição (§9.2 de security.md, §5.11 de authentication.md).
@@ -9,13 +9,13 @@ package com.devtime.auth;
  *
  * <p>Em IPv6 o critério é o mesmo aplicado a grupos: primeiro e último preservados.
  */
-final class IpAddressMasker {
+public final class IpAddressMasker {
 
     private static final String REDACTED_GROUP = "***";
 
     private IpAddressMasker() {}
 
-    static String mask(String ipAddress) {
+    public static String mask(String ipAddress) {
         if (ipAddress == null || ipAddress.isBlank()) {
             return null;
         }

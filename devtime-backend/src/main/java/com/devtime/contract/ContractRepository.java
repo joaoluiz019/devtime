@@ -57,4 +57,23 @@ public interface ContractRepository extends SoftDeleteRepository<Contract> {
                AND c.status = com.devtime.contract.domain.ContractStatus.ACTIVE
             """)
     List<Contract> findActiveEndingOn(@Param("endDate") java.time.LocalDate endDate);
+
+    /**
+     * FA-05: contratos {@code ACTIVE} cuja vigência já terminou.
+     *
+     * <p>Varredura de plataforma. {@code <=} e não {@code =} pela mesma razão de {@code
+     * findScheduledDue}: uma execução perdida não pode deixar o contrato vigente indefinidamente
+     * depois do fim — o que permitiria registrar horas fora da vigência.
+     */
+    @Query(
+            """
+            SELECT c FROM Contract c
+             WHERE c.status = com.devtime.contract.domain.ContractStatus.ACTIVE
+               AND c.endDate IS NOT NULL
+               AND c.endDate <= :reference
+             ORDER BY c.endDate ASC
+            """)
+    List<Contract> findActiveEndedBy(
+            @Param("reference") java.time.LocalDate reference,
+            org.springframework.data.domain.Pageable pageable);
 }

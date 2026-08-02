@@ -79,6 +79,10 @@ public interface WorkLogRepository extends SoftDeleteRepository<WorkLog> {
     @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.ticketId = :ticketId")
     long countByTicketId(@Param("ticketId") UUID ticketId);
 
+    /** RN-458: registros preservados de um membro removido, publicada a {@code 002}. */
+    @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.userId = :userId")
+    long countByUserId(@Param("userId") UUID userId);
+
     /** RN-505: quantidade de registros vinculados a uma categoria, publicada a {@code 005}. */
     @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.categoryId = :categoryId")
     long countByCategoryId(@Param("categoryId") UUID categoryId);
