@@ -188,6 +188,55 @@ class ContractMaintenanceIntegrationTest extends FeatureTestSupport {
                 .isEqualTo("ENDED");
     }
 
+    @Test
+    @DisplayName("CE-ME-02: período aberto de contrato encerrado há 3 dias é fechado pelo job")
+    void endedContractPeriodIsClosedAutomatically() {
+        ContractResponse contract = activeContract();
+        UUID openPeriodId = openPeriodOf(contract.id());
+        asOwnerOfA(
+                () ->
+                        contractService.update(
+                                contract.id(), updateWithEndDate(contract, TODAY.minusDays(10))));
+        asOwnerOfA(() -> maintenanceService.endContract(contract.id()));
+
+        List<MaintenanceTarget> due = maintenanceService.findAutoCloseDue(TODAY, 3, 100);
+        assertThat(due).extracting(MaintenanceTarget::entityId).contains(openPeriodId);
+
+        assertThat(asOwnerOfA(() -> maintenanceService.autoClosePeriod(openPeriodId))).isTrue();
+        assertThat(asOwnerOfA(() -> statusOf(openPeriodId))).isEqualTo(PeriodStatus.CLOSED);
+        // Convergente: o período já fechado sai da varredura e a reexecução não faz nada.
+        assertThat(asOwnerOfA(() -> maintenanceService.autoClosePeriod(openPeriodId))).isFalse();
+        assertThat(maintenanceService.findAutoCloseDue(TODAY, 3, 100))
+                .extracting(MaintenanceTarget::entityId)
+                .doesNotContain(openPeriodId);
+    }
+
+    @Test
+    @DisplayName("CE-ME-02: contrato ainda ACTIVE não tem período fechado automaticamente")
+    void activeContractPeriodIsNotAutoClosed() {
+        ContractResponse contract = activeContract();
+        UUID openPeriodId = openPeriodOf(contract.id());
+
+        assertThat(maintenanceService.findAutoCloseDue(TODAY, 3, 100))
+                .extracting(MaintenanceTarget::entityId)
+                .doesNotContain(openPeriodId);
+    }
+
+    @Test
+    @DisplayName(
+            "CX-20: contrato com rolloverExpiryPeriods = 0 não entra na varredura de expiração")
+    void contractWithoutExpiryIsNotScanned() {
+        ContractResponse contract = activeContract();
+        UUID openPeriodId = openPeriodOf(contract.id());
+
+        // O período inicial não tem saldo transportado: nada a expirar, independentemente da
+        // política. A varredura descarta os dois casos pela mesma consulta.
+        assertThat(maintenanceService.findRolloverExpiryDue(100))
+                .extracting(MaintenanceTarget::entityId)
+                .doesNotContain(openPeriodId);
+        assertThat(asOwnerOfA(() -> maintenanceService.expireRollover(openPeriodId))).isFalse();
+    }
+
     private com.devtime.contract.dto.ContractRequests.ContractUpdateRequest updateWithEndDate(
             ContractResponse contract, LocalDate endDate) {
         return new com.devtime.contract.dto.ContractRequests.ContractUpdateRequest(

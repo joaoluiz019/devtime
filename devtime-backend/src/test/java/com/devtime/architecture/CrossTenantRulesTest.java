@@ -87,12 +87,17 @@ class CrossTenantRulesTest {
                                 + " binários órfãos percorrem todos os tenants, definindo o"
                                 + " contexto a cada item (BR-049), e a verificação é assíncrona"
                                 + " justamente para não depender de uma requisição de usuário"
-                                + " estabelecendo um tenant")
+                                + " estabelecendo um tenant; ReportExecutionRepository é a exceção"
+                                + " dos jobs de plataforma de 012-reports — a fila de exportação e"
+                                + " a expiração de arquivos percorrem todos os tenants, definindo o"
+                                + " contexto a cada item (BR-049), e o processamento é assíncrono"
+                                + " justamente para não prender a requisição que o solicitou")
                 .containsOnly(
                         "UserRepository",
                         "MembershipRepository",
                         "RefreshTokenRepository",
                         "VerificationTokenRepository",
+                        "ReportExecutionRepository",
                         "TimerRepository",
                         "AttachmentRepository");
     }

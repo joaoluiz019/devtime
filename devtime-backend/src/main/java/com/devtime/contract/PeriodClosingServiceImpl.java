@@ -1,8 +1,11 @@
 package com.devtime.contract;
 
+import com.devtime.audit.AuditActorNameResolver;
 import com.devtime.audit.AuditService;
+import com.devtime.client.ClientService;
 import com.devtime.contract.domain.Contract;
 import com.devtime.contract.domain.ContractPeriod;
+import com.devtime.contract.domain.ContractStatus;
 import com.devtime.contract.domain.PeriodAdjustment;
 import com.devtime.contract.domain.PeriodBalance;
 import com.devtime.contract.domain.PeriodSnapshot;
@@ -15,10 +18,12 @@ import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.shared.event.DomainEventPublisher;
 import com.devtime.shared.tenancy.TenantContext;
 import com.devtime.shared.time.TenantClock;
+import com.devtime.tenant.TenantService;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,7 +63,11 @@ public class PeriodClosingServiceImpl implements PeriodClosingService {
     private final RolloverCalculator rolloverCalculator;
     private final ClosingGuard closingGuard;
     private final SnapshotBuilder snapshotBuilder;
+    private final PeriodMaterializer periodMaterializer;
     private final List<PeriodWorkLogSource> workLogSources;
+    private final ClientService clientService;
+    private final TenantService tenantService;
+    private final AuditActorNameResolver actorNames;
     private final AuditService auditService;
     private final DomainEventPublisher events;
     private final TenantContext tenantContext;
@@ -114,8 +123,9 @@ public class PeriodClosingServiceImpl implements PeriodClosingService {
                                 period,
                                 balance,
                                 carriedOut,
-                                entries.stream().map(this::toSnapshotWorkLog).toList(),
+                                toSnapshotWorkLogs(entries),
                                 adjustments,
+                                parties(contract),
                                 snapshotAt));
 
         // Passo 5 — CLOSED com autor e instante (INV-PER-06).
@@ -125,7 +135,7 @@ public class PeriodClosingServiceImpl implements PeriodClosingService {
         period.setClosedBy(tenantContext.currentUserId().orElse(null));
 
         // Passo 6 — propagar carriedOut como carriedIn do período seguinte (RN-229).
-        propagateCarryIn(period, carriedOut);
+        propagateCarryIn(period, contract, carriedOut);
 
         // Passo 7 — notificação. Publicada após o commit (BR-128): entrega externa nunca desfaz um
         // fechamento bem-sucedido.
@@ -214,25 +224,64 @@ public class PeriodClosingServiceImpl implements PeriodClosingService {
     }
 
     /**
-     * Passo 6 — RN-229: {@code carriedOut[N]} vira {@code carriedIn[N+1]}.
+     * Passo 6 — RN-229: {@code carriedOut[N]} vira {@code carriedIn[N+1]}; se {@code N+1} não
+     * existir, é criado.
      *
-     * <p>CX-12 / FA-10: quando o período seguinte não existe — último do contrato —, ele <b>não</b>
-     * é criado aqui. A geração de períodos pertence a {@code 004} (fronteira da §4 da spec), e
-     * criar um período nascido apenas para receber saldo produziria um ciclo de apuração sem
-     * contrato vigente. O saldo transportado é preservado em {@code carriedOutMinutes} deste
-     * período e aplicado quando o próximo for gerado.
+     * <p>A criação usa o mesmo {@link PeriodMaterializer} da ativação e da renovação automática, e
+     * não um caminho próprio: duas formas de criar período divergiriam na primeira correção feita
+     * em apenas uma delas (CA-01). Nasce {@code SCHEDULED} pela mesma razão de {@code
+     * GeneratePeriodsJob} — o ciclo seguinte só passa a valer no seu {@code startDate}, e abri-lo
+     * antes permitiria lançar horas em um período que ainda não começou.
+     *
+     * <p><b>Só para contrato {@code ACTIVE}.</b> Um contrato encerrado ou suspenso não ganha ciclo
+     * novo: seria um período de apuração sem vigência que o sustente, e no caminho de {@code
+     * AutoClosePeriodJob} cada fechamento geraria o período que o próximo fechamento fecharia,
+     * indefinidamente. RN-214 é a segunda barreira — o materializador não gera nada além do fim da
+     * vigência, e devolver lista vazia é o caso normal do último ciclo.
+     *
+     * <p>Quando nada é criado, o saldo fica preservado em {@code carriedOutMinutes} deste período e
+     * é aplicado se um próximo vier a existir.
      */
-    private void propagateCarryIn(ContractPeriod period, int carriedOut) {
-        periodRepository
-                .findByContractIdAndSequence(period.getContractId(), period.getSequence() + 1)
-                .ifPresentOrElse(
-                        next -> next.setCarriedInMinutes(carriedOut),
-                        () ->
-                                log.info(
-                                        "sem período seguinte para receber carry-over periodId={}"
-                                                + " carriedOutMinutes={}",
-                                        period.getId(),
-                                        carriedOut));
+    private void propagateCarryIn(ContractPeriod period, Contract contract, int carriedOut) {
+        Optional<ContractPeriod> next =
+                periodRepository.findByContractIdAndSequence(
+                        period.getContractId(), period.getSequence() + 1);
+        if (next.isPresent()) {
+            next.get().setCarriedInMinutes(carriedOut);
+            return;
+        }
+        if (contract.getStatus() != ContractStatus.ACTIVE) {
+            log.info(
+                    "sem período seguinte para receber carry-over periodId={} carriedOutMinutes={}"
+                            + " contractStatus={}",
+                    period.getId(),
+                    carriedOut,
+                    contract.getStatus());
+            return;
+        }
+
+        List<ContractPeriod> created =
+                periodMaterializer.materialize(
+                        contract,
+                        period.getEndDate(),
+                        period.getSequence(),
+                        1,
+                        PeriodStatus.SCHEDULED);
+        if (created.isEmpty()) {
+            // RN-214: a vigência terminou neste ciclo. O saldo permanece em carriedOutMinutes.
+            log.info(
+                    "fim da vigência: carry-over sem destino periodId={} carriedOutMinutes={}",
+                    period.getId(),
+                    carriedOut);
+            return;
+        }
+        created.get(0).setCarriedInMinutes(carriedOut);
+        log.info(
+                "período seguinte criado no fechamento para receber carry-over periodId={}"
+                        + " nextPeriodId={} carriedOutMinutes={}",
+                period.getId(),
+                created.get(0).getId(),
+                carriedOut);
     }
 
     private List<PeriodWorkLogEntry> workLogEntries(UUID periodId) {
@@ -241,16 +290,68 @@ public class PeriodClosingServiceImpl implements PeriodClosingService {
                 .toList();
     }
 
-    private SnapshotBuilder.SnapshotWorkLog toSnapshotWorkLog(PeriodWorkLogEntry entry) {
-        return new SnapshotBuilder.SnapshotWorkLog(
-                entry.id().toString(),
-                entry.workDate().toString(),
-                entry.ticketKey(),
-                entry.categoryName(),
-                String.valueOf(entry.userId()),
-                entry.description(),
-                entry.netMinutes(),
-                entry.billableMinutes());
+    /**
+     * Linhas do snapshot, com o nome do autor resolvido em lote.
+     *
+     * <p>O nome é congelado junto com o restante (CX-16 de specs/012): um membro removido do tenant
+     * continua nomeado no documento que já foi enviado ao cliente. Resolver por identificador na
+     * hora da leitura devolveria "Usuário Removido" em um relatório de dois anos atrás, alterando
+     * um documento definitivo — o que RN-701 impede.
+     *
+     * <p>{@code AuditActorNameResolver} em vez de {@code UserService}: {@code user} já depende de
+     * {@code audit}, e a chamada direta fecharia o ciclo que BR-008 proíbe. A porta existe
+     * exatamente para isto e já é em lote.
+     */
+    private List<SnapshotBuilder.SnapshotWorkLog> toSnapshotWorkLogs(
+            List<PeriodWorkLogEntry> entries) {
+        Map<UUID, String> userNames =
+                actorNames.namesOf(entries.stream().map(PeriodWorkLogEntry::userId).toList());
+        return entries.stream()
+                .map(
+                        entry ->
+                                new SnapshotBuilder.SnapshotWorkLog(
+                                        entry.id().toString(),
+                                        entry.workDate().toString(),
+                                        entry.startedAt() == null
+                                                ? null
+                                                : entry.startedAt().toString(),
+                                        entry.endedAt() == null ? null : entry.endedAt().toString(),
+                                        entry.ticketKey(),
+                                        entry.ticketTitle(),
+                                        entry.categoryName(),
+                                        String.valueOf(entry.userId()),
+                                        userNames.get(entry.userId()),
+                                        entry.description(),
+                                        entry.netMinutes(),
+                                        entry.billableMinutes(),
+                                        entry.billable(),
+                                        entry.tags()))
+                .toList();
+    }
+
+    /** Cadastro de emissor, cliente e contrato congelado no fechamento (ADR-036 RP-01, RN-703). */
+    private SnapshotBuilder.SnapshotParties parties(Contract contract) {
+        var issuer = tenantService.issuer();
+        var client = clientService.getReportParty(contract.getClientId());
+        return new SnapshotBuilder.SnapshotParties(
+                issuer.name(),
+                issuer.legalName(),
+                issuer.documentNumber(),
+                issuer.email(),
+                issuer.phone(),
+                issuer.logoUrl(),
+                client.name(),
+                client.legalName(),
+                client.documentNumber(),
+                contract.getCode(),
+                contract.getName(),
+                contract.getType().name(),
+                contract.getMonthlyMinutes(),
+                contract.getHourlyRate() == null ? null : contract.getHourlyRate().toPlainString(),
+                contract.getOverageRate() == null
+                        ? null
+                        : contract.getOverageRate().toPlainString(),
+                issuer.locale());
     }
 
     private Contract requireContract(UUID contractId) {

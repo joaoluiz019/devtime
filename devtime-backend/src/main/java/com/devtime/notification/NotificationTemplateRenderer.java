@@ -232,6 +232,33 @@ public class NotificationTemplateRenderer {
     }
 
     /**
+     * FA-10 de {@code specs/012}: a exportação assíncrona terminou.
+     *
+     * <p>§19.1: o texto nomeia formato e contagem, nunca o recorte. "Sua exportação do cliente Acme
+     * está pronta" espalharia por e-mail o que o relatório recorta.
+     */
+    public RenderedText exportCompleted(String format, int rowCount) {
+        return new RenderedText(
+                "Exportação concluída",
+                "Seu arquivo "
+                        + format
+                        + " com "
+                        + rowCount
+                        + " registros está pronto. O download fica disponível por 7 dias.");
+    }
+
+    /** CE-R-11: a falha é comunicada com o motivo já traduzido, nunca com a exceção crua. */
+    public RenderedText exportFailed(String format, String failureReason) {
+        return new RenderedText(
+                "Exportação falhou",
+                "Não foi possível gerar seu arquivo "
+                        + format
+                        + ": "
+                        + failureReason
+                        + ". Você pode solicitar a exportação novamente.");
+    }
+
+    /**
      * Payload estruturado para renderização rica na central.
      *
      * <p>§19.1 / CA-09: nenhuma chave carrega dado sensível. Os valores aqui são os mesmos que o

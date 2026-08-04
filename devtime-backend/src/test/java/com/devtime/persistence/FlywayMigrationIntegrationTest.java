@@ -35,9 +35,11 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
                                         + " ORDER BY installed_rank",
                                 String.class);
 
-        // A sequência acompanha database.md §8.1. A única lacuna é `V021` (`report_executions`),
-        // reservada a `012-reports` e ainda não implementada — reaproveitar o número faria a
-        // numeração divergir do documento que a define (ART-053).
+        // A sequência acompanha database.md §8.1. `V021` permanece vago: era o número reservado a
+        // `report_executions`, mas quando `012-reports` foi implementada a sequência real já ia até
+        // `V031`, e preencher um vão exigiria `out-of-order` — que `validate-on-migrate: true`
+        // recusa em qualquer banco que já tenha aplicado de `V022` em diante. A tabela nasceu em
+        // `V032`. Um número de migration nunca é reaproveitado, então `V021` fica vago para sempre.
         //
         // V025 a V027 pertencem à feature 001 e vêm depois de V023/V024 (reservadas a
         // `attachments` e aos índices de F4) porque `verification_tokens`, `rate_limit_counters` e
@@ -46,12 +48,14 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
         // incremental de `work_log_tags` (CE-O-03), e `V029` corrige o tipo de
         // `period_snapshots.checksum` sem alterar `V020`, que já está mesclada (BR-035). `V030`
         // acrescenta as colunas de cancelamento de organização, ausentes de database.md §7.1 —
-        // lacuna reportada na sprint de `002-users`.
+        // lacuna reportada na sprint de `002-users`. `V031` são os índices do painel e
+        // `V032`/`V033`
+        // a tabela e os índices de exportação.
         assertThat(versions)
                 .containsExactly(
                         "001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011",
                         "012", "013", "014", "015", "016", "017", "018", "019", "020", "022", "023",
-                        "024", "025", "026", "027", "028", "029", "030");
+                        "024", "025", "026", "027", "028", "029", "030", "031", "032", "033");
     }
 
     @Test

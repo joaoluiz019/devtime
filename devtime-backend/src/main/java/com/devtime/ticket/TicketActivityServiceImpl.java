@@ -20,14 +20,13 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * Linha do tempo do ticket (tickets.md §9.1).
  *
- * <p>Une fontes heterogêneas em um tipo comum ordenado por instante. Nesta sprint as fontes são a
- * trilha de auditoria e os comentários; os <b>work logs</b> chegam com {@code 008-worklogs}.
+ * <p>Une fontes heterogêneas em um tipo comum ordenado por instante: a trilha de auditoria, os
+ * comentários ({@code 014}) e os work logs ({@code 008}).
  *
  * <p><b>Escopo de dados de {@code MEMBER}</b> (§9 de permissions.md, IMP-02): work logs de
- * terceiros são omitidos para quem não possui {@code WORKLOG_VIEW_ANY}. O filtro precisa ser
- * aplicado na consulta, nunca em memória — filtrar depois de carregar vaza informação por contagem
- * e por paginação. Enquanto {@code 008} não existe, não há work log a filtrar; o ponto de aplicação
- * está marcado para receber a condição junto com a fonte.
+ * terceiros são omitidos para quem não possui {@code WORKLOG_VIEW_ANY}. O filtro é aplicado na
+ * consulta, dentro da própria fonte — quem é dono do dado é quem sabe restringi-lo, e filtrar
+ * depois de carregar vazaria informação por contagem e por paginação.
  *
  * <p>Dívida conhecida (OB-08 da spec): a união ocorre em tempo de consulta. Funciona até algumas
  * centenas de eventos por ticket. Materializar uma tabela de eventos duplicaria dado que já existe,
@@ -47,7 +46,7 @@ public class TicketActivityServiceImpl implements TicketActivityService {
     private final AuditService auditService;
 
     /**
-     * Fontes externas de evento (comentários hoje; work logs com {@code 008}).
+     * Fontes externas de evento (comentários de {@code 014} e work logs de {@code 008}).
      *
      * <p>Injetadas como lista para que acrescentar uma fonte não exija tocar nesta classe — e para
      * que a ausência de uma feature simplesmente não contribua eventos.

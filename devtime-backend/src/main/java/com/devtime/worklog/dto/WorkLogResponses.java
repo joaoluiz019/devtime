@@ -168,6 +168,33 @@ public final class WorkLogResponses {
     public record WorkLogCategoryTotal(
             UUID categoryId, String categoryName, int totalMinutes, int entryCount) {}
 
+    /**
+     * Totais de um intervalo, somados no banco.
+     *
+     * <p>Publicado a {@code 010-dashboard} para {@code quickStats}. Distinto de {@link
+     * WorkLogTotalsResponse}: aqui não há quebra por categoria nem contagem de registros, apenas os
+     * dois números que o painel exibe — e é a ausência da quebra que permite resolver a consulta no
+     * índice coberto, sem materializar registro algum.
+     */
+    @Schema(name = "WorkLogRangeTotals")
+    public record WorkLogRangeTotals(int netMinutes, int billableMinutes) {
+
+        public static WorkLogRangeTotals empty() {
+            return new WorkLogRangeTotals(0, 0);
+        }
+    }
+
+    /**
+     * Minutos somados por um agrupamento qualquer (cliente, categoria ou contrato).
+     *
+     * <p>Publicado a {@code 010-dashboard} para as fatias dos gráficos de distribuição. Devolve o
+     * <b>identificador</b> e não o rótulo: o nome e a cor pertencem às features donas de cada
+     * entidade ({@code 003} e {@code 005}), e resolvê-los aqui exigiria que {@code worklog}
+     * dependesse delas para uma informação que é de apresentação.
+     */
+    @Schema(name = "WorkLogGroupTotal")
+    public record WorkLogGroupTotal(UUID groupId, int netMinutes, int billableMinutes) {}
+
     @Schema(name = "WorkLogTotalsResponse")
     public record WorkLogTotalsResponse(
             int totalMinutes,

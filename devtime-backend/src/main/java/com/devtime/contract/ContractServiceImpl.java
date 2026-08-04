@@ -15,6 +15,7 @@ import com.devtime.contract.domain.PeriodSpec;
 import com.devtime.contract.domain.PeriodStatus;
 import com.devtime.contract.domain.RolloverPolicy;
 import com.devtime.contract.dto.ContractRequests.ContractCreateRequest;
+import com.devtime.contract.dto.ContractRequests.ContractDuplicateRequest;
 import com.devtime.contract.dto.ContractRequests.ContractTransitionRequest;
 import com.devtime.contract.dto.ContractRequests.ContractUpdateRequest;
 import com.devtime.contract.dto.ContractResponses.ContractActivationResponse;
@@ -83,6 +84,18 @@ public class ContractServiceImpl implements ContractService {
     private final PageRequestFactory pageRequestFactory;
     private final TenantContext tenantContext;
     private final TenantClock clock;
+
+    /**
+     * Fontes de vínculo membro × contrato (permissions.md §9, nota ²).
+     *
+     * <p>Mesma inversão de {@link ContractMemberScopeSource}: as features que possuem a informação
+     * de vínculo dependem de {@code contract}, e chamá-las daqui fecharia o ciclo que BR-008
+     * proíbe.
+     */
+    private final java.util.List<MemberContractLinkSource> linkSources;
+
+    /** Cronômetros ativos do contrato (contracts.md §8.2/§8.4), pela mesma porta usada por 011. */
+    private final java.util.List<PeriodActiveTimerSource> timerSources;
 
     @Override
     @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
@@ -315,8 +328,7 @@ public class ContractServiceImpl implements ContractService {
         stateMachine.assertCanTransition(contract.getStatus(), ContractStatus.SUSPENDED);
         assertReason(request);
 
-        // A guarda "nenhum cronômetro ativo" (contracts.md §8.2, DEVTIME-2212) pertence a
-        // 009-timer: a tabela timers não existe nesta sprint. Registrado como pendência da sprint.
+        assertNoActiveTimer(id); // contracts.md §8.2 — DEVTIME-2212
         contract.setStatus(ContractStatus.SUSPENDED);
         recordStatusChange(id, ContractStatus.ACTIVE, ContractStatus.SUSPENDED, request.reason());
         // O período aberto permanece aberto; apenas a geração de novos períodos é interrompida.
@@ -363,6 +375,7 @@ public class ContractServiceImpl implements ContractService {
         if (endDate.isBefore(contract.getStartDate())) {
             throw ContractExceptions.endDateInvalid(endDate); // DEVTIME-2213
         }
+        assertNoActiveTimer(id); // contracts.md §8.4 — DEVTIME-2212
 
         contract.setEndDate(endDate);
         ContractPeriod truncated = truncateCurrentPeriod(contract, endDate); // RN-214
@@ -525,7 +538,117 @@ public class ContractServiceImpl implements ContractService {
      */
     @Override
     public java.util.List<Integer> notificationThresholdsOf(UUID contractId) {
+        return thresholdsOf(require(contractId));
+    }
+
+    /** Ver {@link ContractService#getReportRef(UUID)}. */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public com.devtime.contract.dto.ContractResponses.ContractReportRef getReportRef(
+            UUID contractId) {
         Contract contract = require(contractId);
+        // SG-03: a máscara é aplicada aqui, na feature dona do dado, e não no relatório.
+        boolean financial =
+                tenantContext.currentPermissions().contains(Permission.CONTRACT_VIEW_FINANCIAL);
+        return new com.devtime.contract.dto.ContractResponses.ContractReportRef(
+                contract.getId(),
+                contract.getCode(),
+                contract.getName(),
+                contract.getType() == null ? null : contract.getType().name(),
+                contract.getMonthlyMinutes(),
+                financial ? contract.getHourlyRate() : null,
+                financial ? contract.getOverageRate() : null,
+                contract.getCurrency(),
+                contract.getClientId());
+    }
+
+    /**
+     * Duplicação (ver {@link ContractService#duplicate}).
+     *
+     * <p>Delega a {@link #create}, e não replica a entidade campo a campo por atribuição direta: a
+     * criação é onde vivem RN-201 (cliente ACTIVE), a coerência de INV-CTR-02/03/04, a geração do
+     * código sequencial e a validação da categoria padrão. Copiar a entidade contornaria todas elas
+     * — e uma cópia de um contrato antigo cujo cliente foi inativado nasceria inválida, sem que
+     * nada reclamasse.
+     *
+     * <p>A trilha registra as duas coisas: {@code CONTRACT_CREATED} pela criação e {@code
+     * CONTRACT_DUPLICATED} com a origem. Sem a segunda, um contrato duplicado é indistinguível de
+     * um digitado do zero.
+     */
+    @Override
+    @Transactional
+    @PreAuthorize("hasPermission(null, 'CONTRACT_CREATE')")
+    public ContractResponse duplicate(UUID id, ContractDuplicateRequest request) {
+        Contract source = require(id);
+        ContractDuplicateRequest options =
+                request == null ? new ContractDuplicateRequest(null, null, null, null) : request;
+
+        ContractResponse copy =
+                create(
+                        new ContractCreateRequest(
+                                options.clientId() == null
+                                        ? source.getClientId()
+                                        : options.clientId(),
+                                // INV-CTR-01: código sempre novo; nunca o da origem.
+                                null,
+                                options.name() == null
+                                        ? source.getName() + " (cópia)"
+                                        : options.name().trim(),
+                                source.getDescription(),
+                                source.getType(),
+                                source.getMonthlyMinutes(),
+                                options.startDate() == null
+                                        ? source.getStartDate()
+                                        : options.startDate(),
+                                options.endDate() == null ? source.getEndDate() : options.endDate(),
+                                (int) source.getBillingDay(),
+                                source.getRolloverPolicy(),
+                                source.getRolloverCapMinutes(),
+                                (int) source.getRolloverExpiryPeriods(),
+                                source.getOveragePolicy(),
+                                source.getHourlyRate(),
+                                source.getOverageRate(),
+                                source.getCurrency(),
+                                source.isAutoRenew(),
+                                source.isProrateFirstPeriod(),
+                                thresholdsOf(source).isEmpty() ? null : thresholdsOf(source),
+                                source.getDefaultCategoryId(),
+                                source.getNotes()));
+
+        auditService.record(
+                "CONTRACT_DUPLICATED",
+                ENTITY_TYPE,
+                copy.id(),
+                Map.of(),
+                Map.of("sourceContractId", id.toString(), "code", copy.code()));
+        log.info("contrato duplicado sourceContractId={} contractId={}", id, copy.id());
+        return copy;
+    }
+
+    /**
+     * contracts.md §8.2 e §8.4: suspender ou encerrar com cronômetro rodando (DEVTIME-2212).
+     *
+     * <p>Vale para suspensão e encerramento, e <b>não</b> para cancelamento: o cancelamento é a
+     * transição de "este contrato nunca deveria ter existido" (CE-15), e recusá-lo por causa de um
+     * cronômetro esquecido deixaria o contrato errado vivo por tempo indeterminado. Suspender e
+     * encerrar, esses, interrompem trabalho em curso — e o cronômetro rodando é literalmente esse
+     * trabalho, que ficaria sem período onde aterrissar.
+     *
+     * <p>Usa a mesma {@link PeriodActiveTimerSource} do fechamento de {@code 011}: uma segunda
+     * definição de "cronômetro ativo" divergiria da primeira, e {@code PAUSED} conta nas duas.
+     */
+    private void assertNoActiveTimer(UUID contractId) {
+        List<UUID> activeTimers =
+                timerSources.stream()
+                        .flatMap(source -> source.activeTimerIdsForContract(contractId).stream())
+                        .distinct()
+                        .toList();
+        if (!activeTimers.isEmpty()) {
+            throw ContractExceptions.contractHasActiveTimer(activeTimers);
+        }
+    }
+
+    private java.util.List<Integer> thresholdsOf(Contract contract) {
         Short[] thresholds = contract.getNotificationThresholds();
         if (thresholds == null) {
             return java.util.List.of();
@@ -535,6 +658,59 @@ public class ContractServiceImpl implements ContractService {
                 .map(Short::intValue)
                 .sorted()
                 .toList();
+    }
+
+    /** Cartões do painel (ver {@link ContractService#findActiveForDashboard}). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CONTRACT_VIEW')")
+    public java.util.List<com.devtime.contract.dto.ContractResponses.ContractDashboardCard>
+            findActiveForDashboard(boolean restrictToLinked) {
+        var statuses = java.util.List.of(ContractStatus.ACTIVE, ContractStatus.SUSPENDED);
+        java.util.List<Contract> contracts;
+        if (restrictToLinked) {
+            java.util.Set<UUID> linked = linkedContractIdsOfCurrentUser();
+            // Nenhum vínculo é conjunto vazio, nunca "sem restrição" (INV-DSH-02 de specs/010).
+            contracts =
+                    linked.isEmpty()
+                            ? java.util.List.of()
+                            : repository.findByStatusInAndIdIn(statuses, linked);
+        } else {
+            contracts = repository.findByStatusIn(statuses);
+        }
+
+        java.time.LocalDate today = clock.today(); // RN-009: data local do tenant
+        return contracts.stream().map(contract -> toDashboardCard(contract, today)).toList();
+    }
+
+    private com.devtime.contract.dto.ContractResponses.ContractDashboardCard toDashboardCard(
+            Contract contract, java.time.LocalDate today) {
+        // FA-12 de specs/010: o corrente é o período que contém hoje, mesmo já fechado — o painel
+        // então exibe valores definitivos. Sem período para hoje (contrato encerrado, ou hoje
+        // anterior ao início), o último materializado é o que descreve a situação do contrato.
+        ContractPeriod period =
+                periodRepository
+                        .findByContractIdAndDate(contract.getId(), today)
+                        .or(() -> periodRepository.findLastByContractId(contract.getId()))
+                        .orElse(null);
+
+        return new com.devtime.contract.dto.ContractResponses.ContractDashboardCard(
+                contract.getId(),
+                contract.getCode(),
+                contract.getName(),
+                contract.getClientId(),
+                period == null ? null : period.getId(),
+                period == null ? null : period.getLabel(),
+                period == null ? null : period.getStartDate(),
+                period == null ? null : period.getEndDate(),
+                contract.getEndDate(),
+                thresholdsOf(contract));
+    }
+
+    private java.util.Set<UUID> linkedContractIdsOfCurrentUser() {
+        UUID userId = tenantContext.requireUserId();
+        return linkSources.stream()
+                .flatMap(source -> source.contractIdsLinkedTo(userId).stream())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
 
     /** RN-606 (ver {@link ContractService#findEndingOn}). Consulta de job; sem permissão. */

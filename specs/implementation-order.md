@@ -252,18 +252,18 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 
 | Nº | Feature | Spec | Tasks | Aceite | Testes | Status |
 |:--:|---|:--:|:--:|:--:|:--:|---|
-| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁷ |
+| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁷ ¹⁸ |
 | 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁴ |
-| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ |
-| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ² ¹⁵ |
-| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ |
-| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ |
-| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ |
+| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ ¹⁸ |
+| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ² ¹⁵ ¹⁸ |
+| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ ¹⁸ |
+| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ ¹⁸ |
+| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ ¹⁸ |
 | 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁸ |
 | 009 | Timer | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁹ |
-| 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
-| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ · `FRONTEND_PARTIAL` ¹² |
-| 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `SPEC_APPROVED` |
+| 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁶ |
+| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ ¹⁸ · `FRONTEND_PARTIAL` ¹² |
+| 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁷ |
 | 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹¹ |
 | 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
 | 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹³ |
@@ -330,6 +330,24 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 |:--:|---|
 | ¹⁵ | `004` — fecha a pendência da nota ²: `GeneratePeriodsJob` (RN-213, cria o período seguinte como `SCHEDULED` com até três dias de antecedência, apenas para contrato `ACTIVE` com `autoRenew` e sem sucessor), `OpenScheduledPeriodsJob` (`SCHEDULED → OPEN`) e `AutoEndContractsJob` (FA-05, delegando a `ContractService.end` para não duplicar o truncamento de RN-214). O quarto job da §22.4, `ContractEndingReminderJob`, já havia sido entregue por `013` e não foi duplicado. A materialização de períodos foi extraída para `PeriodMaterializer`, agora compartilhada por ativação, retomada e renovação automática — pelo mesmo motivo que a prévia compartilha `PeriodGenerator` com a geração real (CA-01). **Duas regras não implementadas foram descobertas pelo banco e corrigidas:** a guarda de §11 (`SCHEDULED → OPEN` exige o anterior `CLOSED`), que o índice `uq_periods_single_open` rejeitava, e um **defeito pré-existente em `013`** — `NotificationJobs` construía a sessão de plataforma com `userId` nulo, que o construtor canônico de `TenantSession` recusava, fazendo **toda iteração dos lembretes de RN-605 e RN-606 falhar silenciosamente** dentro do `catch`. Corrigido com `TenantSession.system(...)`, e `TenantContext.requireUserId()` passou a falhar alto em sessão sem usuário, em vez de devolver `null`. **Divergência aceita e registrada:** RS-06 prevê execução às 03:00 no fuso do tenant; o agendamento é único, no fuso do servidor, porque a janela de três dias de RN-213 absorve qualquer fuso. **Pendentes:** frontend (T-004-32 a T-004-37 e T-004-41); `POST /contracts/{id}/duplicate`; guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`); e `RolloverExpiryJob`/`AutoClosePeriodJob` de `011`, que estes jobs desbloqueiam |
 
+**Nota da sprint S8 de `010-dashboard` (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁶ | `010` — backend completo: escopo derivado do papel (`TENANT`/`USER`, CP-01) aplicado **na consulta** em todas as agregações, severidade pelos limiares do contrato, projeção com a guarda de 3 dias úteis nos quatro estados, série diária com 30 pontos garantidos, percentuais com o resto na maior fatia, alertas derivados do **estado presente** sem tocar em `notifications`, os seis gráficos com cache de 5 minutos cuja chave inclui tenant, escopo e usuário, e invalidação por evento de `008`, `009` e `011`. Migration `V031` com os três índices **cobertos** (`INCLUDE`), o parcial de contratos ativos e `idx_tickets_open_assignee` — que §13.4 dava como criado em `007` e não existia. Nenhuma escrita, nenhum evento publicado, nenhum `AuditLog`. **Cinco divergências reportadas e resolvidas:** (a) `DashboardAggregationRepository` da §25 acessaria a tabela de `008` de dentro de `010`, o que AR-02 e a suíte ArchUnit proíbem — as agregações foram publicadas por `WorkLogAggregationService`, feature dona da tabela, e o painel as consome pela interface; (b) a numeração `V032` da §13.3 segue a sequência hipotética das specs, e vale o próximo livre real (`V031`), pela mesma resolução das notas ¹ e ² de `database.md` §8.1 e de `V016`; (c) `billable_minutes` não existe como coluna (RN-112 a define como derivada), então o `INCLUDE` carrega `billable`; (d) §12 atribui `422` ao tipo de gráfico inválido e ao intervalo incompleto, mas §17.1 do mesmo documento os classifica como validação de formato — vale `400`, que é como `DEVTIME-2000` já está registrado no catálogo compartilhado; (e) `CURRENT_PERIOD` não está definido em documento algum para um tenant com contratos de dias de faturamento distintos — resolvido como o **mês corrente do calendário**, única leitura compatível com o exemplo normativo de `reports.md` §10.1, com `reports.md` §10 sincronizado. **Duas lacunas reportadas:** `consumption-trend` é nomeado em §14 e em `reports.md` §10.2 **sem definição do que agrega** — implementado como o acumulado da série diária, a única leitura compatível com o nome e com a forma `points[]` de §23; e CX-16 (nome vigente de categoria excluída) depende de `CategoryService.getAllForReport`, previsto em `specs/005` §22 e ainda não publicado, cuja implementação exige decidir como ler registros com exclusão lógica sem contornar o filtro de tenant. **Pendentes:** frontend (T-010-12 a T-010-20); execução **paralela** dos blocos (§34), não implementada porque `TenantContext` é `ThreadLocal` e o filtro de tenant do Hibernate é ligado por transação, ambos presos à thread da requisição — distribuir os blocos exigiria propagar a sessão manualmente a cada tarefa, e um ponto esquecido produziria consulta sem filtro de tenant (ART-021, SG-01); os blocos executam sequencialmente, cada um com a própria transação, o que é o que torna o "erro parcial" de §10 possível; e o teste de carga de p95 com 100.000 registros (T-010-24), que exige a mesma infraestrutura pendente em `008` e `015` |
+
+**Nota da sprint S9 de `012-reports` (backend):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁷ | `012` — backend completo: os cinco relatórios com a ordem normativa da §6.2 (escopo **antes** da existência do recurso), `ReportDataResolver` como **único** ponto de decisão entre snapshot e cálculo ao vivo, `SnapshotReportMapper` e `LiveReportMapper` devolvendo o **mesmo** tipo, ordenação normativa não configurável, os três renderers com neutralização de fórmula em CSV **e** XLSX e duas colunas de duração somáveis, exportação com limiar de 5.000 linhas ("acima de", não "a partir de") contado **antes** de materializar linha alguma, idempotência por `Idempotency-Key`, URL assinada de 15 minutos sem regerar o arquivo, download auditado, e os dois jobs — o de fila com no máximo duas tentativas e o de expiração que **remove o binário** antes de o registro perder a chave. Migrations `V032` e `V033`. **`EXPORT_COMPLETED` e `EXPORT_FAILED` ganharam produtor**, fechando a última pendência da nota ¹¹. **Quatro divergências reportadas e resolvidas em favor de `04-api/reports.md`** (IA-11): estrutura plana em vez de `ReportHeaderDto`, faixa de erro 3002–3007, numeração `V032`/`V033` em vez de `V033`/`V034`, e o sétimo agrupamento `NONE`. **Cinco lacunas reportadas:** `issueId` ausente do exemplo de §6 (publicado e sincronizado); `regularMinutes` indefinido quando o consumo não excede o saldo; `groupBy=TAG` sem definição para registro sem etiqueta; filtros por identificador inaplicáveis a período fechado, porque o payload congela rótulos e não chaves (registrado em CP-08 de §6); e endereço do emissor e autor do ajuste não congelados na versão 2 do payload. **Pendentes:** frontend (T-012-21 a T-012-29); **a reexecução de `T-012-04` contra o fechamento real de `011`, que é tarefa de S10** — um teste de snapshot contra payload de fixture não prova RN-701 de ponta a ponta; a suíte de integração de relatórios, escrita e compilando mas **não executada** por ausência de Docker no ambiente; o teste de memória com 50.000 linhas (T-012-35) e o ciclo de exportação contra storage real (T-012-36), que exigem a mesma infraestrutura de carga pendente em `008`, `010` e `015`; a **avaliação visual do PDF por pessoa externa** (DoD-08, critério de RP-04); e a **escrita em fluxo do PDF**, que Flying Saucer não oferece — o limiar de RN-706 e a passagem por disco são a mitigação, e o XLSX, que era o caso crítico de OB-06, é em fluxo de verdade |
+
+**Nota da sprint S12 — fechamento das pendências de backend (transversal):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁸ | Transversal — fecha as pendências que dependiam de features inexistentes à época: `CategoryService.getAllForReport` e `TagService.getAllForReport` (por um segundo mapeamento `@Immutable` sobre a mesma tabela, que abre mão do corte de exclusão lógica e **preserva** o filtro de tenant); RN-505 integral (passos 4 e 6); `RolloverExpiryJob` e `AutoClosePeriodJob`; criação do período seguinte no fechamento (RN-229/FA-10, só para contrato `ACTIVE`); `POST /contracts/{id}/duplicate`; guarda de cronômetro ativo em `suspend`/`end` (`DEVTIME-2212`); `activeTimer` em `GET /auth/me`; work logs na linha do tempo do ticket com o escopo de `MEMBER` **na consulta**; o `DenormalizationReconcileJob` compartilhado por `003`, `006`, `007` e `011`; e a anonimização das contas órfãs na purga de organização (§19.1). Migration `V034`, que corrige um **defeito estrutural pré-existente**: `period_adjustments.applied_by` era `NOT NULL` e o ajuste automático de RN-230 — sem autor humano — teria falhado contra a constraint na primeira execução. **Lacuna reportada:** RN-230 não define como a idade do saldo transportado é rastreada; a leitura implementada está isolada em `RolloverExpiryPolicy`. **Divergência não resolvida:** `users.md` §6.4 exige que `GET /tenant/export` use o mecanismo de `012`, e §22.2 de `specs/012` proíbe `012` de publicar qualquer coisa — o endpoint permanece não implementado, agora por conflito documental. **Pendentes:** a suíte de integração inteira **não foi executada** por ausência de Docker no ambiente (compila e os testes puros passam); e os testes de carga de `008`, `010`, `012` e `015` |
+
 **Interfaces públicas publicadas nesta sprint:**
 
 | Interface | Consumidor previsto |
@@ -386,6 +404,14 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 | `RefreshTokenService.revokeAllOfInTenant(...)` · `revokeAllInTenant(...)` | `002` (RT-07, RN-008), consumidos por evento |
 | `ContractMaintenanceService.*` · `PeriodMaterializer.materialize(...)` | Jobs de `004` (§22.4); a materialização também serve à ativação e à retomada |
 | `TenantSession.system(tenantId, role, permissions)` | Todo job de plataforma (BR-049, JB-06) |
+| `WorkLogAggregationService.totalsInRange` · `minutesByClient` · `minutesByCategory` · `minutesByContract` | `010` (quickStats e gráficos de distribuição) |
+| `ContractService.findActiveForDashboard(restrictToLinked)` | `010` (cartões de contrato, com o escopo da nota ² aplicado na consulta) |
+| `ClientService.findRefs(ids)` | `010` (rótulo e cor em lote) |
+| `TicketService.findOpenForCurrentUser(limit)` | `010` (bloco `openTickets`) |
+| `TimerQueryService.activeMinutesInCurrentTenant()` | `010` (`quickStats.activeTimerMinutes`, restrito ao tenant corrente — CX-11) |
+| `ContractService.getReportRef(id)` · `ContractPeriodService.getReportRef(id)` · `TicketService.getReportRef(id)` | `012` (ART-065: texto onde a resposta de tela devolve enum; `isClosed`/`isStarted` decididos por quem é dono da máquina de estados) |
+| `ClientService.getReportParty(id)` · `TenantService.issuer()` | `011` (congela no snapshot) e `012` (cabeçalho ao vivo — RN-703) |
+| `WorkLogService.findForReport(filter)` · `countForReport(filter)` | `012` (RN-704 e a decisão de RN-706 antes de materializar) |
 
 ---
 

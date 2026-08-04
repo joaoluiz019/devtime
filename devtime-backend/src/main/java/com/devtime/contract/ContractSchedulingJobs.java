@@ -45,6 +45,11 @@ public class ContractSchedulingJobs {
     /** BR-186: teto por execução. §20 exige menos de 5 minutos para 10.000 contratos. */
     static final int BATCH_SIZE = 500;
 
+    /**
+     * CE-ME-02: folga para o lançamento retroativo do último dia antes do fechamento automático.
+     */
+    static final int AUTO_CLOSE_GRACE_DAYS = 3;
+
     private final ContractMaintenanceService maintenanceService;
     private final TenantContext tenantContext;
     private final TenantClock clock;
@@ -125,6 +130,58 @@ public class ContractSchedulingJobs {
         }
         log.info(
                 "encerramento automático concluído candidatos={} encerrados={}", due.size(), ended);
+    }
+
+    /**
+     * RN-230 / FA-14: aplica o débito de expiração de saldo transportado.
+     *
+     * <p>Às 02:30, antes da geração de períodos (03:00): o saldo do ciclo corrente precisa estar
+     * correto antes de qualquer transporte ser calculado. CX-19 mantém o débito fora de períodos
+     * fechados, e a expiração é adiada para o próximo aberto quando o ciclo já fechou.
+     */
+    @Scheduled(cron = "0 30 2 * * *")
+    @SchedulerLock(name = "rolloverExpiry", lockAtMostFor = "PT20M")
+    public void expireRolloverBalances() {
+        List<MaintenanceTarget> due = maintenanceService.findRolloverExpiryDue(BATCH_SIZE);
+
+        int expired = 0;
+        for (MaintenanceTarget target : due) {
+            expired +=
+                    inTenant(
+                                    target.tenantId(),
+                                    () -> maintenanceService.expireRollover(target.entityId()))
+                            ? 1
+                            : 0;
+        }
+        log.info(
+                "expiração de saldo transportado concluída candidatos={} debitados={}",
+                due.size(),
+                expired);
+    }
+
+    /**
+     * CE-ME-02 / CX-13: fecha períodos de contratos encerrados há mais de três dias.
+     *
+     * <p>Às 04:00, depois do encerramento automático de contratos (00:10) e da expiração (02:30):
+     * fechar antes de expirar congelaria um saldo que ainda ia mudar.
+     */
+    @Scheduled(cron = "0 0 4 * * *")
+    @SchedulerLock(name = "autoClose", lockAtMostFor = "PT30M")
+    public void autoClosePeriodsOfEndedContracts() {
+        List<MaintenanceTarget> due =
+                maintenanceService.findAutoCloseDue(
+                        clock.today(), AUTO_CLOSE_GRACE_DAYS, BATCH_SIZE);
+
+        int closed = 0;
+        for (MaintenanceTarget target : due) {
+            closed +=
+                    inTenant(
+                                    target.tenantId(),
+                                    () -> maintenanceService.autoClosePeriod(target.entityId()))
+                            ? 1
+                            : 0;
+        }
+        log.info("fechamento automático concluído candidatos={} fechados={}", due.size(), closed);
     }
 
     /**

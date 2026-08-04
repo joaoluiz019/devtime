@@ -8,6 +8,255 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint S12 — fechamento das pendências de backend (transversal)**
+
+Esta sprint não entrega feature nova: ela fecha as pendências que cada sprint anterior registrou
+como "depende de uma feature que ainda não existe". Todas as dependências passaram a existir, e o
+que restava eram pontos de aplicação marcados no código esperando a fonte.
+
+- **`CategoryService.getAllForReport` e `TagService.getAllForReport`** (OB-04 de `005`, §22 de
+  `006`), consumidas por `010` (CX-16) e `012` (CX-04). A decisão que faltava era como ler registro
+  excluído **sem contornar o filtro de tenant**: SQL nativo escaparia dos dois cortes e exigiria
+  `tenant_id = ?` à mão, que BR-046 proíbe. A resposta é um segundo mapeamento `@Immutable` sobre a
+  mesma tabela — `CategoryHistory` e `TagHistory` —, que abre mão do `@SQLRestriction` e **preserva**
+  o `@Filter`. As duas classes são isentas de BR-029 na suíte ArchUnit, com a mesma explicitação de
+  `AuditLog`: a ausência da anotação é o contrato da classe, não um esquecimento.
+- **RN-505 completa:** a migração de work logs na exclusão de categoria (passo 6 da §6.1) e o
+  `DEVTIME-2603` do passo 4, que nunca chegava a ser lançado. `UPDATE` em lote sem carregar
+  entidades, e a migração inclui registros de período fechado — eles estão travados contra edição
+  pelo usuário (RN-241), não contra manutenção de catálogo, e o número do fechamento não muda porque
+  categoria não entra em fórmula de saldo.
+- **`RolloverExpiryJob` (RN-230) e `AutoClosePeriodJob` (CE-ME-02)**, desbloqueados pelos jobs de
+  geração de período de `004`. A expiração é convergente por consulta — a presença do ajuste
+  automático **é** a `dedupeKey` de §22.4 — e não age em período fechado (CX-19, OB-07).
+- **RN-229 deixou de ser parcial:** o fechamento **cria** o período seguinte quando ele não existe,
+  pelo mesmo `PeriodMaterializer` da ativação e da renovação (CA-01), apenas para contrato `ACTIVE` —
+  sem essa guarda, cada fechamento de contrato encerrado geraria o período que o próximo fecharia.
+- **`POST /contracts/{id}/duplicate`**, **guarda de cronômetro ativo em `suspend`/`end`**
+  (`DEVTIME-2212`, pela mesma `PeriodActiveTimerSource` do fechamento) e **`activeTimer` em
+  `GET /auth/me`** (§5.10), que era a última pendência da nota ⁷.
+- **Work logs na linha do tempo do ticket**, com o escopo de dados de `MEMBER` aplicado **na
+  consulta** (§9 de permissions.md, IMP-02) — filtrar depois de carregar vazaria pela paginação
+  exatamente o que a restrição protege.
+- **`DenormalizationReconcileJob`**, o job compartilhado que `003`, `006`, `007` e `011` previam cada
+  uma na sua §22.4. Um agendamento, quatro reconciliadores registrados por interface em `shared`, e
+  cada um falhando sozinho (JB-04). Divergência corrigida sai em `WARN`: ela significa que um
+  incremento transacional se perdeu, e corrigir em silêncio esconderia o defeito de origem.
+- **A purga de organização passou a alcançar as contas** (§19.1 de `specs/001`): quem não participa
+  de nenhuma outra organização é anonimizado — e-mail em domínio não roteável, nome substituído,
+  `passwordHash` descartado —, e não excluído, porque a conta é referenciada por trilha de auditoria
+  e por snapshot de outros tenants.
+
+**Defeito estrutural corrigido:** `period_adjustments.applied_by` era `NOT NULL` desde `V018`, sob o
+pressuposto de que todo ajuste tem autor humano. RN-230 tem um ajuste sem autor, e o job de expiração
+teria falhado na primeira execução, em produção, contra uma constraint. `V034` corrige de forma
+aditiva. Inventar um usuário de sistema foi rejeitado: uma linha em `users` que ninguém autentica
+apareceria em toda listagem de membros, e "quem aplicou este ajuste?" passaria a ter resposta falsa
+em vez de nenhuma.
+
+**Lacuna de documentação reportada e resolvida:** RN-230 diz que o saldo transportado "expira após
+`rolloverExpiryPeriods` períodos", mas **nenhum documento define como a idade do saldo é
+rastreada** — `contract_periods` não distingue, dentro de um saldo, o que veio do ciclo passado do
+que veio de três atrás, e criar uma coluna seria decidir modelo de dados (IA-01). A leitura
+implementada está isolada em `RolloverExpiryPolicy`, para que ganhar definição normativa signifique
+mudar um arquivo.
+
+**Divergência entre documentos, não resolvida — decisão pendente do produto:** `users.md` §6.4 exige
+que `GET /tenant/export` (E-06, LGPD) use "o mesmo mecanismo de `reports.md`", enquanto §22.2 de
+`specs/012` determina que `012` é folha no grafo e **não publica nada**. As duas afirmações não podem
+valer juntas, e satisfazer uma exige violar a outra ou construir um segundo mecanismo de execução
+assíncrona — que é exatamente o que §6.4 existe para evitar. **`GET /tenant/export` permanece não
+implementado**, agora por conflito documental e não por dependência ausente.
+
+**Sprint S9 — `012-reports` (backend)**
+
+O relatório é o **entregável** do produto: todo o resto existe para produzi-lo. É o documento que o
+freelancer anexa ao e-mail de cobrança e que sustenta a conversa quando o cliente discorda do número.
+
+- Os cinco relatórios de §6 e §7 de `reports.md` — período de contrato, resumo por cliente, folha de
+  horas, detalhamento por ticket e produtividade — e as cinco rotas de exportação de §8.
+- **`ReportDataResolver` é o único ponto de decisão entre snapshot e cálculo ao vivo** (RN-701,
+  RN-702). A suíte que o precede (T-012-04) foi escrita **antes** do código e não afirma apenas o que
+  o resolvedor devolve: ela afirma **quem ele não chamou**. Com período fechado, `BalanceService`
+  nunca é tocado. O modo de falha de R-02 é silencioso — um caminho que sirva período fechado do
+  banco funciona, devolve números que parecem certos, e só se revela quando alguém altera um dado e o
+  "documento definitivo" muda entre duas gerações.
+- **`SnapshotReportMapper` e `LiveReportMapper` devolvem o mesmo tipo** (`ReportBody`). A simetria
+  exigida por §34 deixou de ser convenção e passou a ser propriedade do compilador; o frontend e os
+  três renderers tratam um formato só, e a diferença entre definitivo e parcial cabe em dois campos.
+- **A ordenação é normativa e não configurável** (CP-05). Ela vem da consulta e o agrupamento não a
+  toca — nem para reaplicar o mesmo critério. Sem ordem total, RN-708 é inverificável.
+- **`MEMBER` exporta apenas os próprios registros** (CE-P-10), e o escopo é verificado **antes** da
+  existência do recurso: confirmar primeiro que o contrato existe vazaria, pelo código de erro, que
+  ele existe. A restrição vale também no snapshot — uma garantia de isolamento que se dissolvesse ao
+  fechar o período seria uma regressão no exato momento em que o documento passa a circular.
+- **Neutralização de fórmula em CSV e XLSX** (SG-05). A vítima não é o usuário do sistema: uma
+  descrição `=SUM(...)` é texto inofensivo no banco e vira execução de código no Excel de um
+  terceiro que nunca teve conta no DevTime.
+- **Duas colunas de duração no XLSX** (RN-710): `HH:MM` como texto, para conferência visual, e horas
+  decimais como número de verdade, para somar. O total usa `SUBTOTAL`, respondendo aos filtros que o
+  próprio cliente aplicar.
+- **Limiar de 5.000 linhas é "acima de", não "a partir de"** (CX-10, CX-11). A contagem é do
+  resultado filtrado e acontece **antes** de qualquer linha ser materializada — contar carregando
+  anularia a proteção no exato passo que existe para evitá-la.
+- **`ExportExpiryJob` remove o binário**, não apenas marca `EXPIRED` (SG-09). E remove **antes** de o
+  registro perder a chave: a ordem inversa deixaria o objeto no storage sem nada que o aponte.
+- Migrations `V032` e `V033` (tabela e índices), com os `CHECK` de duas tentativas e de
+  `storage_key` obrigatório em `COMPLETED` — a garantia estrutural que um defeito de contador esbarra
+  no banco, não num `if` que alguém pode remover.
+- **`EXPORT_COMPLETED` e `EXPORT_FAILED` ganharam produtor**, fechando a última pendência da nota ¹¹.
+
+**Interfaces publicadas por outras features para esta**
+
+Quatro tipos novos existem porque `ART-065` proíbe `012` de conhecer os enums de domínio de `004` e
+`007`: `ContractService.getReportRef`, `ContractPeriodService.getReportRef` e
+`TicketService.getReportRef` devolvem texto onde as respostas de tela devolvem enum, e a decisão de
+§6.1 — snapshot ou cálculo ao vivo — chega **calculada** em `isClosed`/`isStarted`. É a mesma
+inversão de `ContractRefResponse.acceptsWorkLogs`: quem é dono da máquina de estados decide o que ela
+significa.
+
+**Divergências entre documentos, reportadas e resolvidas**
+
+- **Estrutura da resposta.** §23 de `specs/012` agrupa emissor, cliente, contrato e período em um
+  `ReportHeaderDto`; §6 de `reports.md` os mostra no primeiro nível. Vale `reports.md` (IA-11), e o
+  exemplo normativo daquele documento é o contrato que o frontend consome.
+- **Faixa de códigos de erro.** §12 de `specs/012` atribui a `DEVTIME-3002`, `3003` e `3004`
+  significados diferentes dos de §12 de `reports.md`. Vale `reports.md`, e `ErrorCode` segue a
+  numeração de 3002 a 3007 daquele documento.
+- **Numeração das migrations.** §13.3 prevê `V033`/`V034`; a sequência real ia até `V031`. Valem
+  `V032`/`V033`, mesma resolução de `V029`, `V030` e `V031`. `V021`, reservada a esta tabela em
+  `database.md` §8.1, permanece permanentemente vaga — um número de migration nunca é reaproveitado.
+- **Sétimo agrupamento.** §6.3 de `specs/012` tabela seis; §5.1 de `reports.md` tabela sete, com
+  `NONE`. Vale o segundo: sem `NONE` não há como pedir o detalhamento sem cabeçalhos de grupo, que é
+  exatamente o que o CSV de §9.3 é.
+
+**Lacunas de documentação reportadas**
+
+- **`issueId` não estava no exemplo de §6.** RN-703 e PDF-07 exigem um identificador único de emissão
+  rastreável do arquivo até o registro de exportação, e o exemplo normativo não o trazia. Publicado
+  como `EM-{data}-{8 hexadecimais}` e `reports.md` §6 sincronizado.
+- **`regularMinutes` do bloco `financial` só está definido para o caso de excedente.** O único
+  exemplo de §6 tem consumo acima do saldo. Implementado como `min(consumido, disponível)` — a única
+  leitura compatível com o exemplo e com ART-043 —, isolado em um método para ser corrigido em um
+  lugar só quando a definição chegar.
+- **`groupBy=TAG` não define o que fazer com registro sem etiqueta.** Descartá-lo faria os totais
+  deixarem de somar as horas trabalhadas; ele forma um grupo de chave nula, e o rótulo fica com a
+  camada de i18n em vez de ser inventado aqui.
+- **Filtros por identificador não se aplicam a período fechado.** O payload congela rótulos, não
+  chaves. Ignorados em vez de recusados, porque recusar tornaria o relatório mais importante do
+  produto inacessível a partir de uma tela cujos filtros vêm preenchidos. `reports.md` §6 registra o
+  comportamento em CP-08.
+- **Endereço e autor do ajuste não foram congelados no snapshot.** A versão 2 do payload não guarda o
+  endereço do emissor nem o nome de quem aplicou cada ajuste — só o identificador, que FR-129 proíbe
+  exibir. Os campos saem nulos; buscá-los nas tabelas atuais violaria RN-701.
+
+**Itens do checklist não cumpridos**
+
+- **O PDF não é escrito em fluxo.** Flying Saucer monta a árvore do documento antes de paginar, e a
+  API do motor não oferece paginação incremental. O que limita a memória é o limiar de 5.000 linhas
+  de RN-706, acima do qual a geração é assíncrona e serializada pelo worker, e o arquivo passa por
+  disco — nunca por um `byte[]` — antes de ir ao storage. O XLSX **é** em fluxo (SXSSF), que era o
+  caso crítico de OB-06.
+- **Determinismo do PDF verificado por conteúdo, não pelo arquivo inteiro.** Dois PDFs do mesmo
+  período fechado têm tamanho idêntico e todo objeto de conteúdo idêntico, mas nunca são byte a byte
+  iguais na região do `/ID` — que o formato define como derivado do instante da gravação e que vive
+  dentro do fluxo de referência cruzada, comprimido. O produtor foi fixado para que a versão da
+  biblioteca não entre nos metadados.
+- **Testes de integração e de carga não executados nesta sessão.** A suíte de integração de
+  relatórios foi escrita e compila, mas depende de Testcontainers e o Docker não estava disponível no
+  ambiente. Continuam pendentes, como nas sprints anteriores, o teste de 50.000 linhas (T-012-35) e o
+  ciclo de exportação contra storage real (T-012-36), que exigem a mesma infraestrutura.
+- **Avaliação visual do PDF por pessoa externa (DoD-08).** É o critério de RP-04 e depende de uma
+  pessoa fora do time; permanece aberto.
+- **Frontend (T-012-21 a T-012-29).** Fora desta sprint, como nas demais.
+
+**Sprint S8 — `010-dashboard` (backend)**
+
+O painel resolve um problema de **atenção**, não de dado: toda informação que ele mostra já existe em
+outra tela. O que ele acrescenta é a ordenação por criticidade — o contrato que exige ação hoje fica
+no topo, não o primeiro em ordem alfabética.
+
+- `GET /api/v1/dashboard` compõe seis blocos: estatísticas rápidas, cartões de contrato, alertas,
+  cinco registros recentes, tickets abertos do usuário e três gráficos. `GET
+  /api/v1/dashboard/chart/{type}` recarrega um gráfico isolado ao trocar o período, sem recarregar o
+  resto.
+- **Nenhum saldo é recalculado.** Todos os números de contrato vêm de `BalanceService`. O teste de
+  equivalência foi escrito **antes** do código (T-010-02) porque o modo de falha mais provável de um
+  painel é reimplementar a fórmula "porque é mais rápido que chamar o serviço" — produzindo um
+  segundo número que diverge do primeiro na primeira mudança de regra.
+- **A severidade usa os limiares do contrato**, nunca 50/80/100 fixos. Um contrato configurado com
+  `[70, 90]` recebe alerta por e-mail em 70% (RN-602); fixar a escala do painel faria a tela mostrar
+  "OK" no mesmo instante, e o usuário não saberia em qual dos dois confiar.
+- **Os alertas derivam do estado presente**, não das notificações persistidas. Uma notificação é um
+  evento passado e permanente; o painel responde "o que está errado agora". Se um ajuste resolveu o
+  excedente ontem, o alerta some hoje — a notificação continua no histórico.
+- **A projeção só aparece com 3 dias úteis decorridos.** Com um único dia, `burnRate × totalWorkDays`
+  projeta cerca de 20× esse dia: correto e inútil, e pior, alarmante. "Vai estourar" no dia 2 e "tudo
+  certo" no dia 10 destrói a confiança na projeção.
+- **A série diária tem sempre 30 pontos, com os zeros visíveis.** Um gráfico de barras que omite os
+  dias sem registro comprime o eixo e sugere trabalho contínuo onde houve pausa.
+- **Erro parcial é requisito, não tolerância.** Cada bloco falha isoladamente e os demais são
+  devolvidos, com a lista em `failedBlocks`. Por isso o serviço orquestrador **não** abre transação:
+  dentro de uma única unidade de trabalho, a primeira consulta que falhasse a marcaria como
+  `rollback-only` e derrubaria todos os blocos seguintes — a falha de um gráfico apagaria os cartões
+  de contrato, que são o motivo de a tela existir.
+- Migration `V031` com três índices **cobertos** (`INCLUDE`), o parcial de contratos ativos e
+  `idx_tickets_open_assignee`. Os `INCLUDE` são a diferença entre atingir e não atingir a meta de p95
+  < 800 ms: sem eles, nenhuma otimização de código compensa a leitura da tabela.
+- O cache de gráficos tem TTL de cinco minutos e a chave **sempre** carrega tenant, escopo e — no
+  escopo `USER` — o usuário. Sem isso o painel de um tenant responderia com o gráfico de outro.
+  `quickStats` e cartões não são cacheados: são os valores que o usuário mais espera atualizados no
+  instante em que registra horas.
+- Nenhuma escrita, nenhum evento publicado, nenhum `AuditLog` — a feature é folha no grafo e
+  integralmente de leitura.
+
+**Divergências entre documentos, reportadas e resolvidas**
+
+- **`DashboardAggregationRepository` (§25 de specs/010) foi movido de feature.** Como descrito, ele
+  consultaria `work_logs` de dentro de `010`, o que AR-02 proíbe e a suíte ArchUnit reprova. As
+  agregações passaram a ser publicadas por `WorkLogAggregationService` — a feature dona da tabela — e
+  o painel as consome pela interface pública. Vale a hierarquia de IA-11: a Constituição (ART-065)
+  prevalece sobre `specs/`.
+- **Numeração da migration.** §13.3 prevê `V032`; a sequência real do repositório vai até `V030` e o
+  próximo livre é `V031`. Mesma resolução das notas ¹ e ² de `database.md` §8.1 e do cabeçalho de
+  `V016`.
+- **`billable_minutes` não existe como coluna.** RN-112 a define como derivada, e ART-034 mantém
+  apenas minutos inteiros persistidos; o índice coberto carrega `billable`, que é o que a expressão
+  precisa.
+- **Status do erro de parâmetro.** §12 atribui `422` ao tipo de gráfico inválido e ao intervalo
+  personalizado incompleto, enquanto §17.1 do mesmo documento os classifica como validação de
+  formato. Vale `400`: é a seção específica de validação, e `DEVTIME-2000` já está registrado com
+  esse status no catálogo compartilhado — alterá-lo mudaria o significado de uma condição já
+  integrada por outras features.
+- **`CURRENT_PERIOD` não estava definido** para um tenant com contratos de dias de faturamento
+  distintos, em que não existe um período de apuração único. Resolvido como o **mês corrente do
+  calendário**, única leitura compatível com o exemplo normativo de `reports.md` §10.1; o saldo de
+  cada cartão continua vindo do período de apuração real do seu contrato. `reports.md` §10 foi
+  sincronizado.
+
+**Lacunas de documentação reportadas**
+
+- **`consumption-trend` é nomeado sem definição.** §14 de specs/010 e §10.2 de `reports.md` listam o
+  tipo entre os seis, mas nenhum documento diz o que ele agrega. Implementado como o **acumulado da
+  série diária**, a única leitura compatível com o nome e com a forma `points[]` de §23, isolado em um
+  único método para poder ser corrigido em um lugar só quando a definição chegar.
+- **CX-16 depende de uma interface ainda não publicada.** Exibir o nome vigente de uma categoria
+  excluída exige `CategoryService.getAllForReport`, previsto em `specs/005` §22 para `012`. Publicá-lo
+  exige antes decidir como ler registros com exclusão lógica sem contornar o filtro de tenant —
+  `@SQLRestriction` e o `@Filter` de Hibernate são ignorados por consulta nativa, e escrever
+  `tenant_id = ?` à mão viola BR-046. Enquanto isso a fatia é preservada sem rótulo, e não descartada:
+  descartá-la faria os percentuais deixarem de somar os minutos realmente trabalhados. Na prática o
+  caso não deve ocorrer — RN-505 migra os registros para uma categoria substituta na exclusão.
+
+**Item do checklist não cumprido**
+
+- **Execução paralela dos blocos (§34).** Não implementada, por segurança. `TenantContext` é um
+  `ThreadLocal` e o filtro de tenant do Hibernate é ligado por transação, ambos presos à thread da
+  requisição. Distribuir os blocos por um pool exigiria propagar a sessão manualmente a cada tarefa, e
+  um único ponto esquecido produziria consulta sem filtro de tenant — a falha mais grave do modelo de
+  ameaças (ART-021, SG-01). Os índices cobertos de `V031` são o que sustenta RNF-003; a paralelização
+  é otimização a ser medida antes de aplicada (CG-10).
+
 **Sprint de jobs de `004-contracts` — Ciclo de vida automático de contratos e períodos**
 
 Fecha a pendência mais antiga da fila: `004` estava em `BACKEND_PARTIAL` desde S3, e os três jobs

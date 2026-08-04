@@ -43,4 +43,13 @@ public interface TagService {
      * @return o identificador da etiqueta resolvida
      */
     UUID resolveOrCreate(String rawName);
+
+    /**
+     * Catálogo completo para rotulagem histórica: inclui etiquetas <b>excluídas</b> (spec 006 §22).
+     *
+     * <p>Interface pública para {@code 012}, pelo mesmo motivo de {@code
+     * CategoryService.getAllForReport}: um relatório de período fechado precisa do rótulo vigente à
+     * época. Não serve para oferecer opções — para isso existe {@link #autocomplete(String)}.
+     */
+    List<TagOptionResponse> getAllForReport();
 }

@@ -104,6 +104,17 @@ public final class ContractExceptions {
                 "Data de término inválida: " + endDate);
     }
 
+    /**
+     * contracts.md §8.2/§8.4: há cronômetro rodando em ticket do contrato.
+     *
+     * <p>Os identificadores acompanham o erro porque §8.2 exige que a resposta liste os
+     * cronômetros: "existe cronômetro ativo" não diz a quem pedir para encerrá-lo. {@code PAUSED}
+     * conta como ativo pela mesma razão de RN-240 — o trabalho não terminou, apenas parou.
+     */
+    public static BusinessRuleException contractHasActiveTimer(java.util.List<UUID> timerIds) {
+        return new ContractActiveTimerException(timerIds);
+    }
+
     /** RN-215: justificativa obrigatória com no mínimo 10 caracteres. */
     public static BusinessRuleException justificationRequired() {
         return new InvalidContractTypeException(
@@ -165,6 +176,16 @@ public final class ContractExceptions {
                     ErrorCode.CONTRACT_DELETE_RESTRICTED,
                     Map.of("status", status.name()),
                     "Contrato fora de DRAFT não pode ser excluído; use encerrar ou cancelar");
+        }
+    }
+
+    /** contracts.md §8.2/§8.4. */
+    public static final class ContractActiveTimerException extends BusinessRuleException {
+        private ContractActiveTimerException(java.util.List<UUID> timerIds) {
+            super(
+                    ErrorCode.CONTRACT_HAS_ACTIVE_TIMER,
+                    Map.of("activeTimerIds", timerIds),
+                    "Existe cronômetro ativo no contrato");
         }
     }
 

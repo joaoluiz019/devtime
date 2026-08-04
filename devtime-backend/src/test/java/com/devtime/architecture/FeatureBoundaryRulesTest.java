@@ -42,7 +42,9 @@ class FeatureBoundaryRulesTest {
                     "attachment",
                     "worklog",
                     "timer",
-                    "notification");
+                    "notification",
+                    "dashboard",
+                    "report");
 
     private final JavaClasses production =
             new ClassFileImporter()

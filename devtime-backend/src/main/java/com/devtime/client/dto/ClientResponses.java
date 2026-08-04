@@ -95,6 +95,29 @@ public final class ClientResponses {
     @Schema(name = "ClientRef")
     public record ClientRef(UUID id, String name, String color) {}
 
+    /**
+     * Cliente como o cabeçalho de um relatório precisa dele (RN-703, {@code reports.md} §6).
+     *
+     * <p>Distinta de {@link ClientRef} porque um documento enviado ao cliente final o identifica
+     * pela razão social e pelo documento fiscal, não pelo nome curto e pela cor da etiqueta.
+     * Distinta de {@link ClientResponse} porque aquela carrega contatos, contadores e ações
+     * disponíveis — dados de tela que não pertencem a um cabeçalho congelado em snapshot.
+     *
+     * <p>É esta a forma que {@code 011} grava no payload do snapshot no fechamento (ADR-036 RP-01):
+     * o valor, nunca o ponteiro. Guardar apenas {@code clientId} faria o nome vir da tabela e,
+     * portanto, mudar quando o cadastro fosse corrigido — exatamente o que RN-701 impede.
+     */
+    @Schema(name = "ClientReportParty")
+    public record ClientReportParty(
+            UUID id,
+            String name,
+            String legalName,
+            String documentType,
+            String documentNumber,
+            String email,
+            String phone,
+            AddressResponse address) {}
+
     /** clients.md §9.2. */
     @Schema(name = "ClientDeactivationResponse")
     public record ClientDeactivationResponse(ClientStatus status, DeactivationImpact impact) {}

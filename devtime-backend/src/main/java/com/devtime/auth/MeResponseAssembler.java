@@ -1,5 +1,6 @@
 package com.devtime.auth;
 
+import com.devtime.auth.dto.AuthResponses.MeActiveTimer;
 import com.devtime.auth.dto.AuthResponses.MeMembership;
 import com.devtime.auth.dto.AuthResponses.MeResponse;
 import com.devtime.auth.dto.AuthResponses.MeTenant;
@@ -8,6 +9,7 @@ import com.devtime.tenant.TenantSettingsService;
 import com.devtime.tenant.dto.TenantViews.MembershipView;
 import com.devtime.tenant.dto.TenantViews.TenantOption;
 import com.devtime.tenant.dto.TenantViews.TenantView;
+import com.devtime.timer.TimerQueryService;
 import com.devtime.user.dto.UserAccount;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -50,6 +52,7 @@ public class MeResponseAssembler {
 
     private final AuthSessionAssembler sessionAssembler;
     private final TenantSettingsService tenantSettingsService;
+    private final TimerQueryService timerQueryService;
     private final ObjectMapper objectMapper;
 
     public MeResponse assemble(
@@ -62,7 +65,34 @@ public class MeResponseAssembler {
                 toTenant(tenant),
                 new MeMembership(membership.id(), membership.role(), membership.status().name()),
                 sessionAssembler.permissionsOf(membership.role()),
-                sessionAssembler.toOptions(availableTenants));
+                sessionAssembler.toOptions(availableTenants),
+                activeTimer());
+    }
+
+    /**
+     * §5.10: cronômetro em andamento, ou nulo (ver {@link MeActiveTimer}).
+     *
+     * <p>A falha é engolida por decisão: {@code /auth/me} é o que carrega a aplicação inteira, e um
+     * defeito na feature de cronômetro não pode impedir alguém de entrar no sistema. O mesmo
+     * critério do JSON de preferências ilegível, algumas linhas abaixo.
+     */
+    private MeActiveTimer activeTimer() {
+        try {
+            return timerQueryService
+                    .current()
+                    .map(
+                            timer ->
+                                    new MeActiveTimer(
+                                            timer.id(),
+                                            timer.status(),
+                                            timer.ticket() == null ? null : timer.ticket().key(),
+                                            timer.startedAt(),
+                                            timer.accumulatedActiveSeconds()))
+                    .orElse(null);
+        } catch (RuntimeException failure) {
+            log.warn("cronômetro ativo indisponível para /auth/me", failure);
+            return null;
+        }
     }
 
     private MeUser toUser(UserAccount account, TenantView tenant) {

@@ -39,4 +39,22 @@ public interface PeriodAdjustmentRepository extends SoftDeleteRepository<PeriodA
              WHERE a.contractPeriodId = :periodId
             """)
     int sumMinutesByPeriod(@Param("periodId") UUID periodId);
+
+    /**
+     * RN-230: o débito de expiração já foi aplicado a este período?
+     *
+     * <p>É a {@code dedupeKey} por período exigida em §22.4, obtida do que já existe: o ajuste é
+     * imutável (RN-236) e a justificativa é normativa, então a presença de um ajuste automático com
+     * ela é evidência suficiente. Uma coluna de deduplicação seria um segundo lugar onde a mesma
+     * verdade poderia divergir.
+     */
+    @Query(
+            """
+            SELECT COUNT(a) > 0 FROM PeriodAdjustment a
+             WHERE a.contractPeriodId = :periodId
+               AND a.reason = com.devtime.contract.domain.AdjustmentReason.OTHER
+               AND a.justification = :justification
+            """)
+    boolean existsSystemExpiry(
+            @Param("periodId") UUID periodId, @Param("justification") String justification);
 }

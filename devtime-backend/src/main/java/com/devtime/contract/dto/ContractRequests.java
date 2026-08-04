@@ -134,4 +134,30 @@ public final class ContractRequests {
     @Schema(name = "ContractTransitionRequest")
     public record ContractTransitionRequest(
             @Size(max = 1000) String reason, LocalDate endDate, String confirmation) {}
+
+    /**
+     * Corpo da duplicação (contracts.md §4.1, {@code POST /contracts/{id}/duplicate}).
+     *
+     * <p><b>Lacuna de documentação, reportada e resolvida aqui:</b> §4.1 lista a rota e a permissão
+     * {@code CONTRACT_CREATE}, mas nenhum documento define corpo nem resposta. O corpo é
+     * inteiramente opcional porque o caso de uso da duplicação é "outro contrato como este": tudo é
+     * herdado, e o cliente informa apenas o que muda. Um corpo obrigatório repetindo vinte campos
+     * anularia a razão de a rota existir.
+     *
+     * <p>{@code code} está ausente de propósito: INV-CTR-01 exige unicidade, e reaproveitar o
+     * código da origem é o erro que a rota mais convidaria a cometer. A cópia recebe sempre um
+     * código sequencial novo.
+     *
+     * @param name nome da cópia; ausente gera {@code "<nome> (cópia)"}
+     * @param clientId cliente da cópia; ausente mantém o da origem — permite replicar um contrato
+     *     modelo para outro cliente, que é o caso de uso principal
+     * @param startDate início da cópia; ausente mantém o da origem
+     * @param endDate fim da cópia; ausente mantém o da origem
+     */
+    @Schema(name = "ContractDuplicateRequest")
+    public record ContractDuplicateRequest(
+            @Size(min = 2, max = 150) String name,
+            UUID clientId,
+            LocalDate startDate,
+            LocalDate endDate) {}
 }

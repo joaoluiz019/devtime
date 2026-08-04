@@ -44,6 +44,45 @@ public final class TicketResponses {
             UUID defaultCategoryId) {}
 
     /**
+     * Ticket como {@code 012-reports} precisa dele (AR-02, §7.3 de reports.md).
+     *
+     * <p>{@link TicketResponse} expõe {@code TicketType}, {@code TicketStatus} e {@code
+     * TicketPriority} — enums do domínio de {@code 007} que a feature consumidora não pode conhecer
+     * (ART-065). Distinta de {@link TicketDashboardItem} pelo que o cabeçalho de §7.3 exige e o
+     * painel não: {@code estimatedMinutes}, para a comparação entre estimativa e realizado, e o
+     * identificador do contrato, por onde o relatório chega ao cliente do cabeçalho — o ticket não
+     * guarda {@code clientId}, ele o herda do contrato (RN-301).
+     */
+    @Schema(name = "TicketReportRef")
+    public record TicketReportRef(
+            UUID id,
+            String key,
+            String title,
+            String status,
+            String priority,
+            Integer estimatedMinutes,
+            int spentMinutes,
+            UUID contractId) {}
+
+    /**
+     * Ticket aberto do usuário, como {@code 010-dashboard} precisa dele (AR-02).
+     *
+     * <p>{@link TicketSummaryResponse} expõe {@code TicketType}, {@code TicketStatus} e {@code
+     * TicketPriority} — enums do domínio de {@code 007} que o painel não pode conhecer. Aqui os
+     * três chegam como texto, que é o que a tela renderiza.
+     */
+    @Schema(name = "TicketDashboardItem")
+    public record TicketDashboardItem(
+            UUID id,
+            String key,
+            String title,
+            String status,
+            String priority,
+            String contractCode,
+            LocalDate dueDate,
+            int spentMinutes) {}
+
+    /**
      * Detalhe do ticket.
      *
      * @param key chave legível derivada de {@code {contract.code}-{number}}; nunca persistida

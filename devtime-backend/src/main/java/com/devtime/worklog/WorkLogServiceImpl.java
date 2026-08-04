@@ -1,5 +1,6 @@
 package com.devtime.worklog;
 
+import com.devtime.audit.AuditActorNameResolver;
 import com.devtime.audit.AuditService;
 import com.devtime.category.CategoryService;
 import com.devtime.category.dto.CategoryResponses.CategoryResponse;
@@ -29,6 +30,8 @@ import com.devtime.worklog.domain.WorkLogExceptions;
 import com.devtime.worklog.domain.WorkLogInterval;
 import com.devtime.worklog.domain.WorkLogSource;
 import com.devtime.worklog.dto.WorkLogFilter;
+import com.devtime.worklog.dto.WorkLogReportViews.ReportEntry;
+import com.devtime.worklog.dto.WorkLogReportViews.ReportEntryFilter;
 import com.devtime.worklog.dto.WorkLogRequests.WorkLogCreateRequest;
 import com.devtime.worklog.dto.WorkLogRequests.WorkLogDuplicateRequest;
 import com.devtime.worklog.dto.WorkLogRequests.WorkLogUpdateRequest;
@@ -84,6 +87,9 @@ public class WorkLogServiceImpl implements WorkLogService {
 
     private static final String ENTITY_TYPE = "WorkLog";
 
+    /** §19.1 e CX-16: rótulo de anonimização em período aberto. */
+    private static final String REMOVED_USER = "Usuário Removido";
+
     private final WorkLogRepository repository;
     private final WorkLogMapper mapper;
     private final WorkLogCalculator calculator;
@@ -106,6 +112,16 @@ public class WorkLogServiceImpl implements WorkLogService {
     private final CategoryService categoryService;
     private final TagLinkService tagLinkService;
     private final UserService userService;
+
+    /**
+     * CX-16: nome de exibição do autor de cada linha de relatório, em lote.
+     *
+     * <p>Vem de {@code audit} e não de {@link UserService} porque é a única porta que devolve o
+     * nome de quem <b>já saiu</b> do tenant sem reabrir o escopo de {@code MEMBER} — e é exatamente
+     * o caso que CX-16 descreve.
+     */
+    private final AuditActorNameResolver actorNames;
+
     private final TenantSettingsService tenantSettingsService;
     private final AuditService auditService;
     private final DomainEventPublisher events;
@@ -381,6 +397,24 @@ public class WorkLogServiceImpl implements WorkLogService {
         return repository.countByCategoryId(categoryId);
     }
 
+    /**
+     * RN-505 passo 6 (ver {@link WorkLogService#reassignCategory}).
+     *
+     * <p>Sem {@code @PreAuthorize}: quem chama é {@code 005}, que já exigiu {@code CATEGORY_MANAGE}
+     * — a permissão que governa o catálogo. Exigir aqui {@code WORKLOG_UPDATE_ANY} faria a exclusão
+     * de categoria depender de uma permissão sobre horas de terceiros que o dono do catálogo não
+     * precisa ter, e a migração não é uma edição de conteúdo: nenhum minuto muda.
+     */
+    @Override
+    @Transactional
+    public long reassignCategory(UUID fromCategoryId, UUID toCategoryId) {
+        return repository.reassignCategory(
+                fromCategoryId,
+                toCategoryId,
+                clock.now(),
+                tenantContext.currentUserId().orElse(null));
+    }
+
     @Override
     public int sumBillableMinutesByPeriod(UUID periodId) {
         return repository.sumBillableMinutesByPeriod(periodId);
@@ -401,21 +435,111 @@ public class WorkLogServiceImpl implements WorkLogService {
     public List<com.devtime.contract.dto.BalanceResponses.PeriodWorkLogEntry>
             findByPeriodForStatement(UUID periodId) {
         List<WorkLog> workLogs = repository.findByPeriod(periodId);
-        Map<UUID, String> ticketKeys = ticketKeysOf(workLogs);
+        // Três resoluções em lote, nunca por linha: um período com 5.000 registros pagaria 15.000
+        // consultas na versão ingênua, e este caminho roda dentro da transação de fechamento.
+        Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse> tickets =
+                ticketService.findRefsByIds(
+                        workLogs.stream().map(WorkLog::getTicketId).distinct().toList());
         Map<UUID, String> categoryNames = categoryNames();
+        Map<UUID, List<TagOptionResponse>> tags =
+                tagLinkService.findByWorkLogIds(workLogs.stream().map(WorkLog::getId).toList());
+
         return workLogs.stream()
                 .map(
                         workLog ->
                                 new com.devtime.contract.dto.BalanceResponses.PeriodWorkLogEntry(
                                         workLog.getId(),
                                         workLog.getWorkDate(),
-                                        ticketKeys.get(workLog.getTicketId()),
+                                        workLog.getStartedAt(),
+                                        workLog.getEndedAt(),
+                                        workLog.getTicketId(),
+                                        ticketKeyOf(tickets, workLog.getTicketId()),
+                                        ticketTitleOf(tickets, workLog.getTicketId()),
                                         categoryNames.get(workLog.getCategoryId()),
                                         workLog.getUserId(),
                                         workLog.getDescription(),
                                         workLog.getNetMinutes(),
                                         workLog.billableMinutes(),
-                                        workLog.isBillable()))
+                                        workLog.isBillable(),
+                                        tagNamesOf(tags, workLog.getId())))
+                .toList();
+    }
+
+    /**
+     * Linhas de relatório (ver {@link WorkLogService#findForReport}).
+     *
+     * <p>Sem {@code @PreAuthorize}: {@code 012} já verificou {@code REPORT_VIEW_*} e já resolveu o
+     * escopo em {@code filter.restrictToUserId()} (§6.2, CE-P-10). Repetir a verificação aqui
+     * criaria um segundo lugar onde a restrição pode divergir do que a policy decidiu.
+     *
+     * <p>A ordenação é aplicada na consulta, não em memória: um relatório de 50.000 linhas ordenado
+     * depois de carregado é exatamente o pico de memória que CP-13 proíbe.
+     */
+    @Override
+    public List<ReportEntry> findForReport(ReportEntryFilter filter) {
+        List<WorkLog> workLogs =
+                repository.findAll(
+                        WorkLogSpecifications.forReport(filter, tagFilterIds(filter)),
+                        // §6.3: data, ticketKey, startedAt. `ticketId` substitui `ticketKey` na
+                        // consulta porque a chave é derivada (RN-302) e não existe como coluna; o
+                        // desempate final por `startedAt` é o que torna a ordem total, e é a
+                        // totalidade — não o critério — que RN-708 exige.
+                        org.springframework.data.domain.Sort.by(
+                                "workDate", "ticketId", "startedAt"));
+        return toReportEntries(workLogs);
+    }
+
+    /** Contagem do mesmo recorte, sem materializar linha alguma (ver {@link WorkLogService}). */
+    @Override
+    public long countForReport(ReportEntryFilter filter) {
+        return repository.count(WorkLogSpecifications.forReport(filter, tagFilterIds(filter)));
+    }
+
+    /**
+     * Identificadores que satisfazem a conjunção de etiquetas, ou {@code null} quando não há filtro
+     * de etiqueta. {@code null} e lista vazia significam coisas opostas aqui (ver §77 de {@link
+     * WorkLogSpecifications}).
+     */
+    private List<UUID> tagFilterIds(ReportEntryFilter filter) {
+        return filter.tagIds() == null || filter.tagIds().isEmpty()
+                ? null
+                : tagLinkService.workLogIdsWithAllTags(filter.tagIds());
+    }
+
+    /** Rótulos resolvidos em lote — quatro consultas para N linhas, nunca 4N (§20). */
+    private List<ReportEntry> toReportEntries(List<WorkLog> workLogs) {
+        Map<UUID, TicketWorkLogRefResponse> tickets =
+                ticketService.findRefsByIds(
+                        workLogs.stream().map(WorkLog::getTicketId).distinct().toList());
+        Map<UUID, String> categoryNames = categoryNames();
+        Map<UUID, List<TagOptionResponse>> tags =
+                tagLinkService.findByWorkLogIds(workLogs.stream().map(WorkLog::getId).toList());
+        Map<UUID, String> userNames =
+                actorNames.namesOf(workLogs.stream().map(WorkLog::getUserId).distinct().toList());
+
+        return workLogs.stream()
+                .map(
+                        workLog ->
+                                new ReportEntry(
+                                        workLog.getId(),
+                                        workLog.getWorkDate(),
+                                        workLog.getStartedAt(),
+                                        workLog.getEndedAt(),
+                                        workLog.getTicketId(),
+                                        ticketKeyOf(tickets, workLog.getTicketId()),
+                                        ticketTitleOf(tickets, workLog.getTicketId()),
+                                        workLog.getCategoryId(),
+                                        categoryNames.get(workLog.getCategoryId()),
+                                        workLog.getUserId(),
+                                        // CX-16: quem saiu do tenant não tem nome a resolver, e o
+                                        // relatório precisa dizer isso em vez de deixar a célula
+                                        // vazia — uma linha sem autor parece defeito.
+                                        userNames.getOrDefault(workLog.getUserId(), REMOVED_USER),
+                                        workLog.getDescription(),
+                                        workLog.getNetMinutes(),
+                                        workLog.billableMinutes(),
+                                        workLog.isBillable(),
+                                        tagNamesOf(tags, workLog.getId())))
                 .toList();
     }
 
@@ -726,11 +850,48 @@ public class WorkLogServiceImpl implements WorkLogService {
         return keys;
     }
 
-    /** As categorias do tenant cabem em uma consulta; resolvê-las por linha seria N+1. */
+    /**
+     * Rótulos do ticket resolvidos para o snapshot e o extrato.
+     *
+     * <p>Um ticket ausente do mapa não é erro: o registro pode apontar para um ticket excluído
+     * logicamente, e o snapshot precisa ser gerado mesmo assim. Devolver {@code null} deixaria o
+     * relatório com uma célula vazia sem explicação, então o rótulo diz o que aconteceu.
+     */
+    private String ticketKeyOf(
+            Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse> tickets,
+            UUID ticketId) {
+        var ref = tickets.get(ticketId);
+        return ref == null ? null : ref.key();
+    }
+
+    private String ticketTitleOf(
+            Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse> tickets,
+            UUID ticketId) {
+        var ref = tickets.get(ticketId);
+        return ref == null ? null : ref.title();
+    }
+
+    /**
+     * Nomes, não identificadores: o snapshot continua legível depois de a etiqueta ser renomeada.
+     */
+    private List<String> tagNamesOf(Map<UUID, List<TagOptionResponse>> tags, UUID workLogId) {
+        return tags.getOrDefault(workLogId, List.of()).stream()
+                .map(TagOptionResponse::name)
+                .toList();
+    }
+
+    /**
+     * As categorias do tenant cabem em uma consulta; resolvê-las por linha seria N+1.
+     *
+     * <p>{@code getAllForReport} e não {@code list}: um registro cuja categoria foi excluída depois
+     * continua tendo sido daquela categoria, e exibi-lo sem rótulo faria a linha parecer defeituosa
+     * (CX-04 de {@code 012}, OB-04 de {@code 005}). A escolha também dispensa {@code
+     * CATEGORY_VIEW}, que quem consulta horas não precisa ter.
+     */
     private Map<UUID, String> categoryNames() {
         Map<UUID, String> names = new HashMap<>();
         categoryService
-                .list(null, null)
+                .getAllForReport()
                 .forEach(category -> names.put(category.id(), category.name()));
         return names;
     }

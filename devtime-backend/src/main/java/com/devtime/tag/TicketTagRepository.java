@@ -66,4 +66,18 @@ public interface TicketTagRepository extends JpaRepository<TicketTagLink, Ticket
     @Modifying
     @Query("DELETE FROM TicketTagLink l WHERE l.ticketId = :ticketId")
     int deleteByTicketId(@Param("ticketId") UUID ticketId);
+
+    /**
+     * INV-TAG-04: contagem real de vínculos por etiqueta, para a reconciliação noturna.
+     *
+     * <p>Uma consulta agrupada, nunca uma por etiqueta (CP-12): um tenant com centenas de etiquetas
+     * transformaria o job em centenas de consultas por noite.
+     */
+    @Query(
+            """
+            SELECT new com.devtime.tag.TagLinkCount(l.tagId, COUNT(l))
+              FROM TicketTagLink l
+             GROUP BY l.tagId
+            """)
+    List<TagLinkCount> countLinksByTag();
 }

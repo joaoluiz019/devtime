@@ -142,4 +142,32 @@ public interface MembershipRepository extends SoftDeleteRepository<Membership> {
     List<Membership> findExpiredInvitations(
             @Param("threshold") java.time.Instant threshold,
             org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * RN-008 / §19.1: usuários cujo único vínculo era o tenant purgado.
+     *
+     * <p>{@code @CrossTenant} por necessidade: a pergunta é justamente "existe vínculo em
+     * <b>outra</b> organização?", e com o filtro ativo ela seria inexprimível. O escopo permanece
+     * estreito — a consulta parte dos vínculos do tenant sendo purgado, nunca de um identificador
+     * de requisição.
+     *
+     * <p>Vínculos excluídos logicamente não contam como "outra organização": o
+     * {@code @SQLRestriction} da entidade já os remove, e um membership removido não é razão para
+     * preservar dado pessoal.
+     */
+    @CrossTenant(
+            reason =
+                    "RN-008: a purga só pode anonimizar quem não participa de nenhuma outra"
+                            + " organização, e essa verificação atravessa tenants por definição. O"
+                            + " conjunto de partida são os vínculos do tenant já purgado.")
+    @Query(
+            """
+            SELECT m.userId FROM Membership m
+             WHERE m.tenantId = :purgedTenantId
+               AND NOT EXISTS (
+                     SELECT 1 FROM Membership other
+                      WHERE other.userId = m.userId
+                        AND other.tenantId <> :purgedTenantId)
+            """)
+    List<UUID> findUserIdsOnlyIn(@Param("purgedTenantId") UUID purgedTenantId);
 }

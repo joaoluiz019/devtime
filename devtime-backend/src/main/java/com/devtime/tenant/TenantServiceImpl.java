@@ -167,6 +167,24 @@ public class TenantServiceImpl implements TenantService {
         return mapper.toResponse(tenant, settingsService.settingsOf(tenant.getId()));
     }
 
+    /** Emissora do relatório (ver {@link TenantService#issuer()}). */
+    @Override
+    public com.devtime.tenant.dto.TenantViews.TenantIssuer issuer() {
+        Tenant tenant = requireCurrent();
+        return new com.devtime.tenant.dto.TenantViews.TenantIssuer(
+                tenant.getId(),
+                tenant.getName(),
+                tenant.getLegalName(),
+                tenant.getDocumentNumber(),
+                tenant.getEmail(),
+                tenant.getPhone(),
+                tenant.getLogoUrl(),
+                tenant.getAddress(),
+                tenant.getTimezone(),
+                tenant.getLocale(),
+                tenant.getCurrency());
+    }
+
     @Override
     @Transactional
     @PreAuthorize("hasPermission(null, 'TENANT_UPDATE')")
@@ -320,6 +338,15 @@ public class TenantServiceImpl implements TenantService {
                 repository.findPurgeDue(clock.instant(), PageRequest.of(0, PURGE_BATCH_SIZE));
         due.forEach(
                 tenant -> {
+                    // §19.1: a anonimização vem ANTES da exclusão da organização. Depois dela, os
+                    // vínculos que respondem "esta pessoa participa de outra organização?" já
+                    // teriam
+                    // ido junto, e a purga deixaria dado pessoal para trás sem nada que o
+                    // apontasse.
+                    int anonymized =
+                            userAccountService.anonymize(
+                                    membershipRepository.findUserIdsOnlyIn(tenant.getId()));
+
                     repository.delete(
                             tenant); // Soft delete: SoftDeleteRepository preenche deletedAt.
                     auditService.recordSystemAction(
@@ -328,7 +355,9 @@ public class TenantServiceImpl implements TenantService {
                             tenant.getId(),
                             Map.of(
                                     "purgeScheduledAt",
-                                    String.valueOf(tenant.getPurgeScheduledAt())));
+                                    String.valueOf(tenant.getPurgeScheduledAt()),
+                                    "anonymizedUsers",
+                                    String.valueOf(anonymized)));
                 });
         return due.size();
     }

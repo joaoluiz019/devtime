@@ -45,8 +45,13 @@ public class PeriodAdjustment extends TenantScopedEntity {
     @Column(name = "justification", nullable = false, updatable = false, columnDefinition = "text")
     private String justification;
 
-    /** 🔒 sempre o usuário autenticado, ou nulo em ajuste automático de sistema (RN-230). */
-    @Column(name = "applied_by", nullable = false, updatable = false)
+    /**
+     * 🔒 sempre o usuário autenticado, ou nulo em ajuste automático de sistema (RN-230).
+     *
+     * <p>{@code nullable = true} desde {@code V034}: até ela, a coluna era {@code NOT NULL} e o
+     * ajuste de expiração de FA-14 — que não tem autor humano — não chegava a ser gravado.
+     */
+    @Column(name = "applied_by", updatable = false)
     private UUID appliedBy;
 
     @Column(name = "applied_at", nullable = false, updatable = false)

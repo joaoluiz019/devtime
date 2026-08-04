@@ -39,6 +39,35 @@ public class ContractPeriodServiceImpl implements ContractPeriodService {
                                 () -> EntityNotFoundException.of(ContractPeriod.class, periodId)));
     }
 
+    /**
+     * Ver {@link ContractPeriodService#getReportRef(UUID)}.
+     *
+     * <p>{@code isStarted} exclui apenas {@code SCHEDULED}: {@code CLOSING} é um fechamento em
+     * curso e o ciclo já ocorreu, então o relatório dele existe — parcial, porque o snapshot é o
+     * passo 4 de RN-241 e ainda pode não ter sido gravado.
+     */
+    @Override
+    @PreAuthorize("hasPermission(null, 'PERIOD_VIEW')")
+    public com.devtime.contract.dto.ContractResponses.PeriodReportRef getReportRef(UUID periodId) {
+        ContractPeriod period =
+                repository
+                        .findById(periodId)
+                        .orElseThrow(
+                                () -> EntityNotFoundException.of(ContractPeriod.class, periodId));
+        return new com.devtime.contract.dto.ContractResponses.PeriodReportRef(
+                period.getId(),
+                period.getContractId(),
+                period.getSequence(),
+                period.getLabel(),
+                period.getStartDate(),
+                period.getEndDate(),
+                period.getStatus().name(),
+                period.getStatus() == PeriodStatus.CLOSED,
+                period.getStatus() != PeriodStatus.SCHEDULED,
+                period.getReopenCount(),
+                period.getCurrency());
+    }
+
     @Override
     @PreAuthorize("hasPermission(null, 'PERIOD_VIEW')")
     public Optional<ContractPeriodResponse> getCurrentPeriod(UUID contractId) {

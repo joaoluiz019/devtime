@@ -8,6 +8,7 @@ import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.support.FeatureTestSupport;
 import com.devtime.tag.dto.TagRequests.TagCreateRequest;
 import com.devtime.tag.dto.TagRequests.TagUpdateRequest;
+import com.devtime.tag.dto.TagResponses.TagOptionResponse;
 import com.devtime.tag.dto.TagResponses.TagResponse;
 import java.util.List;
 import java.util.UUID;
@@ -237,5 +238,21 @@ class TagServiceIntegrationTest extends FeatureTestSupport {
         List<TagResponse> tags = asOwnerOfA(() -> tagService.search(null, null));
 
         assertThat(tags).extracting(TagResponse::name).containsExactly("alfa", "beta");
+    }
+
+    @Test
+    @DisplayName("spec 006 §22: getAllForReport inclui etiquetas excluídas, restrito ao tenant")
+    void getAllForReportShouldIncludeDeletedTags() {
+        UUID deletedId =
+                asOwnerOfA(() -> tagService.create(new TagCreateRequest("obsoleta", null)).id());
+        asOwnerOfA(() -> tagService.delete(deletedId));
+        asOwnerOfB(() -> tagService.create(new TagCreateRequest("do-tenant-b", null)));
+
+        assertThat(asOwnerOfA(() -> tagService.search(null, null)))
+                .as("a listagem padrão respeita RN-003")
+                .isEmpty();
+        assertThat(asOwnerOfA(() -> tagService.getAllForReport()))
+                .extracting(TagOptionResponse::name)
+                .containsExactly("obsoleta");
     }
 }

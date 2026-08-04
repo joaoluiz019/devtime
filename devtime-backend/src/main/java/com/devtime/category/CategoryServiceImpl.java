@@ -1,5 +1,6 @@
 package com.devtime.category;
 
+import com.devtime.audit.AuditService;
 import com.devtime.category.domain.Category;
 import com.devtime.category.domain.CategoryExceptions;
 import com.devtime.category.domain.DefaultCategoryCatalog;
@@ -17,6 +18,7 @@ import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,9 @@ import org.springframework.transaction.annotation.Transactional;
 public class CategoryServiceImpl implements CategoryService {
 
     private final CategoryRepository repository;
+    private final CategoryHistoryRepository historyRepository;
+    private final CategoryWorkLogSource workLogSource;
+    private final AuditService auditService;
     private final CategoryMapper mapper;
     private final CategoryNameUniquenessValidator nameUniquenessValidator;
     private final SystemCategoryGuard systemCategoryGuard;
@@ -63,6 +68,33 @@ public class CategoryServiceImpl implements CategoryService {
     @PreAuthorize("hasPermission(null, 'CATEGORY_VIEW')")
     public List<CategoryResponse> listActive() {
         return mapper.toResponses(repository.findActiveOrdered());
+    }
+
+    /**
+     * Catálogo histórico (ver {@link CategoryService#getAllForReport()}).
+     *
+     * <p>Sem {@code @PreAuthorize}: quem chama são {@code 010} e {@code 012}, que já verificaram
+     * {@code DASHBOARD_VIEW}/{@code REPORT_VIEW_*} e cujo consumidor é um rótulo de linha, não uma
+     * lista de opções. Exigir {@code CATEGORY_VIEW} aqui faria um relatório falhar para quem tem
+     * permissão de relatório e não de catálogo.
+     */
+    @Override
+    public List<CategoryResponse> getAllForReport() {
+        return historyRepository.findAllIncludingDeleted().stream()
+                .map(
+                        category ->
+                                new CategoryResponse(
+                                        category.getId(),
+                                        category.getName(),
+                                        category.getDescription(),
+                                        category.getColor(),
+                                        category.getIcon(),
+                                        category.isBillableByDefault(),
+                                        category.isActive(),
+                                        category.getSortOrder(),
+                                        category.isSystem(),
+                                        category.getVersion() == null ? 0L : category.getVersion()))
+                .toList();
     }
 
     @Override
@@ -152,11 +184,13 @@ public class CategoryServiceImpl implements CategoryService {
     /**
      * Exclusão lógica na ordem normativa da §6.1 da spec.
      *
-     * <p>A migração de work logs (passo 6, RN-505) não é executada nesta sprint: a tabela {@code
-     * work_logs} só existe a partir de {@code 008-worklogs}. Enquanto ela não existe, nenhuma
-     * categoria possui vínculos e a contagem migrada é sempre zero. Os passos 1 a 5 e 7 estão
-     * integralmente implementados, e a substituta informada continua sendo validada — é o passo que
-     * protege INV-CAT-04 quando a migração entrar.
+     * <p>A ordem é normativa e não preferência: o passo 3 (sistema) precede o 4 (vínculos) para não
+     * fazer o usuário escolher uma substituta que seria descartada, e o 5 (validar a substituta)
+     * precede o 6 (migrar) porque migrar para uma categoria inválida corromperia os registros de
+     * forma difícil de reverter.
+     *
+     * <p>Migrar e excluir na mesma transação é o que sustenta INV-CAT-04: um work log sem categoria
+     * válida não chega a existir nem por um instante observável.
      */
     @Override
     @Transactional
@@ -165,16 +199,41 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = require(id); // passo 2
         systemCategoryGuard.assertDeletable(category); // passo 3 — RN-503
 
+        long linkedWorkLogs = workLogSource.countByCategory(id);
+        if (linkedWorkLogs > 0 && replacementCategoryId == null) {
+            // passo 4 — RN-505: com vínculos, a substituta é obrigatória.
+            throw CategoryExceptions.replacementRequired(id, linkedWorkLogs);
+        }
+
         UUID migratedTo = null;
+        long migratedWorkLogs = 0L;
         if (replacementCategoryId != null) {
             // passo 5 — users.md §8.3: valida antes de qualquer efeito (BR-072).
             migratedTo = replacementValidator.require(replacementCategoryId, id).getId();
+            // passo 6 — RN-505.
+            migratedWorkLogs = workLogSource.reassignCategory(id, migratedTo);
         }
 
         // passo 7 — RN-003: exclusão lógica.
         repository.softDelete(id, clock.now(), tenantContext.currentUserId().orElse(null));
-        log.info("categoria excluída categoryId={} migratedTo={}", id, migratedTo);
-        return new CategoryDeletionResponse(0L, migratedTo);
+        auditService.record(
+                "CATEGORY_DELETED",
+                "Category",
+                id,
+                Map.of("name", category.getName(), "workLogsCount", linkedWorkLogs),
+                Map.of(
+                        "deletedAt",
+                        clock.now().toString(),
+                        "migratedTo",
+                        migratedTo == null ? "" : migratedTo.toString(),
+                        "migratedWorkLogs",
+                        migratedWorkLogs));
+        log.info(
+                "categoria excluída categoryId={} migratedTo={} migratedWorkLogs={}",
+                id,
+                migratedTo,
+                migratedWorkLogs);
+        return new CategoryDeletionResponse(migratedWorkLogs, migratedTo);
     }
 
     @Override

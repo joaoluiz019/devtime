@@ -131,4 +131,24 @@ public interface UserAccountService {
      */
     void updateNotificationPreferences(
             UUID userId, Boolean emailNotifications, java.util.List<String> mutedNotificationTypes);
+
+    /**
+     * RN-008 / §19.1: anonimiza contas na purga da organização.
+     *
+     * <p>Interface pública para {@code TenantPurgeJob}. Quem decide <b>quais</b> contas ficaram sem
+     * organização é {@code tenant}, dono de {@code memberships}; quem sabe o que é dado pessoal em
+     * {@code users} é esta feature.
+     *
+     * <p>Anonimizar e não excluir: a conta é referenciada por work logs, tickets, comentários e
+     * trilha de auditoria de <b>outros</b> tenants ou de registros já congelados em snapshot. Um
+     * {@code DELETE} deixaria essas referências penduradas; a substituição de §19.1 — e-mail por
+     * {@code usuario-{hash}@anonimizado.local}, nome por {@code Usuário Removido} — remove o dado
+     * pessoal e preserva a integridade referencial.
+     *
+     * <p>O {@code passwordHash} é descartado, não anonimizado: §19.1 o proíbe em exportação e a
+     * conta anonimizada não deve poder autenticar por caminho algum.
+     *
+     * @return quantidade de contas anonimizadas; contas já anonimizadas não são contadas de novo
+     */
+    int anonymize(java.util.Collection<UUID> userIds);
 }

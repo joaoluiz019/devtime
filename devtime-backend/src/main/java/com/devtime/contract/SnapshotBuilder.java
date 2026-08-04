@@ -37,8 +37,21 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class SnapshotBuilder {
 
-    /** Versão do formato do payload; incrementada quando a estrutura mudar (entities.md §6.9). */
-    public static final int SCHEMA_VERSION = 1;
+    /**
+     * Versão do formato do payload; incrementada quando a estrutura mudar (entities.md §6.9).
+     *
+     * <p><b>Versão 2</b> acrescentou os blocos {@code issuer}, {@code client} e {@code contract} e
+     * os campos {@code startedAt}, {@code endedAt}, {@code ticketTitle}, {@code userName}, {@code
+     * billable} e {@code tags} nas linhas. Sem eles, ADR-036 RP-01 ficava descumprido: o payload
+     * guardava o <b>ponteiro</b> ({@code contractId}) e não o <b>valor</b>, de modo que um
+     * relatório de período fechado precisaria ler o nome do cliente da tabela — e ele muda. RN-701
+     * e ART-005 exigem o contrário.
+     *
+     * <p>Snapshots gravados na versão 1 <b>não</b> são migrados (RP-03: append-only, imutável). O
+     * leitor de {@code 012} devolve os blocos ausentes como vazios, que é a informação honesta: o
+     * dado não foi congelado no fechamento e não pode ser reconstruído sem falsificá-lo.
+     */
+    public static final int SCHEMA_VERSION = 2;
 
     private final ObjectMapper objectMapper;
 
@@ -46,12 +59,43 @@ public class SnapshotBuilder {
     public record SnapshotWorkLog(
             String id,
             String workDate,
+            String startedAt,
+            String endedAt,
             String ticketKey,
+            String ticketTitle,
             String categoryName,
             String userId,
+            String userName,
             String description,
             int netMinutes,
-            int billableMinutes) {}
+            int billableMinutes,
+            boolean billable,
+            List<String> tags) {}
+
+    /**
+     * Dados cadastrais congelados no fechamento (ADR-036 RP-01, RN-703).
+     *
+     * <p>Deliberadamente denormalizado e redundante — é a função do snapshot. {@code hourlyRate} e
+     * {@code overageRate} vêm como texto porque {@code BigDecimal} serializado como número perderia
+     * a escala de quatro casas de ART-040 na ida e na volta.
+     */
+    public record SnapshotParties(
+            String issuerName,
+            String issuerLegalName,
+            String issuerDocumentNumber,
+            String issuerEmail,
+            String issuerPhone,
+            String issuerLogoUrl,
+            String clientName,
+            String clientLegalName,
+            String clientDocumentNumber,
+            String contractCode,
+            String contractName,
+            String contractType,
+            Integer contractMonthlyMinutes,
+            String hourlyRate,
+            String overageRate,
+            String locale) {}
 
     public PeriodSnapshot build(
             ContractPeriod period,
@@ -59,9 +103,17 @@ public class SnapshotBuilder {
             int carriedOutMinutes,
             List<SnapshotWorkLog> workLogs,
             List<PeriodAdjustment> adjustments,
+            SnapshotParties parties,
             Instant snapshotAt) {
         String payload =
-                serialize(period, balance, carriedOutMinutes, workLogs, adjustments, snapshotAt);
+                serialize(
+                        period,
+                        balance,
+                        carriedOutMinutes,
+                        workLogs,
+                        adjustments,
+                        parties,
+                        snapshotAt);
 
         PeriodSnapshot snapshot = new PeriodSnapshot();
         snapshot.setContractPeriodId(period.getId());
@@ -91,12 +143,16 @@ public class SnapshotBuilder {
             int carriedOutMinutes,
             List<SnapshotWorkLog> workLogs,
             List<PeriodAdjustment> adjustments,
+            SnapshotParties parties,
             Instant snapshotAt) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("schemaVersion", SCHEMA_VERSION);
         payload.put("snapshotAt", snapshotAt.toString());
         payload.put("tenantId", period.getTenantId().toString());
         payload.put("contractId", period.getContractId().toString());
+        payload.put("issuer", issuerBlock(parties));
+        payload.put("client", clientBlock(parties));
+        payload.put("contract", contractBlock(parties));
         payload.put("period", periodBlock(period, carriedOutMinutes));
         payload.put("totals", totalsBlock(balance, carriedOutMinutes));
         payload.put("workLogs", workLogs);
@@ -112,6 +168,46 @@ public class SnapshotBuilder {
         } catch (JsonProcessingException failure) {
             throw new IllegalStateException("Falha ao serializar o snapshot do período", failure);
         }
+    }
+
+    /**
+     * Emissor do documento, congelado (RN-703).
+     *
+     * <p>{@code LinkedHashMap} e não {@code Map.of}: o payload aceita valor nulo — razão social e
+     * documento fiscal são opcionais no cadastro —, e {@code Map.of} rejeita nulo. Omitir a chave
+     * quando o valor é nulo produziria payloads com conjuntos de chaves diferentes para o mesmo
+     * conteúdo lógico, o que dificulta a leitura no futuro sem ganhar nada.
+     */
+    private Map<String, Object> issuerBlock(SnapshotParties parties) {
+        Map<String, Object> block = new LinkedHashMap<>();
+        block.put("name", parties.issuerName());
+        block.put("legalName", parties.issuerLegalName());
+        block.put("documentNumber", parties.issuerDocumentNumber());
+        block.put("email", parties.issuerEmail());
+        block.put("phone", parties.issuerPhone());
+        block.put("logoUrl", parties.issuerLogoUrl());
+        block.put("locale", parties.locale());
+        return block;
+    }
+
+    private Map<String, Object> clientBlock(SnapshotParties parties) {
+        Map<String, Object> block = new LinkedHashMap<>();
+        block.put("name", parties.clientName());
+        block.put("legalName", parties.clientLegalName());
+        block.put("documentNumber", parties.clientDocumentNumber());
+        return block;
+    }
+
+    private Map<String, Object> contractBlock(SnapshotParties parties) {
+        Map<String, Object> block = new LinkedHashMap<>();
+        block.put("code", parties.contractCode());
+        block.put("name", parties.contractName());
+        block.put("type", parties.contractType());
+        block.put("monthlyMinutes", parties.contractMonthlyMinutes());
+        // Texto, não número: a escala de 4 casas de ART-040 não sobrevive à ida e volta por double.
+        block.put("hourlyRate", parties.hourlyRate());
+        block.put("overageRate", parties.overageRate());
+        return block;
     }
 
     private Map<String, Object> periodBlock(ContractPeriod period, int carriedOutMinutes) {

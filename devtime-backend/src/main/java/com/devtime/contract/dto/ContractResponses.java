@@ -141,6 +141,82 @@ public final class ContractResponses {
     @Schema(name = "MaintenanceTarget")
     public record MaintenanceTarget(UUID tenantId, UUID entityId, UUID contractId) {}
 
+    /**
+     * Cartão de contrato do painel (specs/010 §23, {@code ContractStatusDto}).
+     *
+     * <p>Interface pública para {@code 010-dashboard}. Carrega o que o painel precisa e que a
+     * listagem de contratos não oferece: o período <b>corrente</b> já resolvido e os {@code
+     * notificationThresholds}, sem os quais o painel derivaria severidade por 50/80/100 fixos — o
+     * que CP-04 daquela spec proíbe justamente porque divergiria do alerta por e-mail do mesmo
+     * contrato (RN-602).
+     *
+     * <p>Nenhum campo monetário: {@code ContractStatusDto} de §23 e o exemplo de reports.md §10.1
+     * não expõem valor algum, o que satisfaz INV-DSH-04 por construção em vez de por omissão
+     * condicional.
+     *
+     * <p>{@code periodId} é nulo apenas em contrato sem nenhum período materializado — situação
+     * transitória entre a criação e a ativação (RN-209).
+     */
+    @Schema(name = "ContractDashboardCard")
+    public record ContractDashboardCard(
+            UUID contractId,
+            String code,
+            String name,
+            UUID clientId,
+            UUID periodId,
+            String periodLabel,
+            LocalDate periodStartDate,
+            LocalDate periodEndDate,
+            LocalDate contractEndDate,
+            List<Integer> notificationThresholds) {}
+
+    /**
+     * Contrato como {@code 012-reports} precisa dele (AR-02, ART-065).
+     *
+     * <p>{@link ContractResponse} expõe {@code ContractType}, {@code ContractStatus}, {@code
+     * RolloverPolicy} e {@code OveragePolicy} — enums do domínio de {@code 004} que a feature
+     * consumidora não pode conhecer. Aqui o tipo chega como texto, que é o que o cabeçalho do
+     * relatório imprime.
+     *
+     * <p>{@code hourlyRate} e {@code overageRate} continuam sujeitos a {@code
+     * CONTRACT_VIEW_FINANCIAL} (SG-03): a omissão acontece nesta feature, que é a dona da regra, e
+     * não em quem consome — o relatório recebe nulo e omite as colunas sem saber por quê (CP-03).
+     */
+    @Schema(name = "ContractReportRef")
+    public record ContractReportRef(
+            UUID id,
+            String code,
+            String name,
+            String type,
+            Integer monthlyMinutes,
+            BigDecimal hourlyRate,
+            BigDecimal overageRate,
+            String currency,
+            UUID clientId) {}
+
+    /**
+     * Período como {@code 012-reports} precisa dele (AR-02, RN-701).
+     *
+     * <p>{@link ContractPeriodResponse} expõe {@code PeriodStatus}, e a decisão que o relatório
+     * realmente precisa tomar — servir do snapshot ou calcular ao vivo (§6.1 de specs/012) — chega
+     * aqui <b>calculada</b>, em {@code isClosed} e {@code isStarted}. É a mesma inversão de {@code
+     * ContractRefResponse.acceptsWorkLogs}: quem é dono da máquina de estados decide o que ela
+     * significa, e o consumidor não replica a tabela de status.
+     */
+    @Schema(name = "PeriodReportRef")
+    public record PeriodReportRef(
+            UUID id,
+            UUID contractId,
+            int sequence,
+            String label,
+            LocalDate startDate,
+            LocalDate endDate,
+            String status,
+            boolean isClosed,
+            boolean isStarted,
+            int reopenCount,
+            String currency) {}
+
     /** Item de {@code periodsPreview} (contracts.md §5 e §6). */
     @Schema(name = "PeriodPreviewItem")
     public record PeriodPreviewItem(

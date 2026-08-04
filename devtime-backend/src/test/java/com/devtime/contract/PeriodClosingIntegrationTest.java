@@ -39,6 +39,8 @@ class PeriodClosingIntegrationTest extends FeatureTestSupport {
     @Autowired private PeriodStatementService statementService;
     @Autowired private WorkLogService workLogService;
     @Autowired private TimerService timerService;
+    @Autowired private ContractPeriodRepository periodRepository;
+    @Autowired private ContractService contractService;
     @Autowired private WorkLogScenario scenario;
 
     @Test
@@ -276,6 +278,74 @@ class PeriodClosingIntegrationTest extends FeatureTestSupport {
     }
 
     // ── Apoio ────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("contracts.md §8.2/§8.4: cronômetro ativo impede suspender e encerrar (2212)")
+    void activeTimerBlocksSuspendAndEnd() {
+        var setup = asOwnerOfA(scenario::create);
+        asOwnerOfA(
+                () ->
+                        timerService.start(
+                                new TimerStartRequest(
+                                        setup.ticket().id(), setup.category().id(), null, true),
+                                false));
+
+        assertThatThrownBy(
+                        () ->
+                                asOwnerOfA(
+                                        () ->
+                                                contractService.suspend(
+                                                        setup.contract().id(),
+                                                        new com.devtime.contract.dto
+                                                                .ContractRequests
+                                                                .ContractTransitionRequest(
+                                                                "Pausa acordada com o cliente",
+                                                                null,
+                                                                null))))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(hasCode(ErrorCode.CONTRACT_HAS_ACTIVE_TIMER));
+
+        assertThatThrownBy(
+                        () ->
+                                asOwnerOfA(
+                                        () ->
+                                                contractService.end(
+                                                        setup.contract().id(),
+                                                        new com.devtime.contract.dto
+                                                                .ContractRequests
+                                                                .ContractTransitionRequest(
+                                                                "Fim de vigência", null, null))))
+                .isInstanceOf(BusinessRuleException.class)
+                .satisfies(hasCode(ErrorCode.CONTRACT_HAS_ACTIVE_TIMER));
+    }
+
+    @Test
+    @DisplayName("RN-229/FA-10: sem período seguinte, o fechamento cria o sucessor e transporta")
+    void closingCreatesSuccessorWhenMissing() {
+        var setup = asOwnerOfA(scenario::create);
+        asOwnerOfA(() -> workLogService.create(workLogRequest(setup)));
+
+        ClosePeriodResponse closed =
+                asOwnerOfA(() -> closingService.close(setup.period().id(), confirmedClose()));
+
+        var periods =
+                asOwnerOfA(
+                        () ->
+                                periodRepository.findByContractIdOrderBySequence(
+                                        setup.contract().id()));
+        assertThat(periods).hasSize(2);
+        var successor = periods.get(1);
+        assertThat(successor.getStatus())
+                .as("nasce SCHEDULED: o ciclo seguinte só vale a partir do seu startDate")
+                .isEqualTo(com.devtime.contract.domain.PeriodStatus.SCHEDULED);
+        assertThat(successor.getSequence()).isEqualTo(periods.get(0).getSequence() + 1);
+        assertThat(successor.getStartDate())
+                .as("INV-PER-03: sem lacuna entre o fim de um e o início do seguinte")
+                .isEqualTo(periods.get(0).getEndDate().plusDays(1));
+        assertThat(successor.getCarriedInMinutes())
+                .as("RN-229: carriedOut[N] vira carriedIn[N+1]")
+                .isEqualTo(closed.carriedOutMinutes());
+    }
 
     private ClosePeriodRequest confirmedClose() {
         return new ClosePeriodRequest(true, "Fechamento de teste");

@@ -6,7 +6,9 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields;
 
 import com.devtime.audit.domain.AuditLog;
+import com.devtime.category.domain.CategoryHistory;
 import com.devtime.shared.persistence.BaseEntity;
+import com.devtime.tag.domain.TagHistory;
 import com.devtime.tag.domain.TicketTagLink;
 import com.devtime.tag.domain.WorkLogTagLink;
 import com.tngtech.archunit.core.domain.JavaClasses;
@@ -82,8 +84,19 @@ class PersistenceRulesTest {
                 // audit_logs não possui deleted_at (INV-AUD-01); ticket_tags também não, porque a
                 // desvinculação é remoção física da aresta (§9.3 de specs/006-tags), o mesmo
                 // valendo para work_log_tags.
+                //
+                // CategoryHistory e TagHistory são leituras @Immutable sobre categories e tags cuja
+                // razão de existir é justamente enxergar o registro excluído (OB-04 de specs/005,
+                // CX-04 de specs/012): sem elas, um relatório de período já entregue exibiria "—"
+                // onde havia "Desenvolvimento". A ausência da anotação é o contrato da classe, e o
+                // isolamento de tenant continua vindo do @Filter, que elas declaram.
                 .and()
-                .doNotBelongToAnyOf(AuditLog.class, TicketTagLink.class, WorkLogTagLink.class)
+                .doNotBelongToAnyOf(
+                        AuditLog.class,
+                        TicketTagLink.class,
+                        WorkLogTagLink.class,
+                        CategoryHistory.class,
+                        TagHistory.class)
                 .should()
                 .beAnnotatedWith(SQLRestriction.class)
                 .because(

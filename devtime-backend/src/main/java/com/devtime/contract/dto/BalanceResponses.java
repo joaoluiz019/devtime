@@ -102,19 +102,33 @@ public final class BalanceResponses {
      * com.devtime.contract.PeriodWorkLogSource}: é {@code contract} quem define o que precisa
      * receber, e {@code worklog} quem preenche (AR-09).
      *
+     * <p>{@code ticketTitle}, {@code startedAt}, {@code endedAt} e {@code tags} existem por
+     * exigência de {@code entries[]} de {@code reports.md} §6 e das colunas 3, 4, 6 e 13 do
+     * detalhamento do XLSX (§9.2). Sem eles no snapshot, um relatório de período fechado teria de
+     * buscá-los nas tabelas — e RN-701 proíbe exatamente isso. {@code startedAt} tem um segundo
+     * uso: é o terceiro critério da ordenação normativa (§6.3 de specs/012), sem a qual RN-708 é
+     * inverificável.
+     *
      * @param description texto livre; entra no snapshot por exigência de §6.9 e <b>nunca</b> em log
+     * @param tags nomes, não identificadores: o snapshot precisa continuar legível depois de a
+     *     etiqueta ser renomeada ou excluída, pela mesma razão que {@code categoryName} é resolvido
      */
     @Schema(name = "PeriodWorkLogEntry")
     public record PeriodWorkLogEntry(
             UUID id,
             LocalDate workDate,
+            Instant startedAt,
+            Instant endedAt,
+            UUID ticketId,
             String ticketKey,
+            String ticketTitle,
             String categoryName,
             UUID userId,
             String description,
             int netMinutes,
             int billableMinutes,
-            boolean billable) {}
+            boolean billable,
+            List<String> tags) {}
 
     /** Ajuste aplicado (entities.md §6.8). Não existe rota de edição nem de exclusão (RN-236). */
     @Schema(name = "AdjustmentResponse")

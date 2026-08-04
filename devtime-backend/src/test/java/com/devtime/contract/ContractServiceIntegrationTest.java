@@ -539,6 +539,56 @@ class ContractServiceIntegrationTest extends FeatureTestSupport {
                 null);
     }
 
+    @Test
+    @DisplayName("contracts.md §4.1: a duplicação copia a configuração, com código e nome novos")
+    void duplicateShouldCopyConfigurationWithNewCode() {
+        ContractResponse source = asOwnerOfA(() -> contractService.create(request(activeClient())));
+
+        ContractResponse copy = asOwnerOfA(() -> contractService.duplicate(source.id(), null));
+
+        assertThat(copy.id()).isNotEqualTo(source.id());
+        assertThat(copy.code())
+                .as("INV-CTR-01: código sequencial novo, nunca o da origem")
+                .isNotEqualTo(source.code());
+        assertThat(copy.name()).isEqualTo(source.name() + " (cópia)");
+        assertThat(copy.status())
+                .as("RN-209: quem ativa é decisão explícita")
+                .isEqualTo(ContractStatus.DRAFT);
+        assertThat(copy.monthlyMinutes()).isEqualTo(source.monthlyMinutes());
+        assertThat(copy.type()).isEqualTo(source.type());
+        assertThat(copy.billingDay()).isEqualTo(source.billingDay());
+        assertThat(copy.startDate()).isEqualTo(source.startDate());
+        assertThat(asOwnerOfA(() -> periodService.listByContract(copy.id())))
+                .as("a cópia não herda histórico: nenhum período é criado")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("A duplicação aplica os campos informados e mantém o restante da origem")
+    void duplicateShouldApplyOverrides() {
+        ContractResponse source = asOwnerOfA(() -> contractService.create(request(activeClient())));
+        UUID otherClientId = activeClient();
+
+        ContractResponse copy =
+                asOwnerOfA(
+                        () ->
+                                contractService.duplicate(
+                                        source.id(),
+                                        new com.devtime.contract.dto.ContractRequests
+                                                .ContractDuplicateRequest(
+                                                "Contrato do outro cliente",
+                                                otherClientId,
+                                                START.plusMonths(1),
+                                                null)));
+
+        assertThat(copy.name()).isEqualTo("Contrato do outro cliente");
+        assertThat(copy.client().id()).isEqualTo(otherClientId);
+        assertThat(copy.startDate()).isEqualTo(START.plusMonths(1));
+        assertThat(copy.monthlyMinutes())
+                .as("o que não foi informado continua vindo da origem")
+                .isEqualTo(source.monthlyMinutes());
+    }
+
     private ContractUpdateRequest update(
             ContractResponse contract, int monthlyMinutes, boolean applyToCurrentPeriod) {
         return new ContractUpdateRequest(

@@ -65,6 +65,19 @@ public interface TenantService {
     TenantResponse currentDetail();
 
     /**
+     * Organização da sessão como emissora de relatório (RN-703).
+     *
+     * <p>Interface pública para {@code 011-bank-hours}, que a congela no snapshot do fechamento, e
+     * para {@code 012-reports}, que monta o cabeçalho ao vivo em período aberto.
+     *
+     * <p>Sem {@code @PreAuthorize} próprio, diferentemente de {@link #currentDetail()}: quem chega
+     * aqui já teve {@code PERIOD_CLOSE} ou {@code REPORT_VIEW_*} verificado, e exigir também {@code
+     * TENANT_VIEW} faria o fechamento de um período depender de uma permissão de administração que
+     * o papel encarregado do fechamento não precisa ter.
+     */
+    com.devtime.tenant.dto.TenantViews.TenantIssuer issuer();
+
+    /**
      * users.md §6.1: atualização parcial dos dados da organização.
      *
      * @throws com.devtime.shared.error.BusinessRuleException {@code DEVTIME-2004} em conflito de

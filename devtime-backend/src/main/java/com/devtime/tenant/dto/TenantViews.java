@@ -50,6 +50,31 @@ public final class TenantViews {
             String settings) {}
 
     /**
+     * Organização como <b>emissora</b> de um relatório (RN-703, {@code reports.md} §6 bloco {@code
+     * issuer}).
+     *
+     * <p>Distinta de {@link TenantView}, que serve a sessão e por isso omite razão social,
+     * documento fiscal, contato e endereço — precisamente os campos que identificam quem emitiu o
+     * documento enviado ao cliente final.
+     *
+     * <p>É esta a forma que {@code 011} congela no snapshot do fechamento (ADR-036 RP-01): o
+     * documento entregue continua nomeando quem o emitiu <b>naquele</b> momento, mesmo que a
+     * organização mude de razão social depois.
+     */
+    public record TenantIssuer(
+            UUID id,
+            String name,
+            String legalName,
+            String documentNumber,
+            String email,
+            String phone,
+            String logoUrl,
+            com.devtime.shared.persistence.Address address,
+            String timezone,
+            String locale,
+            String currency) {}
+
+    /**
      * Vínculo do usuário com uma organização.
      *
      * @param roleChangedAt TK-05 / IMP-04: access tokens emitidos antes deste instante são

@@ -3,6 +3,7 @@ package com.devtime.contract;
 import com.devtime.contract.domain.ContractStatus;
 import com.devtime.contract.domain.ContractType;
 import com.devtime.contract.dto.ContractRequests.ContractCreateRequest;
+import com.devtime.contract.dto.ContractRequests.ContractDuplicateRequest;
 import com.devtime.contract.dto.ContractRequests.ContractTransitionRequest;
 import com.devtime.contract.dto.ContractRequests.ContractUpdateRequest;
 import com.devtime.contract.dto.ContractResponses.ContractActivationResponse;
@@ -33,6 +34,16 @@ public interface ContractService {
 
     /** Cria em {@code DRAFT}. Nenhum período é gerado antes da ativação (§6.1, passo 9). */
     ContractResponse create(ContractCreateRequest request);
+
+    /**
+     * contracts.md §4.1: cria um novo contrato em {@code DRAFT} copiando a configuração deste.
+     *
+     * <p>Copia <b>configuração</b>, nunca <b>histórico</b>: períodos, saldos, ajustes, snapshots e
+     * registros de horas pertencem ao contrato de origem e não têm sentido no novo. A cópia nasce
+     * em {@code DRAFT} pelo mesmo motivo de qualquer criação — quem ativa é uma decisão explícita
+     * (RN-209), e uma cópia ativada por engano geraria período e passaria a aceitar horas.
+     */
+    ContractResponse duplicate(UUID id, ContractDuplicateRequest request);
 
     ContractResponse update(UUID id, ContractUpdateRequest request);
 
@@ -117,6 +128,33 @@ public interface ContractService {
      * 90, e usar valores fixos faria a notificação divergir do painel do mesmo contrato.
      */
     java.util.List<Integer> notificationThresholdsOf(UUID contractId);
+
+    /**
+     * Contrato na forma que {@code 012-reports} consome (AR-02).
+     *
+     * <p>Interface pública para {@code 012}. Distinta de {@link #getById(UUID)} porque aquela expõe
+     * {@code ContractType} e {@code ContractStatus}, enums do domínio desta feature (ART-065). As
+     * taxas continuam mascaradas sem {@code CONTRACT_VIEW_FINANCIAL}, aqui e não no consumidor
+     * (SG-03): o relatório recebe nulo e omite as colunas monetárias sem precisar saber por quê.
+     */
+    com.devtime.contract.dto.ContractResponses.ContractReportRef getReportRef(UUID contractId);
+
+    /**
+     * Cartões de contrato do painel (specs/010 §6.1 CP-02, §16).
+     *
+     * <p>Interface pública para {@code 010-dashboard}. Devolve os contratos {@code ACTIVE} e {@code
+     * SUSPENDED} com o período <b>corrente</b> — o que contém a data de hoje no fuso do tenant — já
+     * resolvido, e os limiares de notificação do contrato.
+     *
+     * <p>A ordenação final por criticidade (CP-02) é do painel, não daqui: ela depende da
+     * severidade, que depende do saldo, que pertence a {@code 011}. Esta consulta devolve por
+     * código, ordem estável e barata.
+     *
+     * @param restrictToLinked quando verdadeiro, restringe aos contratos vinculados ao usuário
+     *     autenticado (permissions.md §9, nota ²); é o escopo {@code USER} de CP-01
+     */
+    java.util.List<com.devtime.contract.dto.ContractResponses.ContractDashboardCard>
+            findActiveForDashboard(boolean restrictToLinked);
 
     /**
      * RN-606: contratos cujo {@code endDate} é exatamente a data informada, em <b>todos</b> os

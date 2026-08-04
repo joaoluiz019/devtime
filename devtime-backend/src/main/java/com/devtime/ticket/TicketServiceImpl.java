@@ -376,6 +376,87 @@ public class TicketServiceImpl implements TicketService {
         return keyOf(require(ticketId));
     }
 
+    /** Ver {@link TicketService#getReportRef(UUID)}. */
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public com.devtime.ticket.dto.TicketResponses.TicketReportRef getReportRef(UUID ticketId) {
+        Ticket ticket = require(ticketId);
+        return new com.devtime.ticket.dto.TicketResponses.TicketReportRef(
+                ticket.getId(),
+                keyOf(ticket),
+                ticket.getTitle(),
+                ticket.getStatus() == null ? null : ticket.getStatus().name(),
+                ticket.getPriority() == null ? null : ticket.getPriority().name(),
+                ticket.getEstimatedMinutes(),
+                ticket.getSpentMinutes(),
+                ticket.getContractId());
+    }
+
+    /** Chave e título em lote (ver {@link TicketService#findRefsByIds}). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse> findRefsByIds(
+            java.util.Collection<UUID> ticketIds) {
+        if (ticketIds == null || ticketIds.isEmpty()) {
+            return Map.of();
+        }
+        List<Ticket> tickets = repository.findAllByIdIn(ticketIds);
+        // Uma resolução por contrato distinto, não uma por ticket: um relatório de período costuma
+        // repetir um único contrato em todas as linhas.
+        Map<UUID, ContractRefResponse> contracts = new LinkedHashMap<>();
+        tickets.forEach(
+                ticket ->
+                        contracts.computeIfAbsent(
+                                ticket.getContractId(), contractService::getRefById));
+
+        Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse> refs =
+                new LinkedHashMap<>();
+        tickets.forEach(
+                ticket ->
+                        refs.put(
+                                ticket.getId(),
+                                toWorkLogRef(ticket, contracts.get(ticket.getContractId()))));
+        return refs;
+    }
+
+    /** Bloco {@code openTickets} do painel (ver {@link TicketService#findOpenForCurrentUser}). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'TICKET_VIEW')")
+    public List<com.devtime.ticket.dto.TicketResponses.TicketDashboardItem> findOpenForCurrentUser(
+            int limit) {
+        List<TicketStatus> openStatuses =
+                java.util.Arrays.stream(TicketStatus.values())
+                        .filter(status -> status != TicketStatus.DONE)
+                        .filter(status -> status != TicketStatus.CANCELLED)
+                        .toList();
+
+        List<Ticket> open =
+                repository.findOpenByAssignee(
+                        tenantContext.requireUserId(),
+                        openStatuses,
+                        org.springframework.data.domain.PageRequest.of(0, limit));
+        // Uma resolução por contrato distinto, não uma por ticket: a lista costuma repetir poucos
+        // contratos, e keyOf resolveria o mesmo código tantas vezes quantos forem os tickets.
+        Map<UUID, String> contractCodes = contractsOf(open);
+
+        return open.stream()
+                .map(
+                        ticket ->
+                                new com.devtime.ticket.dto.TicketResponses.TicketDashboardItem(
+                                        ticket.getId(),
+                                        keyBuilder.build(
+                                                contractCodes.getOrDefault(
+                                                        ticket.getContractId(), ""),
+                                                ticket.getNumber()),
+                                        ticket.getTitle(),
+                                        ticket.getStatus().name(),
+                                        ticket.getPriority().name(),
+                                        contractCodes.get(ticket.getContractId()),
+                                        ticket.getDueDate(),
+                                        ticket.getSpentMinutes()))
+                .toList();
+    }
+
     // ── Apoio ────────────────────────────────────────────────────────────────────────────────
 
     private Ticket require(UUID id) {

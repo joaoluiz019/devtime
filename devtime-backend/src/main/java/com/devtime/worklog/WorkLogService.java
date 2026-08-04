@@ -71,6 +71,14 @@ public interface WorkLogService {
     /** RN-505: registros vinculados a uma categoria, publicado a {@code 005}. */
     long countByCategory(UUID categoryId);
 
+    /**
+     * RN-505 passo 6: migra os registros de uma categoria para a substituta, publicado a {@code
+     * 005}.
+     *
+     * @return quantidade de registros migrados
+     */
+    long reassignCategory(UUID fromCategoryId, UUID toCategoryId);
+
     /** RN-219: soma canônica de {@code billableMinutes} do período, publicada a {@code 011}. */
     int sumBillableMinutesByPeriod(UUID periodId);
 
@@ -96,4 +104,31 @@ public interface WorkLogService {
      */
     java.util.List<com.devtime.contract.dto.BalanceResponses.PeriodWorkLogEntry>
             findByPeriodForStatement(UUID periodId);
+
+    /**
+     * Linhas de relatório do recorte, na ordenação normativa (RN-704, §6.3 de specs/012).
+     *
+     * <p>Interface pública para {@code 012-reports}. <b>É o único caminho de leitura de work log em
+     * relatório</b>, e é assim que RN-704 deixa de ser uma lembrança: registros logicamente
+     * excluídos não aparecem porque o {@code @SQLRestriction} da entidade os remove, e não porque
+     * alguém lembrou de acrescentar a condição.
+     *
+     * <p>A ordenação — data, {@code ticketKey}, {@code startedAt} — é aplicada aqui e é
+     * <b>normativa, não configurável</b> (CP-05). Sem ela, duas gerações do mesmo PDF listariam as
+     * linhas em ordens diferentes e RN-708 seria inverificável.
+     *
+     * @see #countForReport(com.devtime.worklog.dto.WorkLogReportViews.ReportEntryFilter)
+     */
+    java.util.List<com.devtime.worklog.dto.WorkLogReportViews.ReportEntry> findForReport(
+            com.devtime.worklog.dto.WorkLogReportViews.ReportEntryFilter filter);
+
+    /**
+     * Quantas linhas o mesmo recorte produz.
+     *
+     * <p>Existe separada de {@link #findForReport} porque RN-706 decide entre exportação síncrona e
+     * assíncrona <b>antes</b> de materializar o resultado. Contar carregando as linhas para depois
+     * chamar {@code size()} anularia a proteção: uma exportação de 50.000 linhas esgotaria a
+     * memória exatamente no passo que existe para evitá-lo.
+     */
+    long countForReport(com.devtime.worklog.dto.WorkLogReportViews.ReportEntryFilter filter);
 }

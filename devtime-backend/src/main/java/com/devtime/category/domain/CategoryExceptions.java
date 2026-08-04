@@ -26,6 +26,11 @@ public final class CategoryExceptions {
         return new SystemCategoryException(categoryId);
     }
 
+    /** RN-505 passo 4: há registros vinculados e nenhuma substituta foi informada. */
+    public static BusinessRuleException replacementRequired(UUID categoryId, long workLogsCount) {
+        return new ReplacementRequiredException(categoryId, workLogsCount);
+    }
+
     /** users.md §8.3: substituta inexistente, inativa ou igual à excluída. */
     public static BusinessRuleException invalidReplacement(String reason) {
         return new InvalidReplacementCategoryException(reason);
@@ -69,6 +74,27 @@ public final class CategoryExceptions {
                     org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY,
                     Map.of("field", "orderedIds", "reason", reason),
                     "Reordenação inválida: " + reason);
+        }
+    }
+
+    /**
+     * RN-505.
+     *
+     * <p>Os detalhes trazem a contagem: "existem registros" não diz ao usuário se ele está prestes
+     * a mover 3 ou 30.000 horas de classificação.
+     */
+    public static final class ReplacementRequiredException extends BusinessRuleException {
+        private ReplacementRequiredException(UUID categoryId, long workLogsCount) {
+            super(
+                    ErrorCode.CATEGORY_REPLACEMENT_REQUIRED,
+                    Map.of(
+                            "field",
+                            "replacementCategoryId",
+                            "categoryId",
+                            categoryId,
+                            "workLogsCount",
+                            workLogsCount),
+                    "Categoria possui registros de horas e exige substituta");
         }
     }
 

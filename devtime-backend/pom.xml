@@ -32,6 +32,9 @@
         <!-- integrations.md §6.2: adapter compatível com S3, MinIO em desenvolvimento. -->
         <awssdk.version>2.31.30</awssdk.version>
         <shedlock.version>5.16.0</shedlock.version>
+        <!-- ADR-036 RP-07: PDF a partir de template HTML; XLSX com Apache POI. -->
+        <flyingsaucer.version>10.4.0</flyingsaucer.version>
+        <poi.version>5.5.1</poi.version>
         <logstash-logback.version>8.0</logstash-logback.version>
         <archunit.version>1.3.0</archunit.version>
         <jacoco.version>0.8.12</jacoco.version>
@@ -176,6 +179,31 @@
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
             <version>${awssdk.version}</version>
+        </dependency>
+
+        <!--
+          ADR-036 RP-07: o PDF é renderizado no servidor a partir de template HTML, nunca capturado
+          do cliente (A4 daquele ADR). Flying Saucer sobre OpenPDF foi a opção registrada; a
+          alternativa de um motor headless de navegador foi descartada porque RP-06 exige saída
+          byte-idêntica, e um navegador embute versão e data de build nos metadados do arquivo.
+
+          `flying-saucer-pdf` já traz OpenPDF transitivamente; declará-lo aqui seria fixar duas
+          versões da mesma biblioteca com risco de divergirem.
+        -->
+        <dependency>
+            <groupId>org.xhtmlrenderer</groupId>
+            <artifactId>flying-saucer-pdf</artifactId>
+            <version>${flyingsaucer.version}</version>
+        </dependency>
+
+        <!--
+          RN-710 e §9.2 de reports.md. `poi-ooxml` é obrigatório para XLSX (o `poi` puro só escreve
+          o formato binário antigo) e é ele que traz SXSSF, a escrita em fluxo que CP-13 exige.
+        -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
         </dependency>
 
         <dependency>

@@ -92,6 +92,21 @@ public interface TicketService {
     String getKeyById(UUID ticketId);
 
     /**
+     * Chave e título de vários tickets em <b>uma</b> consulta.
+     *
+     * <p>Interface pública para {@code 012-reports}. Distinta de {@link #getKeyById(UUID)} por duas
+     * razões, e ambas importam. A primeira é o título: {@code entries[].ticketTitle} de {@code
+     * reports.md} §6 não é derivável da chave. A segunda é o lote: uma folha de horas de 5.000
+     * linhas resolvida por {@code getKeyById} produziria 5.000 consultas — o mesmo N+1 que {@code
+     * TagLinkService#findByWorkLogIds} evita na listagem de registros.
+     *
+     * @return referência por identificador; identificadores desconhecidos ficam <b>ausentes</b> do
+     *     mapa, e o chamador decide como apresentá-los
+     */
+    java.util.Map<UUID, com.devtime.ticket.dto.TicketResponses.TicketWorkLogRefResponse>
+            findRefsByIds(java.util.Collection<UUID> ticketIds);
+
+    /**
      * Identificadores dos tickets de um contrato.
      *
      * <p>Interface pública para {@code 011-bank-hours}: RN-240 precisa saber se existe cronômetro
@@ -100,4 +115,30 @@ public interface TicketService {
      * da sua tabela (AR-02).
      */
     List<UUID> findIdsByContract(UUID contractId);
+
+    /**
+     * Ticket na forma que {@code 012-reports} consome (§7.3 de reports.md).
+     *
+     * <p>Interface pública para {@code 012}. Distinta de {@link #getById(UUID)} porque aquela expõe
+     * os três enums do domínio desta feature, que ART-065 impede a consumidora de conhecer.
+     *
+     * @throws com.devtime.shared.error.EntityNotFoundException ticket inexistente ou de outro
+     *     tenant, sempre {@code 404} (ART-024)
+     */
+    com.devtime.ticket.dto.TicketResponses.TicketReportRef getReportRef(UUID ticketId);
+
+    /**
+     * Tickets abertos do usuário autenticado, para o bloco {@code openTickets} do painel.
+     *
+     * <p>Interface pública para {@code 010-dashboard}. "Aberto" é todo estado exceto {@code DONE} e
+     * {@code CANCELLED} — a mesma definição do índice parcial que sustenta a consulta.
+     *
+     * <p>Restrito ao próprio usuário em qualquer papel: §16 de specs/010 descreve o bloco como
+     * "tickets em andamento <b>do usuário</b>", inclusive no escopo {@code TENANT}. Um painel que
+     * listasse os tickets de todo mundo deixaria de ser a lista de trabalho de quem o abriu.
+     *
+     * @param limit teto de itens devolvidos (RN-012)
+     */
+    List<com.devtime.ticket.dto.TicketResponses.TicketDashboardItem> findOpenForCurrentUser(
+            int limit);
 }

@@ -30,6 +30,7 @@ public class TimerQueryServiceImpl implements TimerQueryService {
     private final CategoryService categoryService;
     private final UserService userService;
     private final TenantContext tenantContext;
+    private final com.devtime.shared.time.TenantClock clock;
 
     @Override
     @PreAuthorize("hasPermission(null, 'TIMER_USE')")
@@ -76,6 +77,20 @@ public class TimerQueryServiceImpl implements TimerQueryService {
             return List.of();
         }
         return repository.findActiveIdsForTickets(ticketIds);
+    }
+
+    /** {@code quickStats.activeTimerMinutes} (ver {@link TimerQueryService}). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'TIMER_USE')")
+    public int activeMinutesInCurrentTenant() {
+        return repository
+                .findActiveByUser(tenantContext.requireUserId())
+                // CX-11: findActiveByUser é @CrossTenant por exigência de RN-150. O painel descreve
+                // o tenant corrente, então o cronômetro de outra organização é descartado aqui.
+                .filter(timer -> timer.getTenantId().equals(tenantContext.requireTenantId()))
+                // ART-036: segundos truncados, nunca arredondados.
+                .map(timer -> timer.elapsedSeconds(clock.now()) / 60)
+                .orElse(0);
     }
 
     TimerResponse toResponse(Timer timer) {

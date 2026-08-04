@@ -51,4 +51,18 @@ public interface WorkLogTagRepository extends JpaRepository<WorkLogTagLink, Work
     @Modifying
     @Query("DELETE FROM WorkLogTagLink l WHERE l.workLogId = :workLogId")
     int deleteByWorkLogId(@Param("workLogId") UUID workLogId);
+
+    /**
+     * INV-TAG-04: contagem real de vínculos por etiqueta, para a reconciliação noturna.
+     *
+     * <p>Uma consulta agrupada, nunca uma por etiqueta (CP-12): um tenant com centenas de etiquetas
+     * transformaria o job em centenas de consultas por noite.
+     */
+    @Query(
+            """
+            SELECT new com.devtime.tag.TagLinkCount(l.tagId, COUNT(l))
+              FROM WorkLogTagLink l
+             GROUP BY l.tagId
+            """)
+    List<TagLinkCount> countLinksByTag();
 }

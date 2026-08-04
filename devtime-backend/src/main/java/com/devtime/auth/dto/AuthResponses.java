@@ -99,19 +99,43 @@ public final class AuthResponses {
     public record MeMembership(UUID id, Role role, String status) {}
 
     /**
+     * Cronômetro em andamento do usuário autenticado (§5.10).
+     *
+     * <p>Projeção estreita de {@code TimerResponse}, e não o DTO inteiro: {@code /auth/me} responde
+     * "o que a barra do cronômetro precisa desenhar agora", não "tudo sobre este cronômetro". Quem
+     * precisa do restante chama {@code GET /timers/current}, que é a fonte da feature 009.
+     *
+     * @param ticketKey chave legível ({@code CT-0001-42}); é o que a barra exibe
+     */
+    public record MeActiveTimer(
+            UUID id,
+            String status,
+            String ticketKey,
+            java.time.Instant startedAt,
+            int accumulatedActiveSeconds) {}
+
+    /**
      * {@code GET /auth/me} (§5.10).
      *
-     * <p>O campo {@code activeTimer} previsto em §5.10 <b>não</b> está presente: o cronômetro é da
-     * feature 009, ainda não implementada. Acrescentá-lo agora exigiria inventar o contrato de uma
-     * entidade que não existe. Campos ausentes são omitidos do JSON (§4.1), então incluí-lo depois
-     * é aditivo e não quebra clientes.
+     * <p>{@code activeTimer} é nulo — e, por §4.1, omitido do JSON — quando não há cronômetro em
+     * andamento. Ele vem daqui e não de uma segunda requisição por decisão explícita de §5.10: ao
+     * carregar a aplicação, uma chamada só recupera sessão, permissões e cronômetro, eliminando o
+     * intervalo em que a barra apareceria vazia.
+     *
+     * <p>RN-150 torna o cronômetro único por <b>pessoa</b>, entre organizações. O que {@code
+     * /auth/me} devolve é o cronômetro da pessoa, mesmo que ele esteja rodando em outra organização
+     * — diferente do painel, que por CX-11 de {@code specs/010} só conta o do tenant corrente. As
+     * duas leituras são deliberadamente distintas: a barra existe para que ninguém esqueça um
+     * cronômetro rodando, e escondê-lo ao trocar de organização produziria exatamente esse
+     * esquecimento.
      */
     public record MeResponse(
             MeUser user,
             MeTenant tenant,
             MeMembership membership,
             List<String> permissions,
-            List<TenantOptionResponse> availableTenants) {}
+            List<TenantOptionResponse> availableTenants,
+            MeActiveTimer activeTimer) {}
 
     /**
      * Sessão ativa (§5.11).

@@ -136,6 +136,15 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
             @Param("contractId") UUID contractId, @Param("sequence") int sequence);
 
     /**
+     * Varredura de plataforma por situação, para a reconciliação noturna (spec 011 §22.4).
+     *
+     * <p>Sem sessão o filtro de tenant não é aplicado, como em {@link #findStuckClosing} — é o
+     * mecanismo previsto por BR-049 para job que percorre todas as organizações.
+     */
+    @Query("SELECT p FROM ContractPeriod p WHERE p.status IN :statuses")
+    List<ContractPeriod> findByStatusIn(@Param("statuses") List<PeriodStatus> statuses);
+
+    /**
      * CE-ME-07: períodos presos em {@code CLOSING} além do limite.
      *
      * <p>Consulta de job de plataforma: percorre todos os tenants, e o filtro é reaplicado a cada
@@ -229,5 +238,47 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
             """)
     List<ContractPeriod> findScheduledDue(
             @Param("reference") LocalDate reference,
+            org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * RN-230: candidatos à expiração de saldo transportado.
+     *
+     * <p>Restrita a {@code OPEN} e {@code REOPENED} por CX-19 — debitar um período fechado
+     * alteraria um valor congelado (ART-005). {@code rolloverExpiryPeriods = 0} nunca expira
+     * (CX-20) e por isso nem entra na varredura. Quanto expira, e se algo expira, é decisão de
+     * {@link RolloverExpiryPolicy}; esta consulta apenas descarta quem não pode ter nada a expirar.
+     */
+    @Query(
+            """
+            SELECT p FROM ContractPeriod p, Contract c
+             WHERE c.id = p.contractId
+               AND c.rolloverExpiryPeriods > 0
+               AND p.carriedInMinutes > 0
+               AND p.status IN (com.devtime.contract.domain.PeriodStatus.OPEN,
+                                com.devtime.contract.domain.PeriodStatus.REOPENED)
+             ORDER BY p.startDate ASC
+            """)
+    List<ContractPeriod> findRolloverExpiryDue(org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * CE-ME-02 / CX-13: períodos ainda abertos de contratos já encerrados.
+     *
+     * <p>O contrato {@code ENDED} teve seu período truncado por {@code 004} (RN-214); passados três
+     * dias do fim, ninguém mais vai lançar horas nele e mantê-lo aberto só adia indefinidamente o
+     * documento que o cliente espera. A folga existe para o lançamento retroativo legítimo do
+     * último dia de trabalho.
+     */
+    @Query(
+            """
+            SELECT p FROM ContractPeriod p, Contract c
+             WHERE c.id = p.contractId
+               AND c.status = com.devtime.contract.domain.ContractStatus.ENDED
+               AND p.endDate <= :threshold
+               AND p.status IN (com.devtime.contract.domain.PeriodStatus.OPEN,
+                                com.devtime.contract.domain.PeriodStatus.REOPENED)
+             ORDER BY p.endDate ASC
+            """)
+    List<ContractPeriod> findAutoCloseDue(
+            @Param("threshold") LocalDate threshold,
             org.springframework.data.domain.Pageable pageable);
 }

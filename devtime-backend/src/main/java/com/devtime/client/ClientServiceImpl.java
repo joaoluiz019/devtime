@@ -258,6 +258,43 @@ public class ClientServiceImpl implements ClientService {
                 client.getId(), client.getName(), client.getColor());
     }
 
+    /** Identificação em lote (ver {@link ClientService#findRefs}). */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CLIENT_VIEW')")
+    public java.util.List<com.devtime.client.dto.ClientResponses.ClientRef> findRefs(
+            java.util.Collection<UUID> clientIds) {
+        if (clientIds == null || clientIds.isEmpty()) {
+            return java.util.List.of();
+        }
+        return clientRepository.findAllById(clientIds).stream()
+                .map(
+                        client ->
+                                new com.devtime.client.dto.ClientResponses.ClientRef(
+                                        client.getId(), client.getName(), client.getColor()))
+                .toList();
+    }
+
+    /**
+     * Identificação fiscal para cabeçalho de relatório (ver {@link ClientService#getReportParty}).
+     */
+    @Override
+    @PreAuthorize("hasPermission(null, 'CLIENT_VIEW')")
+    public com.devtime.client.dto.ClientResponses.ClientReportParty getReportParty(UUID clientId) {
+        Client client =
+                clientRepository
+                        .findById(clientId)
+                        .orElseThrow(() -> EntityNotFoundException.of(Client.class, clientId));
+        return new com.devtime.client.dto.ClientResponses.ClientReportParty(
+                client.getId(),
+                client.getName(),
+                client.getLegalName(),
+                client.getDocumentType() == null ? null : client.getDocumentType().name(),
+                client.getDocumentNumber(),
+                client.getEmail(),
+                client.getPhone(),
+                mapper.toAddressResponse(client.getAddress()));
+    }
+
     private Client requireVisible(UUID id) {
         Client client =
                 clientRepository

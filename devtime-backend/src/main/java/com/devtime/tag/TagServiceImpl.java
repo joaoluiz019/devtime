@@ -51,6 +51,7 @@ public class TagServiceImpl implements TagService {
     private static final Duration ORPHAN_THRESHOLD = Duration.ofDays(90);
 
     private final TagRepository repository;
+    private final TagHistoryRepository historyRepository;
     private final TicketTagRepository ticketTagRepository;
     private final WorkLogTagRepository workLogTagRepository;
     private final TagMapper mapper;
@@ -202,6 +203,20 @@ public class TagServiceImpl implements TagService {
                 .map(Tag::getId)
                 // FA-01: quando já existe, o vínculo reaproveita a etiqueta em vez de falhar.
                 .orElseGet(() -> createNormalized(rawName, null).getId());
+    }
+
+    /**
+     * Catálogo histórico (ver {@link TagService#getAllForReport()}).
+     *
+     * <p>Sem {@code @PreAuthorize}, pela mesma razão de {@code CategoryService.getAllForReport}: o
+     * consumidor é {@code 012}, que já verificou a permissão de relatório, e o resultado é rótulo
+     * de linha e não lista de opções.
+     */
+    @Override
+    public List<TagOptionResponse> getAllForReport() {
+        return historyRepository.findAllIncludingDeleted().stream()
+                .map(tag -> new TagOptionResponse(tag.getId(), tag.getName(), tag.getColor()))
+                .toList();
     }
 
     private Tag createNormalized(String rawName, String color) {

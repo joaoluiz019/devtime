@@ -227,6 +227,8 @@ public enum ErrorCode {
     /** Ativação com campos obrigatórios do tipo ausentes. */
     CONTRACT_ACTIVATION_INCOMPLETE(
             "DEVTIME-2211", HttpStatus.UNPROCESSABLE_ENTITY, "error.contract.activationIncomplete"),
+    /** contracts.md §8.2/§8.4: suspender ou encerrar com cronômetro ativo no contrato. */
+    CONTRACT_HAS_ACTIVE_TIMER("DEVTIME-2212", HttpStatus.CONFLICT, "error.contract.hasActiveTimer"),
     /** RN-213 de contracts.md §8.4: data de término inválida. */
     CONTRACT_END_DATE_INVALID(
             "DEVTIME-2213", HttpStatus.UNPROCESSABLE_ENTITY, "error.contract.endDateInvalid"),
@@ -388,6 +390,38 @@ public enum ErrorCode {
      * é a mesma — intervalo grande demais —, e o limite pertence ao endpoint, não ao código.
      */
     DATE_RANGE_EXCEEDED("DEVTIME-3001", HttpStatus.BAD_REQUEST, "error.dateRange.exceeded"),
+    /**
+     * Relatório de período {@code SCHEDULED} — o ciclo ainda não começou (reports.md §6).
+     *
+     * <p>A faixa 3002 a 3007 segue {@code reports.md} §12, e <b>não</b> §12 de {@code specs/012},
+     * que atribui outros significados a 3002, 3003 e 3004. Vale a hierarquia IA-11: {@code 04-api/}
+     * precede {@code specs/}. A divergência está tabelada no CHANGELOG desta sprint.
+     */
+    REPORT_PERIOD_NOT_STARTED("DEVTIME-3002", HttpStatus.CONFLICT, "error.report.periodNotStarted"),
+    /** §8.1: parâmetros incompatíveis com o tipo de relatório solicitado. */
+    REPORT_PARAMETERS_INCOMPATIBLE(
+            "DEVTIME-3003", HttpStatus.UNPROCESSABLE_ENTITY, "error.report.parametersIncompatible"),
+    /**
+     * §8.3 / §4.10: a exportação não está no estado que a operação exige.
+     *
+     * <p>Cobre as duas condições: download antes de a geração concluir e cancelamento de uma
+     * exportação já em {@code PROCESSING} (§11.1 de specs/012). {@code reports.md} tabela apenas a
+     * primeira; a segunda é a mesma condição vista do outro lado, e ocupar um oitavo número para
+     * ela criaria um contrato novo onde não há distinção que o cliente precise tratar (EX-03).
+     */
+    EXPORT_NOT_READY("DEVTIME-3004", HttpStatus.CONFLICT, "error.export.notReady"),
+    /**
+     * §8.3 / §4.10: o arquivo expirou; é preciso gerar novamente.
+     *
+     * <p>{@code 410 Gone} e não {@code 404}: o recurso <b>existiu</b> e a distinção importa ao
+     * usuário, que precisa saber que o pedido dele foi atendido e que só o arquivo caducou.
+     */
+    EXPORT_EXPIRED("DEVTIME-3005", HttpStatus.GONE, "error.export.expired"),
+    /** §8.3: a geração falhou; a resposta carrega o motivo. */
+    EXPORT_FAILED("DEVTIME-3006", HttpStatus.CONFLICT, "error.export.failed"),
+    /** §12: agrupamento fora dos suportados pelo tipo de relatório (§6.3 de specs/012). */
+    REPORT_GROUPING_UNSUPPORTED(
+            "DEVTIME-3007", HttpStatus.UNPROCESSABLE_ENTITY, "error.report.groupingUnsupported"),
 
     // ── Notificações · DEVTIME-4000–4099 (notifications.md §12) ──────────────────────────────
     /**

@@ -58,6 +58,21 @@ public interface CategoryService {
     List<CategoryResponse> listActive();
 
     /**
+     * Catálogo completo para rotulagem histórica: inativas <b>e excluídas</b> (spec 005 §22,
+     * OB-04).
+     *
+     * <p>Interface pública para {@code 010} (CX-16) e {@code 012} (CX-04). A inclusão de excluídas
+     * é deliberada e contrária a RN-003: um relatório de período já entregue deve continuar
+     * exibindo "Desenvolvimento" onde havia "Desenvolvimento", e não "—". RN-505 migra os registros
+     * na exclusão, mas a migração não reescreve relatórios já emitidos nem registros de tenants
+     * cujo catálogo foi editado antes de {@code 008} existir.
+     *
+     * <p>Não deve ser usada para oferecer opções ao usuário — para isso existe {@link
+     * #listActive()}.
+     */
+    List<CategoryResponse> getAllForReport();
+
+    /**
      * RN-104: cadeia de pré-seleção da categoria do registro de horas.
      *
      * <p>Ordem: categoria do ticket → categoria padrão do contrato → preferência do usuário →

@@ -3,6 +3,7 @@ package com.devtime.worklog;
 import com.devtime.worklog.domain.WorkLog;
 import com.devtime.worklog.domain.WorkLogSource;
 import com.devtime.worklog.dto.WorkLogFilter;
+import com.devtime.worklog.dto.WorkLogReportViews.ReportEntryFilter;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,5 +85,68 @@ public final class WorkLogSpecifications {
             }
             return builder.and(predicates.toArray(new Predicate[0]));
         };
+    }
+
+    /**
+     * Recorte de relatório (§6 e §7 de reports.md).
+     *
+     * <p>Distinta de {@link #withFilters}: aceita coleções onde aquela aceita um valor único,
+     * porque os filtros de relatório são multisseleção, e aceita {@code contractPeriodId}, que a
+     * listagem não expõe. Unificar as duas produziria um filtro com dois conjuntos de campos
+     * mutuamente ignorados — mais barato de escrever e mais caro de ler.
+     *
+     * @param restrictToUserId escopo já resolvido (CE-P-10); aplicado <b>antes</b> dos filtros do
+     *     requisitante, para que nenhum deles consiga ampliá-lo
+     */
+    public static Specification<WorkLog> forReport(
+            ReportEntryFilter filter, List<UUID> workLogIdsWithTags) {
+        return (root, query, builder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            if (filter.restrictToUserId() != null) {
+                predicates.add(builder.equal(root.get("userId"), filter.restrictToUserId()));
+            }
+            if (filter.contractId() != null) {
+                predicates.add(builder.equal(root.get("contractId"), filter.contractId()));
+            }
+            if (filter.contractPeriodId() != null) {
+                predicates.add(
+                        builder.equal(root.get("contractPeriodId"), filter.contractPeriodId()));
+            }
+            if (filter.clientId() != null) {
+                predicates.add(builder.equal(root.get("clientId"), filter.clientId()));
+            }
+            if (filter.ticketId() != null) {
+                predicates.add(builder.equal(root.get("ticketId"), filter.ticketId()));
+            }
+            if (filter.from() != null) {
+                predicates.add(builder.greaterThanOrEqualTo(root.get("workDate"), filter.from()));
+            }
+            if (filter.to() != null) {
+                predicates.add(builder.lessThanOrEqualTo(root.get("workDate"), filter.to()));
+            }
+            addIn(predicates, root.get("userId"), filter.userIds());
+            addIn(predicates, root.get("categoryId"), filter.categoryIds());
+            if (filter.billable() != null) {
+                predicates.add(builder.equal(root.get("billable"), filter.billable()));
+            }
+            if (workLogIdsWithTags != null) {
+                predicates.add(
+                        workLogIdsWithTags.isEmpty()
+                                ? builder.disjunction()
+                                : root.get("id").in(workLogIdsWithTags));
+            }
+            return builder.and(predicates.toArray(new Predicate[0]));
+        };
+    }
+
+    /** Coleção nula ou vazia é ausência de filtro; um {@code IN ()} vazio nunca é gerado. */
+    private static void addIn(
+            List<Predicate> predicates,
+            jakarta.persistence.criteria.Path<?> path,
+            java.util.Collection<UUID> values) {
+        if (values != null && !values.isEmpty()) {
+            predicates.add(path.in(values));
+        }
     }
 }

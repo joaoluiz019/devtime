@@ -33,6 +33,7 @@ class TimerServiceIntegrationTest extends FeatureTestSupport {
     @Autowired private TimerService timerService;
     @Autowired private TimerQueryService timerQueryService;
     @Autowired private WorkLogScenario scenario;
+    @Autowired private com.devtime.auth.AuthService authService;
 
     @Test
     @DisplayName("RN-152: o cronômetro nasce RUNNING com os três campos de estado do servidor")
@@ -240,6 +241,25 @@ class TimerServiceIntegrationTest extends FeatureTestSupport {
         assertThat(asOwnerOfA(() -> timerQueryService.current()))
                 .as("é o encerramento que falha em RN-306, não a exibição")
                 .isPresent();
+    }
+
+    @Test
+    @DisplayName("authentication.md §5.10: GET /auth/me traz o cronômetro em andamento")
+    void meShouldCarryActiveTimer() {
+        var setup = asOwnerOfA(scenario::create);
+
+        assertThat(asOwnerOfA(() -> authService.me(userAId, tenantAId)).activeTimer())
+                .as("sem cronômetro, o campo é nulo e §4.1 o omite do JSON")
+                .isNull();
+
+        var timer = asOwnerOfA(() -> timerService.start(startRequest(setup), false));
+
+        var activeTimer = asOwnerOfA(() -> authService.me(userAId, tenantAId)).activeTimer();
+        assertThat(activeTimer).isNotNull();
+        assertThat(activeTimer.id()).isEqualTo(timer.id());
+        assertThat(activeTimer.status()).isEqualTo("RUNNING");
+        assertThat(activeTimer.ticketKey()).isEqualTo(setup.ticket().key());
+        assertThat(activeTimer.startedAt()).isEqualTo(NOW);
     }
 
     // ── Apoio ────────────────────────────────────────────────────────────────────────────────

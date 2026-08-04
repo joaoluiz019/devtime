@@ -32,6 +32,31 @@ public interface ContractMaintenanceService {
     /** FA-05: contratos {@code ACTIVE} cuja vigência terminou, em qualquer tenant. */
     List<MaintenanceTarget> findEndDue(LocalDate reference, int limit);
 
+    /** RN-230: períodos abertos com saldo transportado sujeito a expiração, em qualquer tenant. */
+    List<MaintenanceTarget> findRolloverExpiryDue(int limit);
+
+    /** CE-ME-02: períodos abertos de contratos encerrados há mais de {@code graceDays} dias. */
+    List<MaintenanceTarget> findAutoCloseDue(LocalDate reference, int graceDays, int limit);
+
+    /**
+     * RN-230: aplica o débito de expiração de saldo transportado.
+     *
+     * @return {@code true} quando debitou; {@code false} quando nada expirou ou quando o débito já
+     *     havia sido aplicado a este período — a convergência que §22.4 exige do job
+     */
+    boolean expireRollover(UUID periodId);
+
+    /**
+     * CE-ME-02: fecha o período de um contrato encerrado.
+     *
+     * <p>Delega a {@link PeriodClosingService#close} e não reimplementa nenhum dos sete passos de
+     * RN-241: um segundo caminho de fechamento é um segundo lugar onde o snapshot pode divergir.
+     *
+     * @return {@code true} quando fechou; {@code false} quando o período já não estava aberto ou
+     *     quando uma guarda de fechamento o impediu (cronômetro ativo, por exemplo)
+     */
+    boolean autoClosePeriod(UUID periodId);
+
     /**
      * RN-213: cria o próximo período como {@code SCHEDULED}.
      *

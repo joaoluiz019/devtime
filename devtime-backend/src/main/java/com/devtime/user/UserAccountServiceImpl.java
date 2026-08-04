@@ -41,6 +41,20 @@ public class UserAccountServiceImpl implements UserAccountService {
 
     private static final String DEFAULT_PREFERENCES = "{}";
 
+    /** §19.1: domínio reservado, não roteável — nenhuma mensagem chega a ele por acidente. */
+    private static final String ANONYMIZED_EMAIL_DOMAIN = "@anonimizado.local";
+
+    /** §19.1: mesmo texto que {@code UserSummary.REMOVED_USER_NAME} exibe (RN-458). */
+    private static final String ANONYMIZED_NAME = "Usuário Removido";
+
+    /**
+     * Valor que nenhum BCrypt produz e que o encoder recusa em qualquer comparação.
+     *
+     * <p>Preferido a {@code null}: a coluna é {@code NOT NULL}, e um hash válido de senha aleatória
+     * deixaria em aberto a hipótese — remota, mas real — de alguém acertá-la.
+     */
+    private static final String DISCARDED_PASSWORD_HASH = "!";
+
     private final UserRepository repository;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final PasswordEncoder passwordEncoder;
@@ -216,6 +230,38 @@ public class UserAccountServiceImpl implements UserAccountService {
         var expired = repository.findLockExpired(now);
         expired.forEach(this::applyUnlock);
         return expired.size();
+    }
+
+    /** RN-008 / §19.1 (ver {@link UserAccountService#anonymize}). */
+    @Override
+    @Transactional
+    public int anonymize(java.util.Collection<UUID> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return 0;
+        }
+        int anonymized = 0;
+        for (User user : repository.findAllByIdIn(userIds)) {
+            if (user.getEmail().endsWith(ANONYMIZED_EMAIL_DOMAIN)) {
+                continue; // Convergente: reexecutar a purga não conta a mesma conta duas vezes.
+            }
+            // O hash vem do identificador, não do e-mail: derivá-lo do e-mail permitiria confirmar
+            // um endereço por comparação, que é justamente o dado que a anonimização remove.
+            user.setEmail(
+                    "usuario-"
+                            + Integer.toHexString(user.getId().hashCode())
+                            + ANONYMIZED_EMAIL_DOMAIN);
+            user.setFullName(ANONYMIZED_NAME);
+            user.setDisplayName(null);
+            user.setAvatarUrl(null);
+            user.setPreferences(null);
+            user.setTimezone(null);
+            user.setLocale(null);
+            // §19.1: descartado, não anonimizado — a conta não deve autenticar por caminho algum.
+            user.setPasswordHash(DISCARDED_PASSWORD_HASH);
+            user.setStatus(UserStatus.DISABLED);
+            anonymized++;
+        }
+        return anonymized;
     }
 
     private void applyUnlock(User user) {

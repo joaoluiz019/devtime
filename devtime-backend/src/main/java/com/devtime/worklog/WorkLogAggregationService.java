@@ -2,8 +2,11 @@ package com.devtime.worklog;
 
 import com.devtime.worklog.dto.WorkLogFilter;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogCalendarResponse;
+import com.devtime.worklog.dto.WorkLogResponses.WorkLogGroupTotal;
+import com.devtime.worklog.dto.WorkLogResponses.WorkLogRangeTotals;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogTotalsResponse;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -27,4 +30,26 @@ public interface WorkLogAggregationService {
      * dados de {@code MEMBER} (SG-03).
      */
     WorkLogTotalsResponse totals(WorkLogFilter filter);
+
+    /**
+     * Totais do intervalo, no fuso do tenant.
+     *
+     * <p>Interface pública para {@code 010-dashboard} ({@code quickStats}). O escopo de dados de
+     * {@code MEMBER} é aplicado <b>aqui</b>, na consulta, e não pelo chamador: SG-02 exige que o
+     * painel não consiga inferir horas de colegas pelos totais, e deixar o filtro a cargo de quem
+     * chama transformaria a garantia em convenção.
+     *
+     * @param from primeiro dia do intervalo, inclusive (BR-149)
+     * @param to último dia do intervalo, inclusive
+     */
+    WorkLogRangeTotals totalsInRange(LocalDate from, LocalDate to);
+
+    /** {@code charts.byClient} de {@code 010-dashboard}. Mesmo escopo de {@link #totalsInRange}. */
+    List<WorkLogGroupTotal> minutesByClient(LocalDate from, LocalDate to);
+
+    /** {@code charts.byCategory} de {@code 010-dashboard}. */
+    List<WorkLogGroupTotal> minutesByCategory(LocalDate from, LocalDate to);
+
+    /** {@code charts.byContract} de {@code 010-dashboard}. */
+    List<WorkLogGroupTotal> minutesByContract(LocalDate from, LocalDate to);
 }

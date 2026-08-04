@@ -77,6 +77,23 @@ Especificar os endpoints de geração de relatórios, exportação em PDF, Excel
 
 **Ordenação padrão dentro de cada grupo:** `workDate` crescente, depois `ticketKey`, depois `startedAt`.
 
+A ordenação é **normativa e não configurável**: duas gerações do mesmo relatório listam as linhas na
+mesma sequência, e é isso que torna RN-708 verificável.
+
+**Nem todo agrupamento vale para todo tipo de relatório.** Um `groupBy` incompatível responde `422`
+`DEVTIME-3007`:
+
+| Tipo | Agrupamentos aceitos |
+|---|---|
+| `CONTRACT_PERIOD`, `CLIENT_SUMMARY` | `DATE`, `TICKET`, `CATEGORY`, `USER`, `TAG`, `NONE` |
+| `TIMESHEET` | todos os sete |
+| `TICKET_DETAIL` | `DATE`, `CATEGORY`, `NONE` — agrupar por ticket produziria um grupo só |
+| `PRODUCTIVITY` | `DATE`, `WEEK`, `CATEGORY`, `USER`, `NONE` |
+
+Com `groupBy=TAG`, um registro com várias etiquetas aparece **em cada uma delas**: a soma dos
+subtotais dos grupos ultrapassa o total do relatório, e é a única leitura possível de "agrupar por
+tag". Registros sem etiqueta formam um grupo de chave nula, cujo rótulo cabe à camada de i18n.
+
 ---
 
 ## 6. `GET /api/v1/reports/contract-period/{periodId}`
@@ -100,8 +117,11 @@ Especificar os endpoints de geração de relatórios, exportação em PDF, Excel
   "reportType": "CONTRACT_PERIOD",
   "generatedAt": "2026-08-01T09:20:00-03:00",
   "generatedBy": { "id": "...", "name": "Rafael Mendes" },
+  "issueId": "EM-20260801-3F9A2C71",
   "source": "SNAPSHOT",
   "isPartial": false,
+  "reopenCount": 0,
+  "groupBy": "DATE",
   "snapshotAt": "2026-08-01T09:15:00-03:00",
   "issuer": {
     "name": "Rafael Mendes Dev",
@@ -220,6 +240,9 @@ Especificar os endpoints de geração de relatórios, exportação em PDF, Excel
 | CP-04 | `summaries.byUser` é omitido para `MEMBER` |
 | CP-05 | Registros não faturáveis aparecem no detalhamento com marcação, mas não entram em `billableMinutes` |
 | CP-06 | Os ajustes são listados individualmente com sua justificativa — é o que torna o número defensável perante o cliente |
+| CP-07 | `issueId` identifica a emissão e é o que o rodapé do PDF imprime (RN-703, PDF-07). Formato `EM-{data}-{8 hexadecimais}`: legível, sem identificador técnico (PDF-04), e derivado do registro de exportação quando há um |
+| CP-08 | Com `source = "SNAPSHOT"`, os filtros por `categoryIds`, `tagIds` e `userIds` **não se aplicam**: o payload congela rótulos, não chaves, e casá-los exigiria ler as tabelas atuais — o que RN-701 proíbe. Eles são ignorados, não recusados. O **escopo do solicitante é aplicado**, porque o payload guarda o autor de cada linha |
+| CP-09 | `reopenCount` maior que zero acrescenta o aviso de reabertura em todas as saídas (FA-03) |
 
 | Status | Código | Situação |
 |---|---|---|
@@ -442,6 +465,16 @@ Uma única tabela equivalente à aba `Detalhamento`, codificada em UTF-8 com BOM
 
 **Query:** `period` (`CURRENT_PERIOD`, `LAST_7_DAYS`, `LAST_30_DAYS`, `CUSTOM`), `from`, `to`.
 
+**Permissão:** `DASHBOARD_VIEW_OWN` ou `DASHBOARD_VIEW_ANY`. O `scope` é **derivado do papel**, nunca
+recebido: aceitá-lo como parâmetro permitiria a um `MEMBER` pedir `TENANT` e ler as horas dos colegas.
+
+**Resolução do intervalo.** Todas as datas são resolvidas no **fuso do tenant** (RN-009). `CURRENT_PERIOD`
+é o **mês corrente do calendário**: o painel é do tenant inteiro e cada contrato tem o seu próprio ciclo
+de apuração (`billingDay`, RN-211), de modo que não existe um período de apuração único a que "o período
+corrente" pudesse se referir. O saldo de cada cartão continua vindo do período de apuração real daquele
+contrato, servido por `BalanceService`. `LAST_7_DAYS` e `LAST_30_DAYS` são intervalos fechados que
+incluem hoje. `CUSTOM` exige `from` e `to` e é limitado a 366 dias (RN-705).
+
 **Response `200 OK`:**
 
 ```json
@@ -472,17 +505,22 @@ Uma única tabela equivalente à aba `Detalhamento`, codificada em UTF-8 com BOM
       "entityType": "CONTRACT_PERIOD", "entityId": "..." }
   ],
   "recentWorkLogs": [ { "...": "5 registros mais recentes" } ],
-  "openTickets": [ { "...": "tickets em andamento do usuário" } ],
+  "openTickets": [
+    { "id": "...", "key": "CT-0001-42", "title": "Corrigir cálculo de frete",
+      "status": "IN_PROGRESS", "priority": "HIGH", "contractCode": "CT-0001",
+      "dueDate": "2026-08-05", "spentMinutes": 320 }
+  ],
+  "failedBlocks": [],
   "charts": {
     "dailyMinutes": [
       { "date": "2026-07-28", "netMinutes": 480, "billableMinutes": 450 }
     ],
     "byClient": [
-      { "label": "Acme Corporation", "color": "#6366F1",
+      { "entityId": "...", "label": "Acme Corporation", "color": "#6366F1",
         "minutes": 4320, "percentage": 48.32 }
     ],
     "byCategory": [
-      { "label": "Desenvolvimento", "color": "#6366F1",
+      { "entityId": "...", "label": "Desenvolvimento", "color": "#6366F1",
         "minutes": 5760, "percentage": 64.43 }
     ]
   }
@@ -492,9 +530,20 @@ Uma única tabela equivalente à aba `Detalhamento`, codificada em UTF-8 com BOM
 | Campo | Regra |
 |---|---|
 | `scope` | `TENANT` para papéis com `DASHBOARD_VIEW_ANY`; `USER` para `MEMBER` |
-| `contracts` | Ordenado por `severity` decrescente, depois por `daysRemaining` crescente |
+| `contracts` | Ordenado por `severity` decrescente, depois por `daysRemaining` crescente, com desempate estável por `code` |
 | `alerts` | Derivado do estado atual, não das notificações persistidas — o dashboard sempre reflete a realidade presente |
-| `charts.dailyMinutes` | Sempre 30 pontos; dias sem registro aparecem com zero, evitando gráfico enganoso |
+| `alerts[].type` | `CONTRACT_USAGE_{limiar}`, `CONTRACT_OVERAGE`, `PERIOD_CLOSING` ou `CONTRACT_ENDING`. O limiar é o **do contrato** (`notificationThresholds`): um contrato com `[70, 90]` produz `CONTRACT_USAGE_70`, o mesmo identificador que RN-603 usa no `dedupeKey` da notificação correspondente |
+| `charts.dailyMinutes` | Sempre 30 pontos, terminando no fim do intervalo consultado; dias sem registro aparecem com zero, evitando gráfico enganoso |
+| `openTickets` | Tickets abertos **do usuário autenticado** em qualquer escopo, ordenados por prazo mais próximo; teto de 20 |
+| `failedBlocks` | Blocos cuja agregação falhou. Lista vazia é o caso normal; um bloco listado chega vazio ou zerado e os demais são devolvidos íntegros — falhar tudo por causa de um gráfico transformaria um problema pequeno em tela branca |
+
+**Nenhum campo monetário.** A resposta não expõe valor algum, o que satisfaz a restrição de
+`CONTRACT_VIEW_FINANCIAL` por construção em vez de por omissão condicional — um campo anulado por
+permissão continuaria no contrato da API e convidaria a inferências pela sua ausência.
+
+**Nenhuma escrita.** O painel é integralmente de leitura: não persiste nada, não publica evento e não
+gera `AuditLog` (RN-006 aplica-se a alterações; cada abertura do painel poluiria a trilha com dezenas
+de entradas sem valor investigativo). O acesso é registrado em log de aplicação.
 
 **Meta de desempenho:** p95 abaixo de 800 ms com 100.000 registros no tenant (RNF-003).
 
@@ -503,6 +552,25 @@ Uma única tabela equivalente à aba `Detalhamento`, codificada em UTF-8 com BOM
 Endpoint dedicado para recarregar um gráfico isoladamente ao trocar o período, sem recarregar o dashboard inteiro.
 
 **Tipos:** `daily-minutes`, `by-client`, `by-category`, `by-contract`, `billable-ratio`, `consumption-trend`.
+
+Aceita os mesmos `period`, `from` e `to` de §10.1. A resposta traz `type` e **exatamente um** entre
+`points[]` e `slices[]`, conforme a forma do gráfico:
+
+| Tipo | Forma | Conteúdo |
+|---|---|---|
+| `daily-minutes` | `points[]` | 30 pontos com `netMinutes` e `billableMinutes` por dia |
+| `consumption-trend` | `points[]` | Os mesmos 30 dias, **acumulados** |
+| `by-client` | `slices[]` | Minutos por cliente |
+| `by-category` | `slices[]` | Minutos por categoria |
+| `by-contract` | `slices[]` | Minutos por contrato, restrito aos contratos visíveis ao papel |
+| `billable-ratio` | `slices[]` | Faturável × não faturável no intervalo |
+
+Um `type` fora desta lista responde `400` `DEVTIME-2000`.
+
+Os gráficos são cacheados por cinco minutos, com chave que **sempre** inclui o tenant, o escopo
+resolvido e o usuário quando o escopo é `USER`, e invalidação por evento de registro de horas,
+cronômetro, fechamento, reabertura e ajuste. `quickStats` e os cartões de contrato **não** são
+cacheados: são os valores que o usuário mais espera ver atualizados no instante em que registra horas.
 
 ---
 
@@ -536,6 +604,7 @@ Endpoint dedicado para recarregar um gráfico isoladamente ao trocar o período,
 | `DEVTIME-3007` | 422 | Agrupamento não suportado para o tipo de relatório |
 | `DEVTIME-1101` | 403 | Escopo não permitido para o papel |
 | `DEVTIME-2002` | 404 | Recurso inexistente ou de outro tenant |
+| `DEVTIME-2000` | 400 | Parâmetro de consulta inválido: `period=CUSTOM` sem `from`/`to`, `to` anterior a `from`, ou tipo de gráfico fora dos seis de §10.2 |
 
 ## 13. Critérios de aceite
 

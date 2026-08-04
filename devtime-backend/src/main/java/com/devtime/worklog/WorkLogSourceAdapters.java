@@ -1,9 +1,11 @@
 package com.devtime.worklog;
 
+import com.devtime.category.CategoryWorkLogSource;
 import com.devtime.contract.MemberContractLinkSource;
 import com.devtime.contract.PeriodWorkLogSource;
 import com.devtime.contract.dto.BalanceResponses.PeriodWorkLogEntry;
 import com.devtime.ticket.TicketWorkLogCountSource;
+import com.devtime.ticket.TicketWorkLogCountSource.TicketWorkLogTotals;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -37,6 +39,37 @@ public final class WorkLogSourceAdapters {
         @Transactional(readOnly = true)
         public long countByTicket(UUID ticketId) {
             return repository.countByTicketId(ticketId);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public java.util.Map<UUID, TicketWorkLogTotals> totalsByTicket() {
+            return repository.totalsByTicket().stream()
+                    .collect(
+                            java.util.stream.Collectors.toMap(
+                                    TicketWorkLogTotal::ticketId,
+                                    total ->
+                                            new TicketWorkLogTotals(
+                                                    (int) total.spentMinutes(),
+                                                    (int) total.billableMinutes())));
+        }
+    }
+
+    /** RN-505: contagem e migração de registros na exclusão de categoria, para {@code 005}. */
+    @Component
+    @RequiredArgsConstructor
+    public static class CategoryAdapter implements CategoryWorkLogSource {
+
+        private final WorkLogService workLogService;
+
+        @Override
+        public long countByCategory(UUID categoryId) {
+            return workLogService.countByCategory(categoryId);
+        }
+
+        @Override
+        public long reassignCategory(UUID fromCategoryId, UUID toCategoryId) {
+            return workLogService.reassignCategory(fromCategoryId, toCategoryId);
         }
     }
 

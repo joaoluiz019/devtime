@@ -64,6 +64,32 @@ public interface ClientService {
     com.devtime.client.dto.ClientResponses.ClientRef getRefById(UUID clientId);
 
     /**
+     * A mesma identificação, em lote.
+     *
+     * <p>Interface pública para {@code 010-dashboard}: os cartões de contrato e o gráfico por
+     * cliente rotulam dezenas de clientes por carga, e uma chamada por identificador produziria
+     * dezenas de consultas onde uma basta.
+     *
+     * <p>Identificadores inexistentes ou já excluídos são <b>omitidos</b> do resultado, em vez de
+     * produzirem {@code 404}: o chamador está rotulando um conjunto que já possui, e falhar por
+     * causa de um rótulo apagaria o bloco inteiro (§10 de specs/010).
+     */
+    java.util.List<com.devtime.client.dto.ClientResponses.ClientRef> findRefs(
+            java.util.Collection<UUID> clientIds);
+
+    /**
+     * Identificação fiscal do cliente para o cabeçalho de relatórios (RN-703).
+     *
+     * <p>Interface pública para {@code 011-bank-hours}, que a congela no snapshot do fechamento
+     * (ADR-036 RP-01), e para {@code 012-reports}, que a lê ao vivo em período aberto.
+     *
+     * <p>Como {@link #getRefById(UUID)}, <b>não</b> aplica o escopo de dados de {@code MEMBER}: a
+     * decisão de escopo de um relatório é de {@code 012} e acontece antes desta chamada (CE-P-10,
+     * §6.2 de specs/012). O filtro de tenant continua valendo (ART-022).
+     */
+    com.devtime.client.dto.ClientResponses.ClientReportParty getReportParty(UUID clientId);
+
+    /**
      * Ajusta {@code activeContractsCount} após uma transição de contrato (entities.md §9).
      *
      * <p>Existe para que a atualização do campo desnormalizado permaneça dentro da feature dona do

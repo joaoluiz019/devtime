@@ -44,6 +44,40 @@ public interface ContractRepository extends SoftDeleteRepository<Contract> {
             @Param("clientId") UUID clientId, @Param("statuses") List<ContractStatus> statuses);
 
     /**
+     * Contratos em operação, para os cartões do painel (specs/010 §13.4).
+     *
+     * <p>Recai sobre {@code idx_contracts_active_dashboard} (V031), parcial em {@code ACTIVE} e
+     * {@code SUSPENDED}: {@code DRAFT}, {@code ENDED} e {@code CANCELLED} acumulam ao longo do
+     * tempo e nunca aparecem no painel.
+     */
+    @Query(
+            """
+            SELECT c FROM Contract c
+             WHERE c.status IN :statuses
+             ORDER BY c.code ASC
+            """)
+    List<Contract> findByStatusIn(@Param("statuses") java.util.Collection<ContractStatus> statuses);
+
+    /**
+     * A mesma consulta restrita aos contratos vinculados ao membro (permissions.md §9, nota ²).
+     *
+     * <p>Separada em vez de um {@code IN} opcional porque um {@code IN} com coleção vazia ou nula
+     * não tem semântica estável em JPQL — e a diferença entre "sem restrição" e "nenhum vínculo" é
+     * exatamente a que não pode ser confundida: a primeira devolveria a carteira inteira a quem não
+     * pode vê-la (INV-DSH-02).
+     */
+    @Query(
+            """
+            SELECT c FROM Contract c
+             WHERE c.status IN :statuses
+               AND c.id IN :ids
+             ORDER BY c.code ASC
+            """)
+    List<Contract> findByStatusInAndIdIn(
+            @Param("statuses") java.util.Collection<ContractStatus> statuses,
+            @Param("ids") java.util.Collection<UUID> ids);
+
+    /**
      * RN-606: contratos {@code ACTIVE} cujo término é exatamente a data informada.
      *
      * <p>Consulta de job de plataforma: percorre todos os tenants porque o lembrete precisa
@@ -76,4 +110,20 @@ public interface ContractRepository extends SoftDeleteRepository<Contract> {
     List<Contract> findActiveEndedBy(
             @Param("reference") java.time.LocalDate reference,
             org.springframework.data.domain.Pageable pageable);
+
+    /**
+     * entities.md §9: contratos {@code ACTIVE} por cliente, para a reconciliação noturna de {@code
+     * 003}.
+     *
+     * <p>Varredura de plataforma agrupada, como {@code findActiveEndedBy}. {@code SUSPENDED} não
+     * entra: o contador conta contratos <b>ativos</b>, e é essa a definição que {@code
+     * ClientDeletionGuard} usa para decidir se o cliente pode ser excluído.
+     */
+    @Query(
+            """
+            SELECT c.clientId, COUNT(c) FROM Contract c
+             WHERE c.status = com.devtime.contract.domain.ContractStatus.ACTIVE
+             GROUP BY c.clientId
+            """)
+    List<Object[]> countActiveByClient();
 }

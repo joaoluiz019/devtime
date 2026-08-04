@@ -321,6 +321,53 @@ class CategoryServiceIntegrationTest extends FeatureTestSupport {
         assertThat(asOwnerOfA(() -> categoryService.requireActive(id)).id()).isEqualTo(id);
     }
 
+    @Test
+    @DisplayName("TS-005-15/OB-04: getAllForReport inclui categorias inativas e excluídas")
+    void getAllForReportShouldIncludeInactiveAndDeleted() {
+        CategoryResponse inactive = asOwnerOfA(() -> categoryService.create(create("Inativa")));
+        asOwnerOfA(
+                () ->
+                        categoryService.update(
+                                inactive.id(),
+                                new CategoryUpdateRequest(
+                                        "Inativa",
+                                        null,
+                                        null,
+                                        null,
+                                        true,
+                                        false,
+                                        0,
+                                        inactive.version())));
+        UUID deletedId = asOwnerOfA(() -> categoryService.create(create("Excluída")).id());
+        asOwnerOfA(() -> categoryService.delete(deletedId, null));
+
+        assertThat(asOwnerOfA(() -> categoryService.list(null, null)))
+                .as("a listagem padrão respeita RN-003 e não vê a excluída")
+                .extracting(CategoryResponse::id)
+                .containsExactly(inactive.id());
+        assertThat(asOwnerOfA(() -> categoryService.getAllForReport()))
+                .extracting(CategoryResponse::id)
+                .containsExactlyInAnyOrder(inactive.id(), deletedId);
+        assertThat(asOwnerOfA(() -> categoryService.getAllForReport()))
+                .filteredOn(category -> category.id().equals(deletedId))
+                .singleElement()
+                .satisfies(
+                        category ->
+                                assertThat(category.name())
+                                        .as("o rótulo vigente à época sobrevive à exclusão")
+                                        .isEqualTo("Excluída"));
+    }
+
+    @Test
+    @DisplayName("ART-022: getAllForReport não enxerga o catálogo de outro tenant")
+    void getAllForReportShouldStayInsideTheTenant() {
+        asOwnerOfA(() -> categoryService.create(create("Do Tenant A")));
+
+        assertThat(asOwnerOfB(() -> categoryService.getAllForReport()))
+                .extracting(CategoryResponse::name)
+                .doesNotContain("Do Tenant A");
+    }
+
     private CategoryCreateRequest create(String name) {
         return new CategoryCreateRequest(name, null, "#6366F1", "pi-code", true, null);
     }

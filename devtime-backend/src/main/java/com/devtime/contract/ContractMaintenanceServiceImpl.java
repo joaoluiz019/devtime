@@ -5,6 +5,7 @@ import com.devtime.contract.domain.Contract;
 import com.devtime.contract.domain.ContractPeriod;
 import com.devtime.contract.domain.ContractStatus;
 import com.devtime.contract.domain.PeriodStatus;
+import com.devtime.contract.dto.BalanceRequests.ClosePeriodRequest;
 import com.devtime.contract.dto.ContractRequests.ContractTransitionRequest;
 import com.devtime.contract.dto.ContractResponses.MaintenanceTarget;
 import java.time.LocalDate;
@@ -32,6 +33,11 @@ public class ContractMaintenanceServiceImpl implements ContractMaintenanceServic
     private final ContractPeriodRepository periodRepository;
     private final ContractService contractService;
     private final PeriodMaterializer periodMaterializer;
+    private final PeriodAdjustmentRepository adjustmentRepository;
+    private final AdjustmentService adjustmentService;
+    private final PeriodClosingService closingService;
+    private final RolloverExpiryPolicy rolloverExpiryPolicy;
+    private final BalanceCalculator balanceCalculator;
     private final AuditService auditService;
 
     @Override
@@ -58,6 +64,97 @@ public class ContractMaintenanceServiceImpl implements ContractMaintenanceServic
                                 new MaintenanceTarget(
                                         contract.getTenantId(), contract.getId(), contract.getId()))
                 .toList();
+    }
+
+    @Override
+    public List<MaintenanceTarget> findRolloverExpiryDue(int limit) {
+        return periodRepository.findRolloverExpiryDue(PageRequest.of(0, limit)).stream()
+                .map(ContractMaintenanceServiceImpl::targetOf)
+                .toList();
+    }
+
+    @Override
+    public List<MaintenanceTarget> findAutoCloseDue(LocalDate reference, int graceDays, int limit) {
+        return periodRepository
+                .findAutoCloseDue(reference.minusDays(graceDays), PageRequest.of(0, limit))
+                .stream()
+                .map(ContractMaintenanceServiceImpl::targetOf)
+                .toList();
+    }
+
+    /**
+     * RN-230 (ver {@link ContractMaintenanceService#expireRollover}).
+     *
+     * <p>A convergência vem da verificação de que já existe o ajuste de expiração <b>neste</b>
+     * período: reexecutar o job no mesmo dia, ou em duas réplicas, não debita duas vezes. É a
+     * {@code dedupeKey} por período que §22.4 exige, expressa como consulta em vez de coluna nova.
+     */
+    @Override
+    @Transactional
+    public boolean expireRollover(UUID periodId) {
+        ContractPeriod period = periodRepository.findById(periodId).orElse(null);
+        if (period == null
+                || (period.getStatus() != PeriodStatus.OPEN
+                        && period.getStatus() != PeriodStatus.REOPENED)) {
+            // CX-19: entre a varredura e esta transação o período pode ter fechado.
+            return false;
+        }
+        if (adjustmentRepository.existsSystemExpiry(periodId, RolloverExpiryPolicy.JUSTIFICATION)) {
+            return false;
+        }
+        Contract contract = contractRepository.findById(period.getContractId()).orElse(null);
+        if (contract == null || contract.getRolloverExpiryPeriods() <= 0) {
+            return false; // CX-20
+        }
+
+        int grantMinutes =
+                periodRepository
+                        .findByContractIdAndSequence(
+                                period.getContractId(),
+                                period.getSequence() - contract.getRolloverExpiryPeriods())
+                        .map(ContractPeriod::getCarriedInMinutes)
+                        .orElse(0);
+        int expiring =
+                rolloverExpiryPolicy.expiringMinutes(
+                        period, balanceCalculator.calculate(period), grantMinutes);
+        if (expiring <= 0) {
+            return false;
+        }
+
+        adjustmentService.applySystemExpiry(
+                periodId, -expiring, RolloverExpiryPolicy.JUSTIFICATION);
+        auditService.recordSystemAction(
+                "PERIOD_ROLLOVER_EXPIRED",
+                "ContractPeriod",
+                periodId,
+                Map.of("carriedInMinutes", period.getCarriedInMinutes()),
+                Map.of("adjustmentMinutes", -expiring),
+                Map.of("rolloverExpiryPeriods", (int) contract.getRolloverExpiryPeriods()));
+        log.info(
+                "saldo transportado expirado periodId={} minutos={}",
+                periodId,
+                expiring); // §26: INFO
+        return true;
+    }
+
+    /** CE-ME-02 (ver {@link ContractMaintenanceService#autoClosePeriod}). */
+    @Override
+    @Transactional
+    public boolean autoClosePeriod(UUID periodId) {
+        ContractPeriod period = periodRepository.findById(periodId).orElse(null);
+        if (period == null
+                || (period.getStatus() != PeriodStatus.OPEN
+                        && period.getStatus() != PeriodStatus.REOPENED)) {
+            return false;
+        }
+        // `confirmed = true`: a data de fim já passou há três dias, então RN-239 não se aplica —
+        // não há fechamento antecipado a confirmar. `earlyClosingReason` nulo pelo mesmo motivo.
+        closingService.close(periodId, new ClosePeriodRequest(true, null));
+        log.info(
+                "período fechado automaticamente periodId={} contractId={}",
+                periodId,
+                period.getContractId());
+        return true;
     }
 
     /**

@@ -17,6 +17,19 @@ public interface ContractPeriodService {
 
     ContractPeriodResponse getById(UUID periodId);
 
+    /**
+     * Período na forma que {@code 012-reports} consome (AR-02).
+     *
+     * <p>Interface pública para {@code 012}. Distinta de {@link #getById(UUID)} porque aquela
+     * devolve {@code PeriodStatus}, enum do domínio desta feature, e a consumidora não pode
+     * conhecê-lo (ART-065). A decisão de §6.1 de specs/012 — snapshot ou cálculo ao vivo — chega
+     * calculada em {@code isClosed} e {@code isStarted}.
+     *
+     * @throws com.devtime.shared.error.EntityNotFoundException período inexistente ou de outro
+     *     tenant, sempre {@code 404} (ART-024)
+     */
+    com.devtime.contract.dto.ContractResponses.PeriodReportRef getReportRef(UUID periodId);
+
     /** Período aberto do contrato, quando houver. */
     java.util.Optional<ContractPeriodResponse> getCurrentPeriod(UUID contractId);
 

@@ -79,6 +79,42 @@ public interface WorkLogRepository extends SoftDeleteRepository<WorkLog> {
     @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.ticketId = :ticketId")
     long countByTicketId(@Param("ticketId") UUID ticketId);
 
+    /**
+     * RN-308: totais reais por ticket, para a reconciliação noturna.
+     *
+     * <p>Agregação única sobre {@code idx_work_logs_ticket}, não uma consulta por ticket (CP-12).
+     * {@code billableMinutes} é derivado (RN-112) e por isso vem de um {@code CASE}, não de coluna:
+     * persistir o derivado criaria uma segunda verdade a reconciliar.
+     */
+    @Query(
+            """
+            SELECT new com.devtime.worklog.TicketWorkLogTotal(
+                       w.ticketId,
+                       COALESCE(SUM(w.netMinutes), 0),
+                       COALESCE(SUM(CASE WHEN w.billable = true THEN w.netMinutes ELSE 0 END), 0))
+              FROM WorkLog w
+             GROUP BY w.ticketId
+            """)
+    List<TicketWorkLogTotal> totalsByTicket();
+
+    /**
+     * tickets.md §9.1: registros do ticket para a linha do tempo.
+     *
+     * <p>{@code restrictToUserId} aplica o escopo de dados de {@code MEMBER} <b>na consulta</b> (§9
+     * de permissions.md, IMP-02). Filtrar depois de carregar vazaria a existência dos registros de
+     * terceiros pela contagem e pela paginação — e o conjunto de horas de uma pessoa revela seu
+     * padrão de trabalho (§19.1 de specs/008).
+     */
+    @Query(
+            """
+            SELECT w FROM WorkLog w
+             WHERE w.ticketId = :ticketId
+               AND (:restrictToUserId IS NULL OR w.userId = :restrictToUserId)
+             ORDER BY w.startedAt DESC
+            """)
+    List<WorkLog> findForTicketActivity(
+            @Param("ticketId") UUID ticketId, @Param("restrictToUserId") UUID restrictToUserId);
+
     /** RN-458: registros preservados de um membro removido, publicada a {@code 002}. */
     @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.userId = :userId")
     long countByUserId(@Param("userId") UUID userId);
@@ -86,6 +122,30 @@ public interface WorkLogRepository extends SoftDeleteRepository<WorkLog> {
     /** RN-505: quantidade de registros vinculados a uma categoria, publicada a {@code 005}. */
     @Query("SELECT COUNT(w) FROM WorkLog w WHERE w.categoryId = :categoryId")
     long countByCategoryId(@Param("categoryId") UUID categoryId);
+
+    /**
+     * RN-505 passo 6: migração em lote para a categoria substituta.
+     *
+     * <p>{@code UPDATE} em lote e não carregamento de entidades: uma categoria usada há dois anos
+     * tem dezenas de milhares de registros, e carregá-los para trocar um campo é o pico de memória
+     * que CP-13 proíbe. Pelo mesmo motivo a operação não incrementa {@code version} — a migração é
+     * manutenção de catálogo, não edição concorrente do registro de horas (mesma decisão de {@code
+     * softDelete} em {@code SoftDeleteRepository}).
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(
+            """
+            UPDATE WorkLog w
+               SET w.categoryId = :toCategoryId,
+                   w.updatedAt = :updatedAt,
+                   w.updatedBy = :updatedBy
+             WHERE w.categoryId = :fromCategoryId
+            """)
+    int reassignCategory(
+            @Param("fromCategoryId") UUID fromCategoryId,
+            @Param("toCategoryId") UUID toCategoryId,
+            @Param("updatedAt") Instant updatedAt,
+            @Param("updatedBy") UUID updatedBy);
 
     @Query("SELECT w FROM WorkLog w WHERE w.contractPeriodId = :periodId ORDER BY w.startedAt ASC")
     List<WorkLog> findByPeriod(@Param("periodId") UUID periodId);
@@ -186,6 +246,90 @@ public interface WorkLogRepository extends SoftDeleteRepository<WorkLog> {
         long getTotalMinutes();
 
         long getEntryCount();
+    }
+
+    /**
+     * Totais do intervalo, somados no banco (specs/010 §20, {@code quickStats}).
+     *
+     * <p>Distinta de {@link #aggregateByDay}: aqui não há agrupamento, e o painel pede três
+     * intervalos por carga (hoje, semana, período). Distinta também de {@code
+     * totals(WorkLogFilter)} do serviço, que materializa as entidades para quebrar por categoria —
+     * com 100.000 registros isso é exatamente o que a meta de p95 &lt; 150 ms não tolera. Esta
+     * consulta recai sobre {@code idx_work_logs_dashboard_daily}, que é coberto.
+     */
+    @Query(
+            """
+            SELECT COALESCE(SUM(w.netMinutes), 0) AS netMinutes,
+                   COALESCE(SUM(CASE WHEN w.billable = TRUE THEN w.netMinutes ELSE 0 END), 0)
+                       AS billableMinutes
+              FROM WorkLog w
+             WHERE w.workDate BETWEEN :from AND :to
+               AND (:userId IS NULL OR w.userId = :userId)
+            """)
+    RangeAggregate sumInRange(
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("userId") UUID userId);
+
+    /** Projeção dos totais do intervalo — nunca a entidade (BR-107). */
+    interface RangeAggregate {
+        long getNetMinutes();
+
+        long getBillableMinutes();
+    }
+
+    /**
+     * {@code charts.byClient} (specs/010 §13.4): recai sobre {@code
+     * idx_work_logs_dashboard_client}.
+     */
+    @Query(
+            """
+            SELECT w.clientId AS groupId,
+                   SUM(w.netMinutes) AS netMinutes,
+                   SUM(CASE WHEN w.billable = TRUE THEN w.netMinutes ELSE 0 END) AS billableMinutes
+              FROM WorkLog w
+             WHERE w.workDate BETWEEN :from AND :to
+               AND (:userId IS NULL OR w.userId = :userId)
+             GROUP BY w.clientId
+            """)
+    List<GroupAggregate> aggregateByClientInRange(
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("userId") UUID userId);
+
+    /** {@code charts.byCategory}: recai sobre {@code idx_work_logs_dashboard_category}. */
+    @Query(
+            """
+            SELECT w.categoryId AS groupId,
+                   SUM(w.netMinutes) AS netMinutes,
+                   SUM(CASE WHEN w.billable = TRUE THEN w.netMinutes ELSE 0 END) AS billableMinutes
+              FROM WorkLog w
+             WHERE w.workDate BETWEEN :from AND :to
+               AND (:userId IS NULL OR w.userId = :userId)
+             GROUP BY w.categoryId
+            """)
+    List<GroupAggregate> aggregateByCategoryInRange(
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("userId") UUID userId);
+
+    /**
+     * {@code charts.byContract}: recai sobre {@code idx_work_logs_contract_date}, criado em V016.
+     */
+    @Query(
+            """
+            SELECT w.contractId AS groupId,
+                   SUM(w.netMinutes) AS netMinutes,
+                   SUM(CASE WHEN w.billable = TRUE THEN w.netMinutes ELSE 0 END) AS billableMinutes
+              FROM WorkLog w
+             WHERE w.workDate BETWEEN :from AND :to
+               AND (:userId IS NULL OR w.userId = :userId)
+             GROUP BY w.contractId
+            """)
+    List<GroupAggregate> aggregateByContractInRange(
+            @Param("from") LocalDate from, @Param("to") LocalDate to, @Param("userId") UUID userId);
+
+    /** Projeção de uma fatia de gráfico: o identificador do agrupamento e os minutos somados. */
+    interface GroupAggregate {
+        UUID getGroupId();
+
+        long getNetMinutes();
+
+        long getBillableMinutes();
     }
 
     /**

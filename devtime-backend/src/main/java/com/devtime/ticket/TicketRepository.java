@@ -97,6 +97,30 @@ public interface TicketRepository extends SoftDeleteRepository<Ticket> {
                     java.util.Collection<com.devtime.ticket.domain.TicketStatus> statuses);
 
     /**
+     * Tickets abertos de um responsável, ordenados para o painel (specs/010 §10.1).
+     *
+     * <p>Difere de {@link #findByAssigneeAndStatusIn} apenas pela ordenação e pela paginação, que
+     * ali não fazem falta e aqui são o que mantém o bloco dentro de p95 &lt; 150 ms. Recai sobre
+     * {@code idx_tickets_open_assignee} (V031), parcial no conjunto de estados abertos.
+     *
+     * <p>A ordem é a de urgência: prazo mais próximo primeiro, com os sem prazo ao fim, e desempate
+     * pela atualização mais recente. Ordenar por chave colocaria no topo o ticket mais antigo, que
+     * é justamente o menos provável de exigir ação hoje.
+     */
+    @Query(
+            """
+            SELECT t FROM Ticket t
+             WHERE t.assigneeId = :assigneeId
+               AND t.status IN :statuses
+             ORDER BY t.dueDate ASC NULLS LAST, t.updatedAt DESC
+            """)
+    List<Ticket> findOpenByAssignee(
+            @Param("assigneeId") UUID assigneeId,
+            @Param("statuses")
+                    java.util.Collection<com.devtime.ticket.domain.TicketStatus> statuses,
+            org.springframework.data.domain.Pageable pageable);
+
+    /**
      * RN-308: incremento atômico dos totais desnormalizados.
      *
      * <p>CP-12 proíbe reagregar todos os work logs do ticket: a operação dispara em toda escrita de

@@ -32,6 +32,8 @@ import org.springframework.data.domain.PageRequest;
 class WorkLogServiceIntegrationTest extends FeatureTestSupport {
 
     @Autowired private WorkLogService workLogService;
+    @Autowired private com.devtime.category.CategoryService categoryService;
+    @Autowired private com.devtime.ticket.TicketActivityService activityService;
     @Autowired private WorkLogRepository workLogRepository;
     @Autowired private BalanceService balanceService;
     @Autowired private TicketService ticketService;
@@ -422,6 +424,93 @@ class WorkLogServiceIntegrationTest extends FeatureTestSupport {
     }
 
     // ── Apoio ────────────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("tickets.md §9.1: o registro de horas aparece na linha do tempo do ticket")
+    void workLogShouldAppearInTicketActivity() {
+        var setup = asOwnerOfA(scenario::create);
+        var created = asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+
+        var activity =
+                asOwnerOfA(() -> activityService.activity(setup.ticket().id(), null, 50)).content();
+
+        assertThat(activity)
+                .filteredOn(event -> "WORKLOG_ADDED".equals(event.type()))
+                .singleElement()
+                .satisfies(
+                        event -> {
+                            assertThat(event.data())
+                                    .containsEntry("workLogId", created.workLog().id());
+                            assertThat(event.occurredAt())
+                                    .as("a linha do tempo ordena pelo instante do trabalho")
+                                    .isEqualTo(created.workLog().startedAt());
+                        });
+    }
+
+    @Test
+    @DisplayName("permissions.md §9: MEMBER não vê na linha do tempo as horas de terceiros")
+    void memberMustNotSeeOtherPeopleWorkLogsInActivity() {
+        var setup = asOwnerOfA(scenario::create);
+        asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+
+        var activity =
+                runAs(
+                                tenantAId,
+                                userBId,
+                                com.devtime.shared.security.Role.MEMBER,
+                                () -> activityService.activity(setup.ticket().id(), null, 50))
+                        .content();
+
+        assertThat(activity)
+                .as("o filtro é aplicado na consulta; o evento nem chega a ser contado")
+                .noneMatch(event -> "WORKLOG_ADDED".equals(event.type()));
+    }
+
+    @Test
+    @DisplayName("RN-505 passo 4: excluir categoria com horas vinculadas sem substituta é 2603")
+    void shouldRequireReplacementWhenCategoryHasWorkLogs() {
+        var setup = asOwnerOfA(scenario::create);
+        asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+
+        assertThatThrownBy(
+                        () -> asOwnerOfA(() -> categoryService.delete(setup.category().id(), null)))
+                .isInstanceOf(BusinessRuleException.class)
+                .extracting(failure -> ((BusinessRuleException) failure).getErrorCode().getCode())
+                .isEqualTo("DEVTIME-2603");
+    }
+
+    @Test
+    @DisplayName("RN-505 passo 6: a exclusão migra os registros para a categoria substituta")
+    void shouldMigrateWorkLogsToReplacementCategory() {
+        var setup = asOwnerOfA(scenario::create);
+        WorkLogCreatedResponse created =
+                asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+        var replacement = asOwnerOfA(() -> categoryService.listActive().get(1));
+
+        var deletion =
+                asOwnerOfA(() -> categoryService.delete(setup.category().id(), replacement.id()));
+
+        assertThat(deletion.migratedWorkLogs()).isEqualTo(1L);
+        assertThat(deletion.migratedTo()).isEqualTo(replacement.id());
+        assertThat(asOwnerOfA(() -> workLogService.getById(created.workLog().id())).category().id())
+                .as("INV-CAT-04: nenhum registro fica sem categoria válida")
+                .isEqualTo(replacement.id());
+        assertThat(asOwnerOfA(() -> workLogService.countByCategory(setup.category().id())))
+                .isZero();
+    }
+
+    @Test
+    @DisplayName("CX-04 de 012: o registro migrado ainda resolve o rótulo da categoria excluída")
+    void deletedCategoryShouldRemainLabelableForReports() {
+        var setup = asOwnerOfA(scenario::create);
+        asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+        var replacement = asOwnerOfA(() -> categoryService.listActive().get(1));
+        asOwnerOfA(() -> categoryService.delete(setup.category().id(), replacement.id()));
+
+        assertThat(asOwnerOfA(() -> categoryService.getAllForReport()))
+                .extracting(category -> category.id())
+                .contains(setup.category().id());
+    }
 
     private WorkLogCreateRequest request(
             WorkLogScenario.Scenario setup,

@@ -8,6 +8,8 @@ import com.devtime.worklog.dto.WorkLogFilter;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogCalendarDay;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogCalendarResponse;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogCategoryTotal;
+import com.devtime.worklog.dto.WorkLogResponses.WorkLogGroupTotal;
+import com.devtime.worklog.dto.WorkLogResponses.WorkLogRangeTotals;
 import com.devtime.worklog.dto.WorkLogResponses.WorkLogTotalsResponse;
 import java.time.LocalDate;
 import java.util.Comparator;
@@ -107,5 +109,61 @@ public class WorkLogAggregationServiceImpl implements WorkLogAggregationService 
                 totalMinutes - billableMinutes,
                 matching.size(),
                 byCategory);
+    }
+
+    @Override
+    @PreAuthorize(
+            "hasPermission(null, 'WORKLOG_VIEW_ANY') or hasPermission(null, 'WORKLOG_VIEW_OWN')")
+    public WorkLogRangeTotals totalsInRange(LocalDate from, LocalDate to) {
+        // SG-02 de specs/010: o escopo entra na consulta. Um MEMBER que recebesse o total do tenant
+        // descobriria as horas dos colegas pela subtração das próprias.
+        var aggregate =
+                repository.sumInRange(from, to, ownershipPolicy.dataScopeUserId().orElse(null));
+        if (aggregate == null) {
+            return WorkLogRangeTotals.empty();
+        }
+        return new WorkLogRangeTotals(
+                (int) aggregate.getNetMinutes(), (int) aggregate.getBillableMinutes());
+    }
+
+    @Override
+    @PreAuthorize(
+            "hasPermission(null, 'WORKLOG_VIEW_ANY') or hasPermission(null, 'WORKLOG_VIEW_OWN')")
+    public List<WorkLogGroupTotal> minutesByClient(LocalDate from, LocalDate to) {
+        return toGroupTotals(
+                repository.aggregateByClientInRange(
+                        from, to, ownershipPolicy.dataScopeUserId().orElse(null)));
+    }
+
+    @Override
+    @PreAuthorize(
+            "hasPermission(null, 'WORKLOG_VIEW_ANY') or hasPermission(null, 'WORKLOG_VIEW_OWN')")
+    public List<WorkLogGroupTotal> minutesByCategory(LocalDate from, LocalDate to) {
+        return toGroupTotals(
+                repository.aggregateByCategoryInRange(
+                        from, to, ownershipPolicy.dataScopeUserId().orElse(null)));
+    }
+
+    @Override
+    @PreAuthorize(
+            "hasPermission(null, 'WORKLOG_VIEW_ANY') or hasPermission(null, 'WORKLOG_VIEW_OWN')")
+    public List<WorkLogGroupTotal> minutesByContract(LocalDate from, LocalDate to) {
+        return toGroupTotals(
+                repository.aggregateByContractInRange(
+                        from, to, ownershipPolicy.dataScopeUserId().orElse(null)));
+    }
+
+    /** Ordenação decrescente por minutos: a maior fatia primeiro, como os gráficos a exibem. */
+    private List<WorkLogGroupTotal> toGroupTotals(
+            List<WorkLogRepository.GroupAggregate> aggregates) {
+        return aggregates.stream()
+                .map(
+                        row ->
+                                new WorkLogGroupTotal(
+                                        row.getGroupId(),
+                                        (int) row.getNetMinutes(),
+                                        (int) row.getBillableMinutes()))
+                .sorted(Comparator.comparingInt(WorkLogGroupTotal::netMinutes).reversed())
+                .toList();
     }
 }

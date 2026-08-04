@@ -3,6 +3,7 @@ package com.devtime.contract;
 import com.devtime.contract.domain.ContractStatus;
 import com.devtime.contract.domain.ContractType;
 import com.devtime.contract.dto.ContractRequests.ContractCreateRequest;
+import com.devtime.contract.dto.ContractRequests.ContractDuplicateRequest;
 import com.devtime.contract.dto.ContractRequests.ContractTransitionRequest;
 import com.devtime.contract.dto.ContractRequests.ContractUpdateRequest;
 import com.devtime.contract.dto.ContractRequests.PeriodPreviewRequest;
@@ -97,6 +98,27 @@ public class ContractController {
     public ResponseEntity<ContractResponse> create(
             @Valid @RequestBody ContractCreateRequest request) {
         ContractResponse created = contractService.create(request);
+        return ResponseEntity.created(URI.create("/api/v1/contracts/" + created.id()))
+                .body(created);
+    }
+
+    @PostMapping("/{id}/duplicate")
+    @Operation(
+            summary = "Duplica um contrato em DRAFT",
+            description =
+                    "Copia a configuração — nunca períodos, saldos nem horas — e gera código novo"
+                            + " (INV-CTR-01). O corpo é opcional: informe apenas o que muda.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Cópia criada em DRAFT"),
+        @ApiResponse(responseCode = "404", description = "DEVTIME-2002 — contrato inexistente"),
+        @ApiResponse(
+                responseCode = "422",
+                description = "DEVTIME-2201 — cliente da cópia não está ACTIVE")
+    })
+    public ResponseEntity<ContractResponse> duplicate(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) ContractDuplicateRequest request) {
+        ContractResponse created = contractService.duplicate(id, request);
         return ResponseEntity.created(URI.create("/api/v1/contracts/" + created.id()))
                 .body(created);
     }
