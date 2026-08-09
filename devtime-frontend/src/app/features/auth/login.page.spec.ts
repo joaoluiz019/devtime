@@ -81,7 +81,7 @@ describe('LoginPage', () => {
     request.flush({}, { status: 401, statusText: 'Unauthorized' });
   });
 
-  it('AU-01: a falha de credencial é exibida com a mensagem mapeada do código', async () => {
+  it('AU-01: a falha de credencial usa mensagem única e genérica, sem o texto do servidor', async () => {
     const { authStore } = await setup();
 
     authStore.setError({
@@ -93,9 +93,40 @@ describe('LoginPage', () => {
       traceId: 'abc123',
     });
 
-    // FR-071 / I18-05: a mensagem vem do mapa localizado, não do texto cru do backend.
-    expect(
-      await screen.findByText('Sua sessão expirou. Entre novamente para continuar.'),
-    ).toBeVisible();
+    // `DEVTIME-1001` cobre credencial inválida **e** token expirado. Nesta tela vale a primeira
+    // leitura; o texto global sobre sessão expirada acusaria um problema que não é o do usuário.
+    expect(await screen.findByText('E-mail ou senha inválidos.')).toBeVisible();
+    expect(screen.queryByText('detalhe técnico do servidor')).not.toBeInTheDocument();
+  });
+
+  it('FA-02: e-mail não verificado oferece o reenvio da verificação', async () => {
+    const { authStore } = await setup();
+
+    authStore.setError({
+      type: 'about:blank',
+      title: 'Proibido',
+      status: 403,
+      code: 'DEVTIME-1008',
+      detail: 'e-mail não verificado',
+      traceId: 'abc123',
+    });
+
+    expect(await screen.findByText('Verifique seu e-mail para continuar.')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Reenviar e-mail de verificação' })).toBeVisible();
+  });
+
+  it('FA-03: conta bloqueada explica o bloqueio em vez de repetir erro de credencial', async () => {
+    const { authStore } = await setup();
+
+    authStore.setError({
+      type: 'about:blank',
+      title: 'Bloqueado',
+      status: 423,
+      code: 'DEVTIME-1006',
+      detail: 'conta bloqueada',
+      traceId: 'abc123',
+    });
+
+    expect(await screen.findByText(/Conta bloqueada temporariamente/)).toBeVisible();
   });
 });

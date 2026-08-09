@@ -5,7 +5,6 @@ import com.resend.Resend;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Profile;
 
 /**
  * Cliente do Resend como bean.
@@ -15,7 +14,6 @@ import org.springframework.context.annotation.Profile;
  * construtor e pode ser testado sem rede (BR-203).
  */
 @Configuration
-@Profile({"staging", "prod"})
 @ConditionalOnProperty(name = "devtime.mail.provider", havingValue = "resend")
 public class ResendClientConfig {
 

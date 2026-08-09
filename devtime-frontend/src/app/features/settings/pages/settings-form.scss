@@ -1,0 +1,121 @@
+/**
+ * Estilos comuns às telas de configuração.
+ *
+ * Sete telas com a mesma anatomia — título, seções, campos empilhados e barra de ação — não
+ * comportam sete folhas quase idênticas: a primeira mudança de espaçamento as faria divergir.
+ */
+.dt-setting__title {
+  margin: 0 0 var(--dt-space-1);
+  font-size: var(--dt-text-xl);
+}
+
+.dt-setting__subtitle {
+  margin: 0 0 var(--dt-space-4);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-setting__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+  max-width: 640px;
+}
+
+.dt-setting__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--dt-space-3);
+}
+
+.dt-setting__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-setting__field label {
+  font-size: var(--dt-text-sm);
+  font-weight: 500;
+}
+
+.dt-setting__field input,
+.dt-setting__field textarea {
+  width: 100%;
+}
+
+.dt-setting__hint {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-setting__error {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-setting__check {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-setting__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--dt-space-2);
+  padding-top: var(--dt-space-3);
+  border-top: 1px solid var(--dt-border);
+}
+
+.dt-setting__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  margin: 0 0 var(--dt-space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.dt-setting__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-card);
+}
+
+.dt-setting__item--inactive {
+  opacity: 0.65;
+}
+
+.dt-setting__item-name {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-setting__swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.dt-setting__meta {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-setting__item-actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}
+
+.dt-setting__table {
+  overflow-x: auto;
+}

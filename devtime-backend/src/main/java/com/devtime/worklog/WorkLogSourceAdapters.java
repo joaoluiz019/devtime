@@ -4,6 +4,8 @@ import com.devtime.category.CategoryWorkLogSource;
 import com.devtime.contract.MemberContractLinkSource;
 import com.devtime.contract.PeriodWorkLogSource;
 import com.devtime.contract.dto.BalanceResponses.PeriodWorkLogEntry;
+import com.devtime.shared.tenancy.TenantContext;
+import com.devtime.shared.time.TenantClock;
 import com.devtime.ticket.TicketWorkLogCountSource;
 import com.devtime.ticket.TicketWorkLogCountSource.TicketWorkLogTotals;
 import java.util.List;
@@ -55,21 +57,41 @@ public final class WorkLogSourceAdapters {
         }
     }
 
-    /** RN-505: contagem e migração de registros na exclusão de categoria, para {@code 005}. */
+    /**
+     * RN-505: contagem e migração de registros na exclusão de categoria, para {@code 005}.
+     *
+     * <p>Depende do repositório, e não de {@link WorkLogService}, porque {@code 005} é consumidor
+     * desta fonte e {@code worklog} passou a depender de {@code category} em {@code 012} (nome da
+     * categoria nas linhas de relatório). Passar pelo service reintroduziria pelo grafo de beans o
+     * ciclo que a inversão de dependência existe para evitar — e as duas operações são consultas
+     * diretas, sem regra de domínio no caminho.
+     */
     @Component
     @RequiredArgsConstructor
     public static class CategoryAdapter implements CategoryWorkLogSource {
 
-        private final WorkLogService workLogService;
+        private final WorkLogRepository repository;
+        private final TenantContext tenantContext;
+        private final TenantClock clock;
 
         @Override
+        @Transactional(readOnly = true)
         public long countByCategory(UUID categoryId) {
-            return workLogService.countByCategory(categoryId);
+            return repository.countByCategoryId(categoryId);
         }
 
+        /**
+         * Sem {@code @PreAuthorize}: quem chama é {@code 005}, que já exigiu {@code
+         * CATEGORY_MANAGE}. Nenhum minuto muda — só o vínculo de catálogo.
+         */
         @Override
+        @Transactional
         public long reassignCategory(UUID fromCategoryId, UUID toCategoryId) {
-            return workLogService.reassignCategory(fromCategoryId, toCategoryId);
+            return repository.reassignCategory(
+                    fromCategoryId,
+                    toCategoryId,
+                    clock.now(),
+                    tenantContext.currentUserId().orElse(null));
         }
     }
 

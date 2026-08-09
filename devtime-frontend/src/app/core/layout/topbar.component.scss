@@ -51,3 +51,27 @@
     display: none;
   }
 }
+
+.dt-topbar__bell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--dt-text-primary);
+}
+
+.dt-topbar__badge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 1rem;
+  padding: 0 3px;
+  border-radius: var(--dt-radius-full);
+  background-color: var(--dt-color-danger);
+  color: var(--dt-color-primary-contrast);
+  font-size: 10px;
+  line-height: 1rem;
+  text-align: center;
+}

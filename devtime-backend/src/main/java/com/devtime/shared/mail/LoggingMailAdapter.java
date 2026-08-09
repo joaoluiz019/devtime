@@ -3,7 +3,7 @@ package com.devtime.shared.mail;
 import com.devtime.shared.observability.SensitiveDataMasker;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -12,12 +12,20 @@ import org.springframework.stereotype.Component;
  * <p>Registra o envio sem contatar nenhum provedor: BR-203 proíbe teste que dependa de rede
  * externa, e o desenvolvimento local não deve exigir credenciais SMTP.
  *
+ * <p>Ativo quando {@code devtime.mail.provider=logging}, e também quando a propriedade está
+ * ausente: o padrão seguro é não enviar. Trocar o valor para {@code smtp} ou {@code resend} liga o
+ * provedor real em qualquer perfil, inclusive {@code local} — o e-mail de verificação precisa ser
+ * exercitável contra o provedor de verdade sem fingir que o ambiente é {@code staging}.
+ *
  * <p>O corpo da mensagem <b>não</b> vai para o log (§28 de spec 001): o e-mail de verificação
  * contém o token, e registrá-lo transformaria o arquivo de log em um conjunto de credenciais de
  * ativação. O destinatário é mascarado (ART-084).
  */
 @Component
-@Profile({"local", "test", "default"})
+@ConditionalOnProperty(
+        name = "devtime.mail.provider",
+        havingValue = "logging",
+        matchIfMissing = true)
 @RequiredArgsConstructor
 @Slf4j
 public class LoggingMailAdapter implements MailPort {

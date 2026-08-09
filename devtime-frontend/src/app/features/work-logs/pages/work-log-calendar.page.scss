@@ -1,0 +1,98 @@
+.dt-calendar__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-calendar__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-calendar__subtitle {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-calendar__nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dt-space-2);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-calendar__month {
+  min-width: 10rem;
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.dt-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--dt-space-1);
+}
+
+.dt-calendar__weekday {
+  padding: var(--dt-space-1);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.dt-calendar__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 4.5rem;
+  padding: var(--dt-space-2);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-sm);
+  background-color: var(--dt-surface-card);
+  color: var(--dt-text-primary);
+  text-decoration: none;
+}
+
+.dt-calendar__cell:hover {
+  border-color: var(--dt-color-primary);
+}
+
+/* Dias de outro mês existem só para alinhar a grade; ficam discretos, mas continuam clicáveis. */
+.dt-calendar__cell--outside {
+  background-color: var(--dt-surface-page);
+  color: var(--dt-text-disabled);
+}
+
+.dt-calendar__cell--today {
+  border-color: var(--dt-color-primary);
+  border-width: 2px;
+}
+
+.dt-calendar__day {
+  font-size: var(--dt-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-calendar__total {
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-calendar__count {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-calendar__legend {
+  margin-top: var(--dt-space-3);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}

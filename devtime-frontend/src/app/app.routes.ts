@@ -30,8 +30,42 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.page').then((module) => module.DashboardPage),
       },
       {
+        path: 'onboarding',
+        title: $localize`:@@onboarding.title:Primeiros passos`,
+        loadComponent: () =>
+          import('./features/onboarding/onboarding.page').then((module) => module.OnboardingPage),
+      },
+      {
+        path: 'clients',
+        loadChildren: () => import('./features/clients/clients.routes'),
+      },
+      {
         path: 'contracts',
         loadChildren: () => import('./features/contracts/contracts.routes'),
+      },
+      {
+        path: 'tickets',
+        loadChildren: () => import('./features/tickets/tickets.routes'),
+      },
+      {
+        path: 'work-logs',
+        loadChildren: () => import('./features/work-logs/work-logs.routes'),
+      },
+      {
+        path: 'timers',
+        loadChildren: () => import('./features/timers/timers.routes'),
+      },
+      {
+        path: 'reports',
+        loadChildren: () => import('./features/reports/reports.routes'),
+      },
+      {
+        path: 'notifications',
+        loadChildren: () => import('./features/notifications/notifications.routes'),
+      },
+      {
+        path: 'settings',
+        loadChildren: () => import('./features/settings/settings.routes'),
       },
       {
         path: 'forbidden',

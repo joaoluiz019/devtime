@@ -96,8 +96,11 @@ public record DevTimeProperties(
 
     /**
      * @param from {@code MAIL_FROM} de integrations.md §12: remetente das mensagens transacionais
-     * @param provider provedor ativo em {@code staging} e {@code prod}. Em {@code local} e {@code
-     *     test} o {@code LoggingMailAdapter} atende a porta e este valor é ignorado (BR-203)
+     * @param provider adapter que atende {@code MailPort}. A seleção é só por esta propriedade, e
+     *     não por perfil: o e-mail de verificação precisa ser testável contra o provedor real em
+     *     desenvolvimento, e amarrar o adapter ao perfil obrigava a subir a aplicação como {@code
+     *     staging} para isso. O padrão {@code LOGGING} mantém o desenvolvimento e os testes sem
+     *     rede (BR-203) até que a variável seja definida explicitamente
      * @param resendApiKey {@code RESEND_API_KEY}. Obrigatória apenas quando {@code provider =
      *     RESEND}; ART-083 exige que venha de variável de ambiente, nunca de arquivo versionado
      */
@@ -106,6 +109,8 @@ public record DevTimeProperties(
 
         /** Adapters disponíveis para {@link com.devtime.shared.mail.MailPort}. */
         public enum MailProvider {
+            /** Registra o envio em log, sem contatar provedor algum. Padrão em local e test. */
+            LOGGING,
             SMTP,
             RESEND
         }

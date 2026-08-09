@@ -26,12 +26,14 @@ CREATE INDEX idx_report_exec_expiry
     WHERE status = 'COMPLETED' AND deleted_at IS NULL;
 
 -- §20: o relatório de período ABERTO é calculado ao vivo e é o caminho que escala com o volume.
--- specs/012 §13.4 atribui este índice a `008`, mas ele não foi criado lá: `V016` indexa
--- (tenant_id, user_id, work_date) e (contract_period_id), nenhum dos dois servindo a uma consulta
--- por contrato e faixa de datas — que é a forma da folha de horas e do resumo por cliente.
+-- `V016` já criou um índice com este nome sobre (tenant_id, contract_id, work_date), mas sem as
+-- colunas cobertas. Recriamos no lugar em vez de manter os dois: mesma chave líder, então o segundo
+-- índice só custaria escrita.
 --
 -- `INCLUDE` pelos mesmos motivos de V031: sem as colunas cobertas, a agregação volta à heap uma vez
 -- por linha e a meta de p95 < 1,5 s da §20 não é atingível por otimização de código.
+DROP INDEX IF EXISTS idx_work_logs_contract_date;
+
 CREATE INDEX idx_work_logs_contract_date
     ON work_logs (tenant_id, contract_id, work_date)
     INCLUDE (net_minutes, billable, category_id, ticket_id, user_id)

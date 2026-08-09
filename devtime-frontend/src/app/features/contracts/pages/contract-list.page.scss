@@ -1,0 +1,75 @@
+.dt-contracts__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  margin-bottom: var(--dt-space-4);
+}
+
+.dt-contracts__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-contracts__subtitle,
+.dt-contracts__totals {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-contracts__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-contracts__filters input[type='search'] {
+  flex: 1;
+  min-width: 240px;
+}
+
+.dt-contracts__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin: 0 0 var(--dt-space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.dt-contracts__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dt-space-1);
+  padding: 2px var(--dt-space-2);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-full);
+  background-color: var(--dt-surface-card);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-xs);
+  cursor: pointer;
+}
+
+.dt-contracts__empty {
+  padding: var(--dt-space-6);
+  border: 1px dashed var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  color: var(--dt-text-secondary);
+  text-align: center;
+}
+
+.dt-contracts__empty h2 {
+  margin: 0 0 var(--dt-space-2);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-lg);
+}
+
+/* A tabela rola na horizontal em telas estreitas; o conteúdo é código, nome e período, que não
+   cabem em cartão sem perder a comparação entre linhas. */
+.dt-contracts__table {
+  margin-top: var(--dt-space-3);
+  overflow-x: auto;
+}

@@ -127,8 +127,9 @@ devtime:
     base-url: ${APP_BASE_URL}
   mail:
     from: ${MAIL_FROM}
-    # integrations.md §6.1: smtp | resend. Lido apenas em staging e prod — em local e test o
-    # LoggingMailAdapter atende MailPort sem abrir conexão (BR-203).
+    # integrations.md §6.1: logging | smtp | resend. Vale em qualquer perfil — o adapter é escolhido
+    # só por esta propriedade, para que o envio real possa ser exercitado em local sem fingir que o
+    # ambiente é staging. Em minúsculas: a comparação do @ConditionalOnProperty é literal.
     provider: ${MAIL_PROVIDER:smtp}
     # ART-083: chave do Resend só por variável de ambiente. Obrigatória quando provider=resend;
     # a validação de MailProps recusa a inicialização se faltar (CF-03).
@@ -185,6 +186,16 @@ spring:
     properties:
       hibernate:
         format_sql: true
+devtime:
+  app:
+    # O link de verificação aponta para o frontend de desenvolvimento quando APP_BASE_URL não é
+    # definida; sem default a aplicação nem inicia em local, e o valor é sempre o mesmo aqui.
+    base-url: ${APP_BASE_URL:http://localhost:4200}
+  mail:
+    from: ${MAIL_FROM:nao-responda@devtime.local}
+    # Padrão sem rede em desenvolvimento. Definir MAIL_PROVIDER=resend liga o provedor real —
+    # é o caminho para conferir a entrega do e-mail de verificação na própria máquina.
+    provider: ${MAIL_PROVIDER:logging}
 logging:
   level:
     com.devtime: DEBUG
@@ -208,7 +219,9 @@ devtime:
     base-url: ${APP_BASE_URL:http://localhost:4200}
   mail:
     from: ${MAIL_FROM:nao-responda@devtime.test}
-    provider: ${MAIL_PROVIDER:smtp}
+    # Fixo, e não `${MAIL_PROVIDER:...}`: BR-203 proíbe teste que dependa de rede externa, e uma
+    # variável de ambiente na máquina do desenvolvedor não pode ligar um provedor real na suíte.
+    provider: logging
     resend-api-key: ${RESEND_API_KEY:}
   storage:
     # Sobrescritos pelo Testcontainers do MinIO em IntegrationTestSupport; os valores aqui só

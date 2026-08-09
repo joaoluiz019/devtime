@@ -1,0 +1,50 @@
+/* P24 — layout L8 (`layouts.md`): painel de configuração acima, documento abaixo. */
+:host {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-5);
+}
+
+.dt-reports__header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--dt-space-3);
+}
+
+.dt-reports__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-reports__subtitle {
+  margin: var(--dt-space-1) 0 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-reports__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+  padding: var(--dt-space-4);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background: var(--dt-surface-card);
+}
+
+.dt-reports__pending {
+  margin: 0;
+  padding: var(--dt-space-8) var(--dt-space-4);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  text-align: center;
+}
+
+.dt-reports__exports-title {
+  margin: 0 0 var(--dt-space-2);
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+}

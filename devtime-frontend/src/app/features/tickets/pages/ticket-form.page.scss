@@ -1,0 +1,98 @@
+.dt-ticket-form__back {
+  margin-bottom: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-ticket-form__back a {
+  color: var(--dt-color-primary);
+}
+
+.dt-ticket-form__title {
+  margin: 0 0 var(--dt-space-4);
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-ticket-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-5);
+  max-width: 720px;
+}
+
+.dt-ticket-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dt-ticket-form__section legend {
+  padding: 0;
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-ticket-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--dt-space-3);
+}
+
+.dt-ticket-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-ticket-form__field label {
+  font-size: var(--dt-text-sm);
+  font-weight: 500;
+}
+
+.dt-ticket-form__field input,
+.dt-ticket-form__section textarea {
+  width: 100%;
+}
+
+.dt-ticket-form__error {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+}
+
+/* FM-04: barra de ações fixa ao fim do formulário; FM-05: primária à direita. */
+.dt-ticket-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--dt-space-2);
+  padding-top: var(--dt-space-3);
+  border-top: 1px solid var(--dt-border);
+}
+
+/* L7: formulário à esquerda, prévia à direita; em telas estreitas a prévia desce. */
+.dt-ticket-form__layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--dt-space-5);
+}
+
+@media (min-width: 960px) {
+  .dt-ticket-form__layout {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+
+.dt-ticket-form__checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-ticket-form__hint {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}

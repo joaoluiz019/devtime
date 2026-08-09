@@ -1,18 +1,20 @@
 import { ChangeDetectionStrategy, Component, computed, inject, output } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { AuthStore } from '../auth/auth.store';
+import { NotificationStore } from '../notifications/notification.store';
 import { ThemeStore } from '../theme/theme.store';
 
 /**
  * Barra superior — `layouts.md` §6.3.
  *
- * Contém, desta sprint, o alternador da barra lateral, a identificação da organização, o alternador de
- * tema e o nome do usuário. Busca global, ação rápida "Novo" e o painel de notificações pertencem às
- * features que os alimentam; um campo de busca que não busca nada é pior que sua ausência.
+ * Contém o alternador da barra lateral, a identificação da organização, o sino de notificações, o
+ * alternador de tema e o nome do usuário. Busca global e ação rápida "Novo" pertencem às features que
+ * as alimentam; um campo de busca que não busca nada é pior que sua ausência.
  */
 @Component({
   selector: 'dt-topbar',
-  imports: [ButtonModule],
+  imports: [RouterLink, ButtonModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="dt-topbar">
@@ -30,6 +32,18 @@ import { ThemeStore } from '../theme/theme.store';
       }
 
       <div class="dt-topbar__spacer"></div>
+
+      <!-- O contador vem do núcleo: a barra existe em toda tela e não pode depender de uma rota. -->
+      <a
+        class="dt-topbar__bell"
+        routerLink="/notifications"
+        [attr.aria-label]="notificationsLabel()"
+      >
+        <i class="pi pi-bell" aria-hidden="true"></i>
+        @if (notifications.hasUnread()) {
+          <span class="dt-topbar__badge" aria-hidden="true">{{ notifications.badge() }}</span>
+        }
+      </a>
 
       <p-button
         [icon]="themeIcon()"
@@ -53,6 +67,8 @@ export class TopbarComponent {
   private readonly authStore = inject(AuthStore);
   private readonly themeStore = inject(ThemeStore);
 
+  protected readonly notifications = inject(NotificationStore);
+
   readonly toggleSidebar = output<void>();
 
   protected readonly displayName = this.authStore.displayName;
@@ -69,6 +85,13 @@ export class TopbarComponent {
     this.themeStore.isDark()
       ? $localize`:@@topbar.theme.light:Mudar para o tema claro`
       : $localize`:@@topbar.theme.dark:Mudar para o tema escuro`,
+  );
+
+  /** O rótulo diz quantas estão pendentes: o número no selo é decorativo para leitor de tela. */
+  protected readonly notificationsLabel = computed(() =>
+    this.notifications.hasUnread()
+      ? $localize`:@@topbar.notifications.unread:Notificações, ${this.notifications.unreadCount()}:count: não lidas`
+      : $localize`:@@topbar.notifications:Notificações`,
   );
 
   protected toggleTheme(): void {

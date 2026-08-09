@@ -1,0 +1,96 @@
+/**
+ * Estilos compartilhados pelas telas do fluxo de autenticação (P02 a P06), layout L1.
+ *
+ * Um arquivo só em vez de uma cópia por página: são cinco telas com a mesma anatomia — título,
+ * subtítulo, campos empilhados, ação primária e links secundários. Cinco cópias divergiriam no
+ * primeiro ajuste de espaçamento.
+ */
+.dt-auth-form__title {
+  margin: 0 0 var(--dt-space-2);
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-auth-form__subtitle {
+  margin: 0 0 var(--dt-space-5);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-auth-form__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+}
+
+.dt-auth-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-auth-form__field label {
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-sm);
+  font-weight: 500;
+}
+
+.dt-auth-form__field input {
+  width: 100%;
+}
+
+.dt-auth-form__hint {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+/* DS-07 / FR-103: erro abaixo do campo, com texto — nunca apenas cor (DS-05). */
+.dt-auth-form__error {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-auth-form__checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--dt-space-2);
+}
+
+.dt-auth-form__checkbox label {
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-auth-form__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  margin-top: var(--dt-space-5);
+  font-size: var(--dt-text-sm);
+  text-align: center;
+}
+
+.dt-auth-form__links a {
+  color: var(--dt-color-primary);
+}
+
+/* Telas de resultado (P03): ícone, texto e ação, sem formulário. */
+.dt-auth-form__status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--dt-space-3);
+  text-align: center;
+}
+
+.dt-auth-form__status-icon {
+  font-size: var(--dt-text-2xl);
+}
+
+.dt-auth-form__status-icon--success {
+  color: var(--dt-color-success);
+}
+
+.dt-auth-form__status-icon--danger {
+  color: var(--dt-color-danger);
+}

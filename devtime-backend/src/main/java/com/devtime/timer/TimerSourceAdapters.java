@@ -48,12 +48,23 @@ public final class TimerSourceAdapters {
     public static class PeriodAdapter implements PeriodActiveTimerSource {
 
         private final TimerRepository repository;
-        private final TicketService ticketService;
+
+        /**
+         * Resolvido sob demanda, e não no construtor.
+         *
+         * <p>Necessário, não estilístico: {@code ContractServiceImpl} injeta a lista de {@code
+         * PeriodActiveTimerSource}, e {@code TicketServiceImpl} depende de {@code ContractService}.
+         * Injeção direta fecharia um ciclo de <b>criação de beans</b> — {@code ContractService →
+         * PeriodAdapter → TicketService → ContractService} — ainda que a direção entre pacotes
+         * permaneça a descrita acima (AR-02 preservado: a consulta continua sendo feita por {@code
+         * timer} sobre a API pública de {@code ticket}).
+         */
+        private final org.springframework.beans.factory.ObjectProvider<TicketService> ticketService;
 
         @Override
         @Transactional(readOnly = true)
         public List<UUID> activeTimerIdsForContract(UUID contractId) {
-            List<UUID> ticketIds = ticketService.findIdsByContract(contractId);
+            List<UUID> ticketIds = ticketService.getObject().findIdsByContract(contractId);
             if (ticketIds.isEmpty()) {
                 return List.of();
             }

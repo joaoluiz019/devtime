@@ -81,9 +81,49 @@ export class SidebarComponent {
       icon: 'pi-home',
       permission: 'DASHBOARD_VIEW_OWN',
     },
+    {
+      route: '/clients',
+      label: $localize`:@@nav.clients:Clientes`,
+      icon: 'pi-briefcase',
+      permission: 'CLIENT_VIEW',
+    },
+    {
+      route: '/contracts',
+      label: $localize`:@@nav.contracts:Contratos`,
+      icon: 'pi-file',
+      permission: 'CONTRACT_VIEW',
+    },
+    {
+      route: '/tickets',
+      label: $localize`:@@nav.tickets:Tickets`,
+      icon: 'pi-ticket',
+      permission: 'TICKET_VIEW',
+    },
+    {
+      route: '/work-logs',
+      label: $localize`:@@nav.workLogs:Horas`,
+      icon: 'pi-clock',
+      permission: 'WORKLOG_VIEW_OWN',
+    },
+    {
+      route: '/reports',
+      label: $localize`:@@nav.reports:Relatórios`,
+      icon: 'pi-chart-bar',
+      permission: 'REPORT_VIEW_OWN',
+    },
+    {
+      route: '/settings',
+      label: $localize`:@@nav.settings:Configurações`,
+      icon: 'pi-cog',
+      // Sem permissão declarada: perfil e preferências existem para todo papel; o que exige
+      // permissão é ocultado dentro da própria tela (SB-01).
+      permission: '',
+    },
   ];
 
   protected readonly visibleItems = computed(() =>
-    this.items.filter((item) => this.authStore.hasPermission(item.permission)),
+    this.items.filter(
+      (item) => item.permission === '' || this.authStore.hasPermission(item.permission),
+    ),
   );
 }

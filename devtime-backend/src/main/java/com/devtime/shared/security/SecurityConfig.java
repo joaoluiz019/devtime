@@ -14,6 +14,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfFilter;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -42,6 +43,7 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final TenantContextFilter tenantContextFilter;
     private final ProblemDetailAuthenticationEntryPoint problemDetailHandler;
+    private final CsrfCookieFilter csrfCookieFilter;
     private final DevTimeProperties properties;
 
     @Bean
@@ -55,10 +57,7 @@ public class SecurityConfig {
                                         // nativamente).
                                         .csrfTokenRepository(
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
-                                        // Login e registro não possuem sessão prévia da qual um
-                                        // ataque CSRF poderia se aproveitar.
-                                        .ignoringRequestMatchers(
-                                                AUTH_BASE + "/login", AUTH_BASE + "/register"))
+                                        .ignoringRequestMatchers(csrfExemptEndpoints()))
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(
@@ -105,7 +104,40 @@ public class SecurityConfig {
                 .addFilterBefore(
                         jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterAfter(tenantContextFilter, JwtAuthenticationFilter.class)
+                // Depois do CsrfFilter, para que o atributo já esteja no request.
+                .addFilterAfter(csrfCookieFilter, CsrfFilter.class)
                 .build();
+    }
+
+    /**
+     * Endpoints POST isentos de CSRF.
+     *
+     * <p>O critério é único e restrito: a requisição não pode depender de <b>autoridade
+     * ambiente</b> — cookie de sessão ou de refresh que o navegador anexaria sozinho em um POST
+     * forjado de outro site. Todos os itens abaixo são anteriores a qualquer sessão: o chamador
+     * ainda não tem cookie algum, e o efeito é decidido pelo corpo (um token imprevisível ou um
+     * e-mail sob limite de taxa), nunca por credencial implícita. Forjar a requisição não dá ao
+     * atacante nada que ele já não pudesse fazer chamando o endpoint diretamente.
+     *
+     * <p>{@code /refresh} e {@code /invitations/*​/accept} <b>não</b> constam aqui, e a omissão é
+     * deliberada: o primeiro age exatamente sobre o cookie de refresh, e o segundo considera a
+     * sessão quando ela existe (CX-09) — são os dois casos em que o CSRF é a proteção real. Ambos
+     * são alcançados por um navegador que já carregou a aplicação, e portanto já recebeu o cookie
+     * {@code XSRF-TOKEN} materializado por {@link CsrfCookieFilter}.
+     *
+     * <p>Sem esta lista, o reenvio da verificação, a redefinição de senha e a confirmação de e-mail
+     * respondiam {@code 403} no primeiro clique: o cliente ainda não possuía o cookie de CSRF, e
+     * não havia requisição anterior que pudesse tê-lo entregue.
+     */
+    private String[] csrfExemptEndpoints() {
+        return new String[] {
+            AUTH_BASE + "/login",
+            AUTH_BASE + "/register",
+            AUTH_BASE + "/verify-email",
+            AUTH_BASE + "/resend-verification",
+            AUTH_BASE + "/forgot-password",
+            AUTH_BASE + "/reset-password"
+        };
     }
 
     private String[] publicPostEndpoints() {

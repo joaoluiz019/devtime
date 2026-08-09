@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
@@ -21,7 +21,14 @@ import { isProblemDetail } from '../../core/error/problem-detail.model';
  */
 @Component({
   selector: 'dt-login-page',
-  imports: [ReactiveFormsModule, ButtonModule, InputTextModule, PasswordModule, MessageModule],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    ButtonModule,
+    InputTextModule,
+    PasswordModule,
+    MessageModule,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h1 class="dt-login__title" i18n="@@login.title">Entrar</h1>
@@ -33,6 +40,20 @@ import { isProblemDetail } from '../../core/error/problem-detail.model';
     <div aria-live="polite">
       @if (errorMessage() !== null) {
         <p-message severity="error" [text]="errorMessage()!" styleClass="w-full mb-3" />
+      }
+      <!-- FA-02: e-mail não verificado sai com a ação de reenvio, não só com o diagnóstico. -->
+      @if (unverified()) {
+        <p-button
+          i18n-label="@@login.resendVerification"
+          label="Reenviar e-mail de verificação"
+          severity="secondary"
+          [outlined]="true"
+          [loading]="resending()"
+          (onClick)="resendVerification()"
+        />
+      }
+      @if (resendMessage() !== null) {
+        <p-message severity="info" [text]="resendMessage()!" styleClass="w-full mb-3" />
       }
     </div>
 
@@ -84,6 +105,11 @@ import { isProblemDetail } from '../../core/error/problem-detail.model';
         [loading]="submitting()"
       />
     </form>
+
+    <nav class="dt-login__links">
+      <a routerLink="/auth/forgot-password" i18n="@@login.forgot">Esqueci minha senha</a>
+      <a routerLink="/auth/register" i18n="@@login.toRegister">Criar uma conta</a>
+    </nav>
   `,
   styleUrl: './login.page.scss',
 })
@@ -101,13 +127,34 @@ export class LoginPage {
 
   private readonly _submitting = signal(false);
   private readonly _submitted = signal(false);
+  private readonly _resending = signal(false);
+  private readonly _resendMessage = signal<string | null>(null);
 
   protected readonly submitting = this._submitting.asReadonly();
+  protected readonly resending = this._resending.asReadonly();
+  protected readonly resendMessage = this._resendMessage.asReadonly();
 
+  /**
+   * AU-01: a falha de credencial usa uma mensagem única e genérica.
+   *
+   * `DEVTIME-1001` cobre dois casos no contrato — token expirado **e** credencial inválida. O texto
+   * global fala em sessão expirada, que é o caso comum no restante do produto; aqui, onde a pessoa
+   * acabou de digitar e-mail e senha, ele acusaria um problema que não é o dela. A mensagem local
+   * também não distingue e-mail inexistente de senha errada, para não permitir enumeração.
+   */
   protected readonly errorMessage = computed(() => {
     const problem = this.authStore.error();
-    return problem === null ? null : messageForCode(problem.code, problem.detail);
+    if (problem === null) {
+      return null;
+    }
+    if (problem.code === 'DEVTIME-1001') {
+      return $localize`:@@login.invalidCredentials:E-mail ou senha inválidos.`;
+    }
+    return messageForCode(problem.code, problem.detail);
   });
+
+  /** FA-02: `403 DEVTIME-1008` é conta pendente de verificação. */
+  protected readonly unverified = computed(() => this.authStore.error()?.code === 'DEVTIME-1008');
 
   /**
    * Um campo só exibe erro depois da primeira tentativa de envio ou de ter sido tocado.
@@ -128,6 +175,7 @@ export class LoginPage {
   protected async submit(): Promise<void> {
     this._submitted.set(true);
     this.authStore.setError(null);
+    this._resendMessage.set(null);
 
     if (this.form.invalid) {
       this.focusFirstInvalidField();
@@ -144,6 +192,22 @@ export class LoginPage {
       }
     } finally {
       this._submitting.set(false);
+    }
+  }
+
+  /** Reenvio da verificação a partir do próprio login (FA-02). SG-01: resposta sempre igual. */
+  protected async resendVerification(): Promise<void> {
+    const email = this.form.controls.email.value;
+    this._resending.set(true);
+    try {
+      const response = await firstValueFrom(this.authService.resendVerification({ email }));
+      this._resendMessage.set(response.message);
+    } catch {
+      this._resendMessage.set(
+        $localize`:@@login.resendFailed:Não foi possível reenviar agora. Tente novamente em instantes.`,
+      );
+    } finally {
+      this._resending.set(false);
     }
   }
 

@@ -1,0 +1,101 @@
+.dt-notifications__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-notifications__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-notifications__subtitle {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-notifications__filters {
+  display: flex;
+  gap: var(--dt-space-2);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-notifications__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dt-notifications__item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-card);
+}
+
+/* DS-05: não lida tem marca de texto além da borda destacada. */
+.dt-notifications__item--unread {
+  border-left: 3px solid var(--dt-color-primary);
+}
+
+.dt-notifications__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-notifications__dot {
+  color: var(--dt-color-primary);
+  text-transform: uppercase;
+}
+
+.dt-notifications__item-title {
+  margin: var(--dt-space-1) 0 2px;
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-notifications__text {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-notifications__action {
+  display: inline-block;
+  margin-top: var(--dt-space-1);
+  color: var(--dt-color-primary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-notifications__actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}
+
+.dt-notifications__empty {
+  padding: var(--dt-space-6);
+  border: 1px dashed var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  color: var(--dt-text-secondary);
+  text-align: center;
+}
+
+.dt-notifications__empty h2 {
+  margin: 0 0 var(--dt-space-2);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-lg);
+}

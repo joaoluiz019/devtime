@@ -1,0 +1,47 @@
+/* P32 — equipe (T-002-37). O que é comum às telas de configuração vive em `settings-form.scss`. */
+:host {
+  display: block;
+}
+
+.dt-team__list {
+  margin: 0 0 var(--dt-space-4);
+  padding: 0;
+  list-style: none;
+}
+
+.dt-team__section-title {
+  margin: var(--dt-space-6) 0 var(--dt-space-2);
+  font-size: var(--dt-text-lg);
+}
+
+.dt-team__invitation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  padding: var(--dt-space-3) 0;
+  border-bottom: 1px solid var(--dt-border);
+}
+
+.dt-team__invitation-identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dt-team__invitation-email {
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.dt-team__invitation-meta {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-team__invitation-actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}

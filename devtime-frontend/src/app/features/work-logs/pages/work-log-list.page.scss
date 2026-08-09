@@ -1,0 +1,118 @@
+.dt-worklogs__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  margin-bottom: var(--dt-space-4);
+}
+
+.dt-worklogs__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-worklogs__subtitle,
+.dt-worklogs__totals {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-worklogs__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin-bottom: var(--dt-space-3);
+}
+
+.dt-worklogs__filters input[type='search'] {
+  flex: 1;
+  min-width: 240px;
+}
+
+.dt-worklogs__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-2);
+  margin: 0 0 var(--dt-space-3);
+  padding: 0;
+  list-style: none;
+}
+
+.dt-worklogs__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--dt-space-1);
+  padding: 2px var(--dt-space-2);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-full);
+  background-color: var(--dt-surface-card);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-xs);
+  cursor: pointer;
+}
+
+.dt-worklogs__empty {
+  padding: var(--dt-space-6);
+  border: 1px dashed var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  color: var(--dt-text-secondary);
+  text-align: center;
+}
+
+.dt-worklogs__empty h2 {
+  margin: 0 0 var(--dt-space-2);
+  color: var(--dt-text-primary);
+  font-size: var(--dt-text-lg);
+}
+
+/* A tabela rola na horizontal em telas estreitas; o conteúdo é código, nome e período, que não
+   cabem em cartão sem perder a comparação entre linhas. */
+.dt-worklogs__table {
+  margin-top: var(--dt-space-3);
+  overflow-x: auto;
+}
+
+.dt-worklogs__header-actions {
+  display: flex;
+  gap: var(--dt-space-2);
+}
+
+/* A lista de tickets é de cartões, não de tabela: título, progresso e etiquetas não cabem em
+   colunas sem truncar o que importa. */
+.dt-worklogs__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--dt-space-3);
+  margin-top: var(--dt-space-3);
+}
+
+/* Registros são linhas, não cartões: a comparação entre dias depende de alinhamento vertical. */
+.dt-worklogs__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  margin-top: var(--dt-space-3);
+}
+
+.dt-worklogs__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-4);
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-card);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-worklogs__totals span span {
+  margin-left: var(--dt-space-1);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-worklogs__filters input[type='date'] {
+  min-width: 150px;
+}

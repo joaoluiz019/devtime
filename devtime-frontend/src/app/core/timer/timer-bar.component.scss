@@ -1,0 +1,105 @@
+/* Barra do cronômetro — 48px, acima da barra superior (§6.2 de `layouts.md`). */
+:host {
+  display: block;
+}
+
+.dt-timer-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-3);
+  height: var(--dt-timerbar-height);
+  padding: 0 var(--dt-space-4);
+  background: var(--dt-color-primary);
+  color: var(--dt-color-primary-contrast);
+}
+
+/* DS-05: o estado não é só a cor — o ícone para de pulsar e o tempo congela. */
+.dt-timer-bar--paused {
+  background: var(--dt-color-warning);
+  color: var(--dt-slate-900);
+}
+
+.dt-timer-bar__icon {
+  font-size: var(--dt-text-lg);
+}
+
+.dt-timer-bar__icon--running {
+  animation: dt-timer-pulse 2s ease-in-out infinite;
+}
+
+/* A11Y: quem pediu menos movimento não recebe um ícone pulsando o dia inteiro. */
+@media (prefers-reduced-motion: reduce) {
+  .dt-timer-bar__icon--running {
+    animation: none;
+  }
+}
+
+@keyframes dt-timer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.dt-timer-bar__ticket {
+  display: flex;
+  align-items: baseline;
+  gap: var(--dt-space-2);
+  min-width: 0;
+  color: inherit;
+  font-size: var(--dt-text-sm);
+  text-decoration: none;
+}
+
+.dt-timer-bar__ticket:hover {
+  text-decoration: underline;
+}
+
+.dt-timer-bar__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dt-timer-bar__elapsed {
+  margin-inline-start: auto;
+  font-family: var(--dt-font-mono);
+  font-size: var(--dt-text-timer);
+  line-height: var(--dt-text-timer-line);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-timer-bar__warning {
+  padding: var(--dt-space-1) var(--dt-space-2);
+  border-radius: var(--dt-radius-full);
+  background: rgb(255 255 255 / 20%);
+  font-size: var(--dt-text-xs);
+  white-space: nowrap;
+}
+
+.dt-timer-bar__actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}
+
+/* Os botões herdam o contraste da barra: `severity="secondary"` sobre fundo colorido some. */
+.dt-timer-bar__actions ::ng-deep .p-button {
+  color: inherit;
+}
+
+@media (max-width: 768px) {
+  .dt-timer-bar__title {
+    display: none;
+  }
+
+  .dt-timer-bar__warning {
+    display: none;
+  }
+
+  .dt-timer-bar__elapsed {
+    font-size: var(--dt-text-lg);
+  }
+}

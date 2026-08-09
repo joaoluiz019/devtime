@@ -1,0 +1,91 @@
+/* Anexos do ticket (tickets.md §11). */
+:host {
+  display: block;
+}
+
+.dt-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+}
+
+.dt-attachments__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--dt-space-2);
+  margin: 0;
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+}
+
+.dt-attachments__count {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-attachments__empty {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-attachments__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dt-attachments__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--dt-space-2);
+  padding: var(--dt-space-2) var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background: var(--dt-surface-card);
+}
+
+.dt-attachments__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.dt-attachments__name {
+  font-size: var(--dt-text-sm);
+  overflow-wrap: anywhere;
+}
+
+.dt-attachments__meta {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-attachments__blocked {
+  flex-basis: 100%;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-attachments__actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}
+
+.dt-attachments__upload {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-attachments__hint {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}

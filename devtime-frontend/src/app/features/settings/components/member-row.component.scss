@@ -1,0 +1,90 @@
+/* Linha de membro (T-002-36). */
+.dt-member-row {
+  display: grid;
+  grid-template-columns: minmax(12rem, 2fr) minmax(10rem, 1fr) auto auto;
+  gap: var(--dt-space-3);
+  align-items: center;
+  padding: var(--dt-space-3) 0;
+  border-bottom: 1px solid var(--dt-border);
+}
+
+.dt-member-row__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-3);
+  min-width: 0;
+}
+
+.dt-member-row__avatar {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--dt-radius-full);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.dt-member-row__avatar--initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--dt-surface-raised);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-member-row__names {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.dt-member-row__name {
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-member-row__self {
+  margin-inline-start: var(--dt-space-1);
+  color: var(--dt-text-secondary);
+  font-weight: 400;
+  font-size: var(--dt-text-xs);
+}
+
+.dt-member-row__email {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.dt-member-row__role-static {
+  font-size: var(--dt-text-sm);
+}
+
+.dt-member-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--dt-space-1);
+}
+
+.dt-member-row__blocked {
+  max-width: 14rem;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  text-align: end;
+}
+
+@media (max-width: 768px) {
+  .dt-member-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dt-member-row__actions {
+    justify-content: flex-start;
+  }
+
+  .dt-member-row__blocked {
+    text-align: start;
+  }
+}

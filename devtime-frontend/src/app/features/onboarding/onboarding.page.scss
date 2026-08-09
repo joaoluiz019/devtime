@@ -1,0 +1,104 @@
+/* Layout L10 — wizard (§14 de `layouts.md`). */
+:host {
+  display: block;
+}
+
+.dt-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-5);
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: var(--dt-space-6) var(--dt-space-4);
+}
+
+.dt-wizard__steps {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--dt-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.dt-wizard__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--dt-space-1);
+  flex: 1;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  text-align: center;
+}
+
+.dt-wizard__bullet {
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 2px solid var(--dt-border);
+  border-radius: var(--dt-radius-full);
+  background: var(--dt-surface-card);
+}
+
+/* DS-05: a etapa corrente é indicada por peso do texto, não apenas pela cor do ponto. */
+.dt-wizard__step--current {
+  color: var(--dt-text-primary);
+  font-weight: 600;
+}
+
+.dt-wizard__step--current .dt-wizard__bullet,
+.dt-wizard__step--done .dt-wizard__bullet {
+  border-color: var(--dt-color-primary);
+  background: var(--dt-color-primary);
+}
+
+.dt-wizard__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+  padding: var(--dt-space-6);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-lg);
+  background: var(--dt-surface-card);
+}
+
+.dt-wizard__title {
+  margin: 0;
+  font-size: var(--dt-text-xl);
+  line-height: var(--dt-text-xl-line);
+}
+
+.dt-wizard__why {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-wizard__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-4);
+}
+
+.dt-wizard__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-wizard__field input {
+  width: 100%;
+}
+
+.dt-wizard__hint {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-wizard__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dt-space-2);
+}

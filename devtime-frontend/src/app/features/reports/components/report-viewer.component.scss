@@ -1,0 +1,109 @@
+/* Detalhamento do relatório (T-012-25). A prévia reflete o arquivo: mesmas colunas, mesmos totais. */
+:host {
+  display: block;
+}
+
+.dt-report-viewer__block {
+  margin-bottom: var(--dt-space-6);
+}
+
+.dt-report-viewer__caption {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--dt-space-3);
+  margin: 0 0 var(--dt-space-2);
+  padding-bottom: var(--dt-space-1);
+  border-bottom: 1px solid var(--dt-border);
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-report-viewer__group-total {
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-report-viewer__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--dt-text-sm);
+}
+
+.dt-report-viewer__table th,
+.dt-report-viewer__table td {
+  padding: var(--dt-space-2);
+  border-bottom: 1px solid var(--dt-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.dt-report-viewer__table th {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dt-report-viewer__table tfoot td {
+  font-weight: 600;
+}
+
+/* Números alinhados à direita e com dígitos de largura fixa: é assim que colunas de horas e de
+   valores se conferem de cima a baixo sem o olho precisar reposicionar. */
+.dt-report-viewer__numeric {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.dt-report-viewer__description {
+  max-width: 28rem;
+}
+
+.dt-report-viewer__hint {
+  display: block;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+/* CP-05: DS-05 exige que a marcação seja texto, nunca só a cor de fundo da linha. */
+.dt-report-viewer__row--non-billable {
+  background: color-mix(in srgb, var(--dt-color-warning) 8%, transparent);
+}
+
+.dt-report-viewer__flag {
+  display: inline-block;
+  margin-inline-start: var(--dt-space-2);
+  padding: 0 var(--dt-space-1);
+  border: 1px solid var(--dt-color-warning);
+  border-radius: var(--dt-radius-sm);
+  color: var(--dt-color-warning);
+  font-size: var(--dt-text-xs);
+  white-space: nowrap;
+}
+
+.dt-report-viewer__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-5);
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background: var(--dt-surface-raised);
+}
+
+.dt-report-viewer__totals div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-report-viewer__totals span {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-report-viewer__totals strong {
+  font-variant-numeric: tabular-nums;
+}

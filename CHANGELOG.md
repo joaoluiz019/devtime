@@ -8,6 +8,198 @@ versão permanece `0.x.y` (VR-04).
 
 ### Adicionado
 
+**Sprint — Fechamento do frontend** · `specs/009-timer`, `014-comments`, `015-attachments` · P08
+
+Escopo acordado: as três features cujo frontend não existia — cronômetro, comentários e anexos — e o
+onboarding, a única tela de `pages.md` ainda ausente.
+
+Cronômetro (`core/timer/`)
+
+- Vive em `core`, não em `features`: é componente **global** do layout (§21.1) e um store provido na
+  rota morreria a cada navegação, reiniciando o contador a cada clique no menu.
+- **O servidor é a fonte do estado; o relógio é local** (RN-151). O tempo decorrido é derivado de
+  `startedAt`, `lastResumedAt` e `accumulatedActiveSeconds`; o `setInterval` de 1s só anima o número
+  e não gera requisição. Consultar o servidor a cada segundo custaria 3.600 requisições por hora por
+  pessoa ativa. Ressincronização a cada 60s, ao voltar o foco da aba e por `BroadcastChannel` entre
+  abas (TB-02, §21.3) — pausar numa aba e ver a outra continuar contando faria duvidar de qual está
+  certa.
+- Pausado, o tempo **congela** no acumulado do servidor: somar o intervalo desde `lastResumedAt`
+  contaria a pausa como trabalho.
+- `dt-timer-bar` acima da barra superior, com fundo primário em `RUNNING` e de aviso em `PAUSED`,
+  ícone pulsante que respeita `prefers-reduced-motion`, aviso inline acima de 8h (RN-163) e o tempo
+  no título da aba (TB-06) — é o que evita o cronômetro esquecido de sexta-feira.
+- TB-03/TB-05: "Parar" abre o diálogo de descrição (RN-158 a exige) e, em falha, **o erro aparece
+  dentro do diálogo com o cronômetro ainda ativo**. Fechar e mostrar um toast genérico faria a
+  pessoa acreditar que perdeu o tempo trabalhado, que é exatamente o que RN-160 impede.
+- O descarte (RN-162) mostra o tempo a ser perdido em número grande e sugere encerrar no lugar: é a
+  única operação do produto que destrói trabalho registrado sem contrapartida.
+- `dt-timer-quick-start` no detalhe do ticket, com a troca atômica de RN-166 explicada antes de
+  acontecer. Página de abandonados (RN-165) onde **a pessoa informa o término** — encerrar com um
+  horário inventado registraria horas que ninguém trabalhou, que é a razão de RN-164 marcar em vez
+  de encerrar.
+
+Comentários e anexos (`features/tickets/`)
+
+- Conversa com raízes, respostas de um nível (RN-814), paginação por cursor que **acumula** e
+  registros automáticos (RN-815) na mesma linha do tempo, visualmente distintos: separá-los em outra
+  aba quebraria a leitura cronológica que é o motivo de a conversa existir.
+- Editar e excluir saem de `canEdit`/`canDelete` do servidor. A janela de 24h de RN-812 não é
+  recalculada no cliente — duas definições de "ainda dá para editar" divergiriam no primeiro ajuste
+  de relógio.
+- Anexos **explicam o bloqueio** (CP-20): `PENDING` diz que a verificação está em curso, `INFECTED`
+  que o binário foi removido, `FAILED` que o caminho é reenviar. Não existe "baixar mesmo assim"
+  (§6.3, CP-02) — liberar arquivo não verificado por decisão de quem clica converteria três camadas
+  de defesa em uma caixa de diálogo.
+- O limite por alvo vem de `maxCount` do servidor (RN-806) e desabilita o envio antes da tentativa; o
+  tamanho é verificado no cliente porque mandar 40 MB por conexão móvel para receber `413` é
+  desperdício que RN-802 não obriga ninguém a pagar.
+
+Onboarding (P08, layout L10)
+
+- Quatro etapas que **criam os recursos de verdade** pelas mesmas APIs das telas correspondentes: não
+  há rascunho nem estado paralelo, e WZ-03 se cumpre sozinho — quem abandona no meio encontra cliente
+  e contrato já criados ao voltar.
+- Cada etapa diz **por que** importa (WZ-04): "cliente, contrato, ticket" é o modelo do produto, e
+  sem a explicação o wizard vira formulário. "Pular configuração" em todas as etapas; o dashboard
+  vazio passa a apontar para cá (FA-01 de `010`).
+- A etapa final inicia o cronômetro no ticket recém-criado (WZ-06) e leva ao ticket já contando. O
+  contrato nasce `DRAFT`: ativar por baixo dos panos faria o primeiro período começar numa data que
+  ninguém escolheu.
+
+Compartilhado e mensagens
+
+- `elapsedTimePipe` (segundos → `HH:MM:SS`), distinto de `durationPipe`: o cronômetro precisa dos
+  segundos à vista, e o registro de horas nunca os exibe porque ART-035 os trunca no cálculo.
+- Onze códigos `DEVTIME-21xx`/`27xx` acrescentados ao mapa de mensagens (FR-071).
+
+**Sprint — Equipe e convite (frontend)** · `specs/002-users`, `specs/001-authentication` · P32 e P07
+
+Escopo acordado: o par que fecha a fase F5 no frontend — a tela de equipe (`T-002-36`, `T-002-37`)
+e o aceite de convite (P07 de `001`), cujos backends já estavam entregues.
+
+Compartilhado (`shared/`)
+
+- `ROLE_LABELS` e `ROLE_DESCRIPTIONS` em `shared/models/role.model.ts`, e não na feature: a tela de
+  equipe atribui papéis e o aceite de convite exibe o papel oferecido. Uma cópia em cada uma
+  divergiria — e o texto que descreve o alcance de alguém sobre dados de clientes e valores é
+  exatamente o que não pode dizer duas coisas em duas telas.
+
+Equipe (`features/settings/`)
+
+- `MemberApi` com os dez endpoints de users.md §7 e `MemberStore` provido na rota de P32.
+- **Nenhuma ação é deduzida pela tela.** `availableActions` chega calculado pelo servidor (ME-06);
+  reproduzir a matriz de `permissions.md` no cliente ofereceria botões que resultariam em
+  `DEVTIME-1104` (`ADMIN` sobre `OWNER`) ou `DEVTIME-2456` (próprio papel), e divergiria na primeira
+  mudança da nota ¹.
+- A única regra antecipada é RN-455, e apenas para **explicar**: o último proprietário ativo aparece
+  com o motivo à vista em vez de um botão que responderia `DEVTIME-2455`. É a única situação
+  irrecuperável do produto — um tenant sem proprietário não tem quem o conserte.
+- Toda mutação recarrega as duas listas em vez de aplicar a resposta na linha tocada: alterar um
+  papel muda o `availableActions` **dos outros** membros, e a atualização pontual deixaria a tela
+  oferecendo ações que o servidor recusaria.
+- `dt-remove-member-dialog` declara RN-458 e RN-460 **antes** da confirmação — as horas, os tickets
+  e os comentários permanecem; o cronômetro em andamento é descartado. A leitura natural de "remover
+  membro" é "apagar o que essa pessoa fez", e quem confirma acreditando nisso procura as horas
+  sumidas no fechamento do mês. Depois da remoção, os números devolvidos pelo backend são exibidos.
+- Convites em lista própria, com expiração, reenvio (RN-457) e revogação. O convite é um estado
+  diferente de "pessoa com acesso", e misturá-lo à equipe faria a organização parecer maior do que é.
+- `dt-role-selector` exibe a descrição de cada papel junto da opção, e oculta `OWNER` para quem não
+  é proprietário (nota ¹) em vez de oferecê-lo e receber `403`.
+
+Aceite de convite (`features/auth/`)
+
+- `AcceptInvitationPage` em `/auth/invitation/:token`, **fora dos dois grupos de guard**:
+  `guestGuard` mandaria à raiz quem já tem sessão, descartando o convite recém-aberto, e `authGuard`
+  exigiria login de quem foi convidado justamente para criar a conta.
+- A ramificação entre "peça senha" e "peça cadastro" vem de `userExists`, do servidor. Decidi-la no
+  cliente — tentando o login e vendo falhar — revelaria a existência de contas a quem tivesse um
+  token qualquer.
+- CX-09: com sessão ativa, o aceite envia corpo vazio e a resposta é apenas confirmação; nenhum
+  cookie é trocado e a organização corrente não muda por baixo de quem estava trabalhando. O
+  discriminante é a presença de `accessToken` na resposta.
+- Aviso quando a sessão em uso é de outro e-mail: aceitar vincularia a conta errada à organização, e
+  o convite traz o endereço a que se destina.
+- Convite expirado, revogado ou já aceito é **estado final**: mensagem e saída para a entrada, sem
+  formulário ao lado convidando a insistir.
+- Cinco códigos `DEVTIME-24xx` acrescentados ao mapa de mensagens (FR-071), e P32 na navegação de
+  configurações sob `MEMBER_VIEW`.
+
+Testes
+
+- `matchMedia` substituído em `setup-jest.ts`: o overlay do PrimeNG o consulta ao abrir, e sem isso
+  qualquer teste que **abra** um `p-select` falha dentro da renderização do overlay, não na asserção.
+
+**Sprint — Relatórios (frontend)** · `specs/012-reports` · P24
+
+Escopo acordado: frontend de `012`, cujo backend já estava entregue (`T-012-21` a `T-012-29`).
+
+Compartilhado (`shared/`)
+
+- `moneyPipe` com `HALF_UP` explícito e moeda **vinda do dado**. O arredondamento passa pela
+  notação exponencial em texto porque `2.425 * 100` vale `242.49999999999997` em ponto flutuante e
+  exibiria `2,42` — o número que o servidor não calculou, na borda em que o cliente confere.
+  CE-R-09 proíbe conversão entre moedas, então um símbolo fixo de tela está fora de questão.
+- `dt-partial-warning`, distinto de `dt-partial-badge`: o selo marca um número dentro de uma
+  tabela; este bloco ocupa a largura do documento, vem **antes** do conteúdo e diz o motivo — aberto
+  ou reaberto. RN-702 existe para impedir que um relatório parcial seja impresso e enviado ao
+  cliente como definitivo, e uma nota de rodapé não impede isso.
+- `PeriodLookupApi`: a tela de relatórios precisa escolher um período e não pode importar de
+  `features/contracts` (FR-004). Períodos `SCHEDULED` ficam de fora — não têm registro algum, e o
+  relatório deles responderia `DEVTIME-3002`.
+
+Relatórios (`features/reports/`)
+
+- `ReportApi` com os dez endpoints, sem transformação (FR-062). `generate` escolhe a rota pelo tipo
+  e devolve a união discriminada `Report`, de modo que store e visualizador tratem os cinco pelo
+  mesmo caminho.
+- `ReportStore` e `ExportStore` providos na rota de P24, não em `root` (FR-051). Os critérios
+  **não** vivem no store: eles pertencem à tela, que os monta, e duplicá-los criaria duas verdades
+  sobre o recorte pedido — visível a cada atualização da prévia.
+- Polling de exportação a cada 3 segundos, limitado a 5 minutos (§21.3). Passado o limite, a
+  conclusão chega pela notificação de `013`; um polling sem limite seguiria batendo no servidor por
+  uma aba esquecida aberta.
+- `dt-report-type-selector` **desabilita e explica** os tipos que exigem `REPORT_VIEW_ANY`, em vez
+  de ocultá-los. É a exceção deliberada a SB-01: quem procura "resumo por cliente" numa lista de
+  cinco documentos nomeados e não o encontra conclui que o produto não tem, em vez de descobrir que
+  o papel dele não alcança.
+- `dt-report-filters` verifica RN-705 no cliente: acima de 366 dias a mensagem aparece e a consulta
+  não parte. Para `MEMBER` o filtro de pessoa é removido (CE-P-10) e o de valores monetários só
+  existe com `CONTRACT_VIEW_FINANCIAL` (CP-03). Trocar de contrato limpa o período escolhido —
+  mantê-lo produziria o relatório de outro contrato, sem erro nenhum.
+- `dt-grouping-selector` replica a tabela de compatibilidade de §6.3 para não oferecer o que o
+  servidor recusaria com `DEVTIME-3007`. A cópia evita a viagem; a fonte da verdade continua no
+  backend.
+- `dt-report-viewer` exibe o `durationLabel` formatado pelo servidor (RN-710) em vez de formatar por
+  conta própria: tela, PDF, XLSX e CSV precisam dizer o mesmo texto. Não faturáveis aparecem
+  marcados e fora do subtotal faturável (CP-05); a coluna de valor só existe quando o servidor
+  enviou valores (CP-08).
+- `dt-export-dialog` avisa da assincronia **antes** da confirmação acima de 5.000 linhas (RN-706):
+  quem espera um download e recebe um `202` silencioso clica de novo, gerando a segunda exportação
+  de 40.000 linhas.
+- `dt-export-list` com progresso, download, cancelamento restrito a `QUEUED` (§11.1) e nova
+  tentativa. Prévia com debounce de 500ms, `dt-empty-report` explícito sobre o recorte e
+  `dt-report-header-preview` mostrando o cabeçalho — inclusive o `issueId` de RN-703.
+- Sete códigos `DEVTIME-30xx` acrescentados ao mapa de mensagens localizadas (FR-071), e P24 no menu
+  lateral sob `REPORT_VIEW_OWN`.
+
+Divergência resolvida
+
+- §17.2 do spec atribui `DEVTIME-3002` ao download de exportação não concluída e `DEVTIME-3003` à
+  exportação expirada; `ReportController` e `ReportExportController` usam `3002` para período não
+  iniciado, `3004` para exportação em andamento, `3005` para arquivo expirado e `3006` para falha de
+  geração. O mapa de mensagens segue os controllers — é o código que o usuário efetivamente recebe.
+
+Pendente
+
+- Gráficos de distribuição na prévia: `summaries` chega na resposta e `dt-donut-chart` já existe,
+  mas §21.2 não os prevê no visualizador. Ficam como opção de exportação em PDF.
+- "Gerar novamente" reenvia o **recorte atual da tela**, não os parâmetros registrados na execução
+  anterior: `parameters` chega como texto opaco (RN-707) e não há endpoint de reprocessamento. O
+  resultado é um arquivo novo, com `issueId` novo.
+- O download de exportação concluída trafega o binário pelo XHR: o `302` para a URL assinada é
+  seguido pelo próprio navegador e o `Location` nunca fica legível para o JavaScript. Um endpoint
+  que devolvesse a URL assinada no corpo eliminaria o tráfego dobrado.
+
 **Sprint S12 — fechamento das pendências de backend (transversal)**
 
 Esta sprint não entrega feature nova: ela fecha as pendências que cada sprint anterior registrou

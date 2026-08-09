@@ -1,0 +1,53 @@
+/* L9: navegação lateral própria à esquerda, conteúdo à direita; empilha em telas estreitas. */
+.dt-settings {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--dt-space-5);
+}
+
+@media (min-width: 820px) {
+  .dt-settings {
+    grid-template-columns: 200px 1fr;
+  }
+}
+
+.dt-settings__title {
+  margin: 0 0 var(--dt-space-3);
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-settings__nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--dt-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 820px) {
+  .dt-settings__nav ul {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+}
+
+.dt-settings__link {
+  display: block;
+  padding: var(--dt-space-2) var(--dt-space-3);
+  border-radius: var(--dt-radius-md);
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  text-decoration: none;
+}
+
+.dt-settings__link:hover {
+  background-color: var(--dt-surface-raised);
+}
+
+.dt-settings__link--active {
+  background-color: var(--dt-surface-raised);
+  color: var(--dt-text-primary);
+  font-weight: 600;
+}

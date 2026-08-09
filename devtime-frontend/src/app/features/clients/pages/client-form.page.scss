@@ -1,0 +1,72 @@
+.dt-client-form__back {
+  margin-bottom: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-client-form__back a {
+  color: var(--dt-color-primary);
+}
+
+.dt-client-form__title {
+  margin: 0 0 var(--dt-space-4);
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-client-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-5);
+  max-width: 720px;
+}
+
+.dt-client-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.dt-client-form__section legend {
+  padding: 0;
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-client-form__row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--dt-space-3);
+}
+
+.dt-client-form__field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-client-form__field label {
+  font-size: var(--dt-text-sm);
+  font-weight: 500;
+}
+
+.dt-client-form__field input,
+.dt-client-form__section textarea {
+  width: 100%;
+}
+
+.dt-client-form__error {
+  color: var(--dt-color-danger);
+  font-size: var(--dt-text-xs);
+}
+
+/* FM-04: barra de ações fixa ao fim do formulário; FM-05: primária à direita. */
+.dt-client-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--dt-space-2);
+  padding-top: var(--dt-space-3);
+  border-top: 1px solid var(--dt-border);
+}

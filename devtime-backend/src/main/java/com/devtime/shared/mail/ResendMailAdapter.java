@@ -7,17 +7,17 @@ import com.resend.services.emails.model.CreateEmailOptions;
 import com.resend.services.emails.model.CreateEmailResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 /**
  * Adapter de e-mail sobre a API transacional do Resend (integrations.md §6.1: adapter "substituível
  * por provedor de API transacional").
  *
- * <p>Ativo em {@code staging} e {@code prod} quando {@code devtime.mail.provider=resend}. É
- * mutuamente exclusivo com {@link SmtpMailAdapter}: dois beans de {@link MailPort} no mesmo
+ * <p>Ativo quando {@code devtime.mail.provider=resend}, em qualquer perfil. É mutuamente exclusivo
+ * com {@link SmtpMailAdapter} e {@link LoggingMailAdapter}: dois beans de {@link MailPort} no mesmo
  * contexto quebrariam a injeção em {@code AuthMailNotifier}, então a escolha é feita por
- * configuração e verificada na inicialização, não em tempo de execução.
+ * configuração e verificada na inicialização, não em tempo de execução. O valor é comparado
+ * literalmente — {@code resend} em minúsculas, não {@code RESEND}.
  *
  * <p>Envia HTML e texto puro na mesma mensagem (ML-06). A chave de API vem de {@code
  * RESEND_API_KEY} (ART-083) e nunca aparece em log — nem mascarada, porque o adapter não a registra
@@ -27,7 +27,6 @@ import org.springframework.stereotype.Component;
  * feature.
  */
 @Component
-@Profile({"staging", "prod"})
 @ConditionalOnProperty(name = "devtime.mail.provider", havingValue = "resend")
 @Slf4j
 public class ResendMailAdapter implements MailPort {
@@ -73,11 +72,16 @@ public class ResendMailAdapter implements MailPort {
             // Captura ampla proposital, idêntica ao SmtpMailAdapter: qualquer falha de envio é
             // degradação prevista (AQ-09), não erro da requisição de negócio. O contrato de
             // MailPort é não lançar. O corpo da mensagem não vai para o log (§28 de spec 001).
+            //
+            // A mensagem do provedor entra mascarada: sem ela, "ResendException" é indistinguível
+            // entre chave inválida, domínio do remetente não verificado e destinatário recusado —
+            // três causas com correções opostas. Ela pode citar um e-mail, e o masker o reduz.
             log.warn(
-                    "falha no envio de e-mail destinatario={} tipo={} causa={}",
+                    "falha no envio de e-mail destinatario={} tipo={} causa={} detalhe={}",
                     SensitiveDataMasker.mask(message.to()),
                     message.template().name(),
-                    e.getClass().getSimpleName());
+                    e.getClass().getSimpleName(),
+                    SensitiveDataMasker.mask(e.getMessage()));
             return false;
         }
     }

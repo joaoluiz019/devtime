@@ -1,0 +1,116 @@
+/* Conversa do ticket (tickets.md §10.1). */
+:host {
+  display: block;
+}
+
+.dt-comments {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+}
+
+.dt-comments__title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--dt-space-2);
+  margin: 0;
+  font-size: var(--dt-text-lg);
+  line-height: var(--dt-text-lg-line);
+}
+
+.dt-comments__count {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-comments__composer,
+.dt-comments__reply-form,
+.dt-comments__edit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+}
+
+.dt-comments__composer textarea,
+.dt-comments__reply-form textarea,
+.dt-comments__edit textarea {
+  width: 100%;
+}
+
+.dt-comments__label {
+  font-size: var(--dt-text-sm);
+}
+
+.dt-comments__composer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--dt-space-3);
+}
+
+.dt-comments__hint {
+  margin-inline-end: auto;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-comments__empty {
+  margin: 0;
+  padding: var(--dt-space-6) 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-comments__list,
+.dt-comments__replies {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A resposta é recuada porque a hierarquia tem um nível só (RN-814); mais recuo mentiria. */
+.dt-comments__replies {
+  margin-top: var(--dt-space-2);
+  margin-inline-start: var(--dt-space-6);
+  border-inline-start: 2px solid var(--dt-border);
+  padding-inline-start: var(--dt-space-3);
+}
+
+.dt-comments__entry {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-1);
+}
+
+.dt-comments__entry-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--dt-space-2);
+  font-size: var(--dt-text-sm);
+}
+
+.dt-comments__meta {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
+
+.dt-comments__entry-actions {
+  display: flex;
+  gap: var(--dt-space-1);
+}
+
+/* Registro automático: mesma linha do tempo, peso visual menor. */
+.dt-comments__system {
+  display: flex;
+  align-items: center;
+  gap: var(--dt-space-2);
+  margin: 0;
+  padding: var(--dt-space-2) 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+  font-style: italic;
+}

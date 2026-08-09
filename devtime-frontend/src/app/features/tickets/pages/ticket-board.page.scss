@@ -1,0 +1,72 @@
+.dt-board__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--dt-space-3);
+  margin-bottom: var(--dt-space-4);
+}
+
+.dt-board__title {
+  margin: 0;
+  font-size: var(--dt-text-2xl);
+  line-height: var(--dt-text-2xl-line);
+}
+
+.dt-board__subtitle {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-sm);
+}
+
+/* As colunas rolam na horizontal: espremer seis colunas numa tela estreita torna todos os cartões
+   ilegíveis, e a rolagem preserva a comparação entre elas. */
+.dt-board__columns {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: var(--dt-space-3);
+  overflow-x: auto;
+  padding-bottom: var(--dt-space-3);
+}
+
+.dt-board__column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+  padding: var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-md);
+  background-color: var(--dt-surface-page);
+}
+
+.dt-board__column-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--dt-space-2);
+}
+
+.dt-board__column-title {
+  margin: 0;
+  font-size: var(--dt-text-sm);
+  font-weight: 600;
+}
+
+.dt-board__column-count {
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.dt-board__cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dt-space-2);
+}
+
+.dt-board__empty,
+.dt-board__hidden {
+  margin: 0;
+  color: var(--dt-text-secondary);
+  font-size: var(--dt-text-xs);
+}
