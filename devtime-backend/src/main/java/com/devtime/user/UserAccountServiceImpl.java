@@ -253,7 +253,11 @@ public class UserAccountServiceImpl implements UserAccountService {
             user.setFullName(ANONYMIZED_NAME);
             user.setDisplayName(null);
             user.setAvatarUrl(null);
-            user.setPreferences(null);
+            // `preferences` é JSONB NOT NULL DEFAULT '{}' (V003). Atribuir null violava a restrição
+            // e derrubava a transação inteira: **nenhuma organização era purgada** e a retenção de
+            // 30 dias prometida por RN-008 nunca terminava. O objeto vazio é o que a coluna já
+            // considera "sem preferência" — e não guarda dado pessoal algum.
+            user.setPreferences("{}");
             user.setTimezone(null);
             user.setLocale(null);
             // §19.1: descartado, não anonimizado — a conta não deve autenticar por caminho algum.

@@ -1,0 +1,45 @@
+# Testes de carga — T-008-36, T-008-43, T-010-24, T-012-35 e T-015-29.
+#
+# Separados do pipeline de PR de propósito: povoam 100.000 registros, medem percentis e sobem MinIO
+# e ClamAV reais. No caminho do PR seriam desligados na primeira semana em que atrasassem um merge;
+# aqui rodam todas as noites e a falha chega como uma execução vermelha nomeada, não como um número
+# que ninguém conferiu.
+name: Carga
+
+on:
+  schedule:
+    # 04:00 UTC — 01:00 em São Paulo, fora de qualquer janela de trabalho.
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  carga:
+    name: Volume, concorrência e memória
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Executar a suíte de carga
+        working-directory: devtime-backend
+        run: ./mvnw -B verify -Pcarga
+
+      # Os números medidos (p95, bytes, heap) vão para o log dos testes. Guardá-los é o que permite
+      # comparar execuções e ver degradação chegando antes de ela cruzar o limite.
+      - name: Medições
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medicoes-de-carga
+          path: devtime-backend/target/surefire-reports/
+          retention-days: 30

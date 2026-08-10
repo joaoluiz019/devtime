@@ -4,7 +4,10 @@ import com.devtime.audit.AuditService;
 import com.devtime.shared.error.BusinessRuleException;
 import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.shared.event.DomainEventPublisher;
+import com.devtime.shared.security.Role;
+import com.devtime.shared.security.RolePermissions;
 import com.devtime.shared.tenancy.TenantContext;
+import com.devtime.shared.tenancy.TenantSession;
 import com.devtime.shared.time.TimezoneValidator;
 import com.devtime.tenant.MemberRemovalPorts.PeriodClosingStateSource;
 import com.devtime.tenant.domain.Membership;
@@ -337,29 +340,68 @@ public class TenantServiceImpl implements TenantService {
         List<Tenant> due =
                 repository.findPurgeDue(clock.instant(), PageRequest.of(0, PURGE_BATCH_SIZE));
         due.forEach(
-                tenant -> {
-                    // §19.1: a anonimização vem ANTES da exclusão da organização. Depois dela, os
-                    // vínculos que respondem "esta pessoa participa de outra organização?" já
-                    // teriam
-                    // ido junto, e a purga deixaria dado pessoal para trás sem nada que o
-                    // apontasse.
-                    int anonymized =
-                            userAccountService.anonymize(
-                                    membershipRepository.findUserIdsOnlyIn(tenant.getId()));
+                tenant ->
+                        inTenant(
+                                tenant.getId(),
+                                () -> {
+                                    // §19.1: a anonimização vem ANTES da exclusão da organização.
+                                    // Depois dela, os vínculos que respondem "esta pessoa participa
+                                    // de outra organização?" já teriam ido junto, e a purga
+                                    // deixaria dado pessoal para trás sem nada que o apontasse.
+                                    int anonymized =
+                                            userAccountService.anonymize(
+                                                    membershipRepository.findUserIdsOnlyIn(
+                                                            tenant.getId()));
 
-                    repository.delete(
-                            tenant); // Soft delete: SoftDeleteRepository preenche deletedAt.
-                    auditService.recordSystemAction(
-                            ACTION_PURGED,
-                            ENTITY_TYPE,
-                            tenant.getId(),
-                            Map.of(
-                                    "purgeScheduledAt",
-                                    String.valueOf(tenant.getPurgeScheduledAt()),
-                                    "anonymizedUsers",
-                                    String.valueOf(anonymized)));
-                });
+                                    // `delete(entity)` é o DELETE físico do JPA, não a exclusão
+                                    // lógica: violava a chave estrangeira de `memberships` e P-03
+                                    // ao mesmo tempo. `softDelete` é o único caminho previsto por
+                                    // ART-051 — o registro deixa de ser alcançável e a obrigação
+                                    // fiscal de cinco anos (§19.1) continua atendida.
+                                    repository.softDelete(
+                                            tenant.getId(),
+                                            clock.instant(),
+                                            tenantContext.currentUserId().orElse(null));
+                                    auditService.recordSystemAction(
+                                            ACTION_PURGED,
+                                            ENTITY_TYPE,
+                                            tenant.getId(),
+                                            Map.of(
+                                                    "purgeScheduledAt",
+                                                    String.valueOf(tenant.getPurgeScheduledAt()),
+                                                    "anonymizedUsers",
+                                                    String.valueOf(anonymized)));
+                                }));
         return due.size();
+    }
+
+    /**
+     * BR-049 / CE-P-08: executa a purga de um tenant sob sessão de plataforma e restaura a
+     * anterior.
+     *
+     * <p>A purga é varredura de plataforma: começa sem sessão nenhuma, porque nenhum usuário a
+     * pediu. Sem isto, a primeira chamada a {@code recordSystemAction} — que resolve o tenant pelo
+     * contexto — lançava {@code TenantContextNotInitializedException} e <b>nenhuma organização era
+     * purgada</b>, deixando dado pessoal além da retenção de 30 dias que RN-008 promete. Mesma
+     * classe de defeito já corrigida em {@code NotificationJobs} (T-004-29), e encontrada aqui pela
+     * primeira execução real de {@code TenantPurgeIntegrationTest}.
+     *
+     * <p>O papel é {@code OWNER} e {@code userId} é nulo de propósito: não existe autor humano, e a
+     * trilha registra {@code ActorType.SYSTEM}.
+     */
+    private void inTenant(UUID tenantId, Runnable action) {
+        var previous = tenantContext.session().orElse(null);
+        tenantContext.set(
+                TenantSession.system(tenantId, Role.OWNER, RolePermissions.of(Role.OWNER)));
+        try {
+            action.run();
+        } finally {
+            if (previous == null) {
+                tenantContext.clear();
+            } else {
+                tenantContext.set(previous);
+            }
+        }
     }
 
     private Tenant requireCurrent() {

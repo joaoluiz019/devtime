@@ -14,10 +14,13 @@ import com.devtime.notification.dto.NotificationRequests.NotificationPreferences
 import com.devtime.shared.error.BusinessRuleException;
 import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.shared.error.ErrorCode;
+import com.devtime.shared.security.Role;
 import com.devtime.support.FeatureTestSupport;
+import com.devtime.support.FoundationDataBuilder;
 import com.devtime.support.WorkLogScenario;
 import com.devtime.worklog.WorkLogService;
 import com.devtime.worklog.dto.WorkLogRequests.WorkLogCreateRequest;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -170,26 +173,30 @@ class NotificationIntegrationTest extends FeatureTestSupport {
     @Test
     @DisplayName("RN-602/RN-607: registrar horas gera o alerta de consumo para OWNER e ADMIN")
     void workLogTriggersConsumptionAlert() {
+        // NT-05: quem registra as horas não é notificado do próprio lançamento. Sem um segundo
+        // membro com papel de cobrança, o conjunto de destinatários é vazio e nenhuma notificação
+        // deveria mesmo existir — a versão anterior deste teste procurava o alerta na caixa de
+        // quem, por regra, jamais o receberia.
+        UUID adminId = adminOfA();
         var setup = asOwnerOfA(scenario::create);
 
-        // O contrato de teste tem 2.400 minutos contratados e o primeiro período é proporcional
-        // (RN-217). Um registro longo ultrapassa o primeiro limiar configurado.
-        asOwnerOfA(
-                () ->
-                        workLogService.create(
-                                new WorkLogCreateRequest(
-                                        setup.ticket().id(),
-                                        WorkLogScenario.at(8, 0),
-                                        WorkLogScenario.at(20, 0),
-                                        0,
-                                        "Migração completa do módulo de faturamento",
-                                        setup.category().id(),
-                                        true,
-                                        List.of(),
-                                        null)));
+        // O contrato contrata 2.400 minutos por mês, mas RN-217 torna o primeiro período
+        // proporcional (10/01 a 31/01). O alvo é calculado sobre o período, não sobre o mês, para
+        // cruzar o primeiro limiar configurado — 50%, de `{50, 80, 100}`.
+        int alvo = (int) Math.round(setup.period().contractedMinutes() * 0.6);
+        int dia = 16;
+        for (int restante = alvo; restante > 0; dia++) {
+            final int minutos = Math.min(restante, 8 * 60);
+            final int diaDoRegistro = dia;
+            asOwnerOfA(() -> workLogService.create(request(setup, diaDoRegistro, minutos)));
+            restante -= minutos;
+        }
 
         var page =
-                asOwnerOfA(
+                runAs(
+                        tenantAId,
+                        adminId,
+                        Role.ADMIN,
                         () ->
                                 queryService.search(
                                         NotificationFilter.empty(), PageRequest.of(0, 20)));
@@ -200,6 +207,44 @@ class NotificationIntegrationTest extends FeatureTestSupport {
                         notification ->
                                 assertThat(notification.type())
                                         .isEqualTo(NotificationType.CONTRACT_USAGE.name()));
+    }
+
+    /** Segundo membro do tenant A, com papel de cobrança — destinatário de RN-607. */
+    private UUID adminOfA() {
+        // Dentro de uma sessão do tenant A: o vínculo é entidade com escopo de tenant e o
+        // `tenant_id` é preenchido pelo contexto, não pelo chamador (ART-022).
+        return asOwnerOfA(
+                () -> {
+                    UUID adminId =
+                            userRepository
+                                    .save(
+                                            FoundationDataBuilder.user(
+                                                    "admin-"
+                                                            + UUID.randomUUID()
+                                                                    .toString()
+                                                                    .substring(0, 8)
+                                                            + "@exemplo.com",
+                                                    NOW))
+                                    .getId();
+                    membershipRepository.save(
+                            FoundationDataBuilder.membership(tenantAId, adminId, Role.ADMIN, NOW));
+                    return adminId;
+                });
+    }
+
+    private WorkLogCreateRequest request(
+            WorkLogScenario.Scenario setup, int diaDeJaneiro, int minutos) {
+        LocalDate dia = LocalDate.of(2026, 1, diaDeJaneiro);
+        return new WorkLogCreateRequest(
+                setup.ticket().id(),
+                WorkLogScenario.at(dia, 8, 0, 0),
+                WorkLogScenario.at(dia, 8 + minutos / 60, minutos % 60, 0),
+                0,
+                "Migração do módulo de faturamento",
+                setup.category().id(),
+                true,
+                List.of(),
+                null);
     }
 
     @Test

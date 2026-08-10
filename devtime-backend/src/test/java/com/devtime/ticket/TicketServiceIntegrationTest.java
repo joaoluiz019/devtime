@@ -9,6 +9,7 @@ import com.devtime.shared.error.BusinessRuleException;
 import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.support.FeatureTestSupport;
 import com.devtime.support.TicketScenario;
+import com.devtime.support.WorkLogScenario;
 import com.devtime.tag.TagService;
 import com.devtime.ticket.domain.TicketPriority;
 import com.devtime.ticket.domain.TicketStatus;
@@ -17,6 +18,8 @@ import com.devtime.ticket.dto.TicketRequests.TicketCreateRequest;
 import com.devtime.ticket.dto.TicketRequests.TicketMoveContractRequest;
 import com.devtime.ticket.dto.TicketRequests.TicketUpdateRequest;
 import com.devtime.ticket.dto.TicketResponses.TicketResponse;
+import com.devtime.worklog.WorkLogService;
+import com.devtime.worklog.dto.WorkLogRequests.WorkLogCreateRequest;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +35,7 @@ class TicketServiceIntegrationTest extends FeatureTestSupport {
     @Autowired private TagService tagService;
     @Autowired private CategoryService categoryService;
     @Autowired private TicketScenario scenario;
+    @Autowired private WorkLogService workLogService;
 
     @Test
     @DisplayName("RN-302: o ticket nasce em BACKLOG com chave {contract.code}-{number}")
@@ -362,11 +366,7 @@ class TicketServiceIntegrationTest extends FeatureTestSupport {
         ContractResponse origin = asOwnerOfA(() -> scenario.activeContract(clientId, "Origem"));
         ContractResponse target = asOwnerOfA(() -> scenario.activeContract(clientId, "Destino"));
         TicketResponse ticket = asOwnerOfA(() -> ticketService.create(request(origin.id())));
-        asOwnerOfA(
-                () -> {
-                    totalsService.applyWorkLogDelta(ticket.id(), 90, 90);
-                    return null;
-                });
+        asOwnerOfA(() -> registerWorkLog(ticket.id()));
 
         TicketResponse withHours = asOwnerOfA(() -> ticketService.getById(ticket.id()));
         assertThatThrownBy(
@@ -405,11 +405,7 @@ class TicketServiceIntegrationTest extends FeatureTestSupport {
     void shouldRejectDeletingTicketWithWorkLogs() {
         ContractResponse contract = asOwnerOfA(() -> activeContract());
         TicketResponse ticket = asOwnerOfA(() -> ticketService.create(request(contract.id())));
-        asOwnerOfA(
-                () -> {
-                    totalsService.applyWorkLogDelta(ticket.id(), 90, 90);
-                    return null;
-                });
+        asOwnerOfA(() -> registerWorkLog(ticket.id()));
 
         assertThatThrownBy(
                         () ->
@@ -476,6 +472,30 @@ class TicketServiceIntegrationTest extends FeatureTestSupport {
 
     private ContractResponse activeContract() {
         return scenario.activeContract(scenario.activeClient());
+    }
+
+    /**
+     * Registra horas de verdade no ticket.
+     *
+     * <p>Antes estes testes chamavam {@code totalsService.applyWorkLogDelta}, que apenas incrementa
+     * o desnormalizado do ticket. Funcionava enquanto {@code TicketWorkLogGate} não tinha fonte de
+     * contagem — com {@code 008-worklogs} implementada, a guarda passou a contar work logs reais
+     * (nota ⁵ de implementation-order.md) e o atalho deixou de produzir a condição que os testes
+     * afirmam verificar: RN-305 e RN-307 falavam de horas registradas, não de um contador.
+     */
+    private Object registerWorkLog(UUID ticketId) {
+        categoryService.seedDefaults();
+        return workLogService.create(
+                new WorkLogCreateRequest(
+                        ticketId,
+                        WorkLogScenario.at(9, 0),
+                        WorkLogScenario.at(10, 30),
+                        0,
+                        "Apuração de horas do ticket",
+                        categoryService.listActive().get(0).id(),
+                        true,
+                        List.of(),
+                        null));
     }
 
     private TicketCreateRequest request(UUID contractId) {

@@ -26,9 +26,9 @@ import org.springframework.stereotype.Component;
  * checksums diferentes entre execuções e a verificação de integridade (SG-05, CX-21) acusaria
  * adulteração onde só houve reserialização.
  *
- * <p>O checksum é SHA-256 sobre exatamente os bytes persistidos em {@code payload} — não sobre um
- * objeto intermediário. Verificar depois é reler a coluna e recalcular; qualquer outra combinação
- * compararia coisas diferentes.
+ * <p>O checksum é SHA-256 sobre a <b>forma canônica</b> do payload, e não sobre os bytes gravados:
+ * a coluna é {@code JSONB} e o PostgreSQL reordena as chaves ao armazenar, de modo que os bytes de
+ * volta nunca são os de ida. Ver {@link #checksum(String)}.
  *
  * <p>RN-245: o excedente é gravado no snapshot. Ele é o número que sustenta a cobrança adicional do
  * período, e precisa ficar congelado junto com o restante.
@@ -124,17 +124,52 @@ public class SnapshotBuilder {
         return snapshot;
     }
 
-    /** SHA-256 hexadecimal minúsculo dos bytes UTF-8 do payload. */
+    /**
+     * SHA-256 hexadecimal minúsculo da <b>forma canônica</b> do payload.
+     *
+     * <p>Não é o hash dos bytes que o Java escreveu. A coluna é {@code JSONB} (V020): o PostgreSQL
+     * reparseia o documento, descarta espaço em branco e <b>reordena as chaves</b> pela própria
+     * regra de armazenamento. A string relida nunca é, byte a byte, a string gravada — de modo que
+     * o hash sobre os bytes fazia <b>todo</b> snapshot ser reportado como adulterado, e o alerta de
+     * CX-21 apontaria para corrupção inexistente todas as noites, treinando quem opera a ignorá-lo.
+     *
+     * <p>Canonicalizar antes de somar resolve na raiz: os dois lados partem do documento lógico e
+     * chegam à mesma sequência de bytes, seja qual for a ordem em que cada camada guardou as
+     * chaves. É a mesma canonicalização usada na escrita do payload.
+     */
     public String checksum(String payload) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             return HexFormat.of()
-                    .formatHex(digest.digest(payload.getBytes(StandardCharsets.UTF_8)));
+                    .formatHex(digest.digest(canonical(payload).getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException unavailable) {
             // SHA-256 é obrigatório em toda JVM; a ausência é falha de plataforma, não condição
             // de negócio recuperável (CG-06).
             throw new IllegalStateException("SHA-256 indisponível na plataforma", unavailable);
         }
+    }
+
+    /**
+     * Reserializa o documento com as chaves em ordem estável.
+     *
+     * <p>Um payload que não é JSON válido não pode ser canonicalizado. Ele é somado como está: o
+     * checksum divergente que resulta é exatamente o sinal de adulteração que SG-05 quer emitir —
+     * silenciar aqui converteria a detecção em omissão.
+     */
+    private String canonical(String payload) {
+        try {
+            ObjectMapper mapper = canonicalMapper();
+            // `Object.class`, e não `readTree`: a ordenação de chaves de Jackson vale para `Map`, e
+            // um `ObjectNode` preservaria a ordem em que o banco devolveu — que é justamente a que
+            // não se pode confiar.
+            return mapper.writeValueAsString(mapper.readValue(payload, Object.class));
+        } catch (JsonProcessingException naoCanonicalizavel) {
+            return payload;
+        }
+    }
+
+    private ObjectMapper canonicalMapper() {
+        return objectMapper.copy().configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
     }
 
     private String serialize(
@@ -159,12 +194,9 @@ public class SnapshotBuilder {
         payload.put("adjustments", adjustments.stream().map(this::adjustmentBlock).toList());
 
         try {
-            return objectMapper
-                    .copy()
-                    // Determinismo do payload: sem ordenação estável, dois fechamentos idênticos
-                    // gerariam checksums diferentes.
-                    .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true)
-                    .writeValueAsString(payload);
+            // Determinismo do payload: sem ordenação estável, dois fechamentos idênticos gerariam
+            // checksums diferentes.
+            return canonicalMapper().writeValueAsString(payload);
         } catch (JsonProcessingException failure) {
             throw new IllegalStateException("Falha ao serializar o snapshot do período", failure);
         }

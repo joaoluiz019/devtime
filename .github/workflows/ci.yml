@@ -1,0 +1,232 @@
+# Gates de `docs/03-architecture/architecture.md` §11.
+# A ordem do fluxo é: lint + build, testes unitários, testes de integração com
+# Testcontainers, cobertura, segurança de dependências, teste de arquitetura.
+# No backend os seis gates vivem dentro de um único `mvn verify`, porque é o
+# ciclo de vida do Maven que garante a ordem: `spotless:check` na fase
+# `validate`, ArchUnit e testes na `test`, `jacoco:check` na `verify`. Dividir
+# em jobs separados repetiria a compilação e permitiria que a cobertura fosse
+# medida sobre uma execução parcial da suíte.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+# Um push novo cancela a execução anterior do mesmo ramo; a informação que
+# importa é o estado do último commit.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend — build, testes, cobertura e arquitetura
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      # Testcontainers sobe PostgreSQL, MinIO e ClamAV. O runner do GitHub já
+      # tem o daemon do Docker ativo; nada a instalar.
+      - name: Build, testes e gates
+        working-directory: devtime-backend
+        run: ./mvnw -B verify
+
+      - name: Relatório de cobertura
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: devtime-backend/target/site/jacoco/
+          retention-days: 7
+
+      # Sobe o resultado dos testes mesmo em falha: sem isto a única evidência
+      # de qual teste quebrou é o log, que expira.
+      - name: Resultado dos testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: |
+            devtime-backend/target/surefire-reports/
+            devtime-backend/target/failsafe-reports/
+          retention-days: 7
+
+  frontend:
+    name: Frontend — lint, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+          cache-dependency-path: devtime-frontend/package-lock.json
+
+      - name: Instalar dependências
+        working-directory: devtime-frontend
+        run: npm ci
+
+      - name: Lint
+        working-directory: devtime-frontend
+        run: npm run lint
+
+      - name: Formatação
+        working-directory: devtime-frontend
+        run: npm run format:check
+
+      - name: Testes
+        working-directory: devtime-frontend
+        run: npm run test:coverage
+
+      # `budgets` de `angular.json` faz o build falhar acima do limite de
+      # FR-167 (500 kB gzip). O gate é o próprio build.
+      - name: Build de produção
+        working-directory: devtime-frontend
+        run: npm run build
+
+  seguranca-dependencias:
+    name: Segurança de dependências
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.19.0'
+          cache: npm
+          cache-dependency-path: devtime-frontend/package-lock.json
+
+      # A base do NVD exige chave desde 2023. Sem `NVD_API_KEY` o download
+      # inicial leva horas e a etapa expira; por isso a falta da chave é um
+      # aviso e não uma falha silenciosa que passaria por verificação feita.
+      - name: Avisar sobre chave do NVD ausente
+        if: ${{ secrets.NVD_API_KEY == '' }}
+        run: |
+          echo "::warning title=NVD_API_KEY ausente::A análise de dependências do backend foi pulada. Cadastre a chave em https://nvd.nist.gov/developers/request-an-api-key e registre-a como segredo do repositório."
+
+      - name: OWASP Dependency-Check (backend)
+        if: ${{ secrets.NVD_API_KEY != '' }}
+        working-directory: devtime-backend
+        run: >
+          ./mvnw -B org.owasp:dependency-check-maven:12.1.0:check
+          -Dnvd.api.key=${{ secrets.NVD_API_KEY }}
+          -DfailBuildOnCVSS=7
+          -DsuppressionFile=../.github/dependency-check-suppressions.xml
+
+      - name: Relatório do Dependency-Check
+        if: ${{ always() && secrets.NVD_API_KEY != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: devtime-backend/target/dependency-check-report.html
+          retention-days: 7
+
+      - name: Instalar dependências do frontend
+        working-directory: devtime-frontend
+        run: npm ci
+
+      # `--audit-level=high` alinha o corte do npm ao `failBuildOnCVSS=7` do
+      # backend: um único critério de severidade para os dois ecossistemas.
+      - name: npm audit
+        working-directory: devtime-frontend
+        run: npm audit --audit-level=high
+
+  # Só em PR: compara as dependências introduzidas pelo ramo contra a base e
+  # bloqueia vulnerabilidade nova ou licença incompatível antes do merge.
+  revisao-dependencias:
+    name: Revisão de dependências do PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+
+  # Prova que o ambiente completo sobe com as imagens do commit, não só que os
+  # artefatos compilam. É o gate que teria pego a imagem do frontend servindo a
+  # página padrão do nginx e o `COPY` de locale errado.
+  compose:
+    name: Docker Compose — subida do ambiente
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      # CF-03 faz a aplicação recusar iniciar sem os segredos. Os valores são
+      # gerados por execução: um valor fixo no repositório seria um segredo
+      # versionado (ART-083), ainda que só de CI.
+      - name: Gerar .env
+        run: |
+          cp .env.example .env
+          {
+            printf 'DEVTIME_DB_PASSWORD=%s\n' "$(openssl rand -hex 16)"
+            printf 'DEVTIME_JWT_SECRET=%s\n' "$(openssl rand -base64 48)"
+            printf 'STORAGE_ACCESS_KEY=%s\n' "$(openssl rand -hex 12)"
+            printf 'STORAGE_SECRET_KEY=%s\n' "$(openssl rand -hex 24)"
+          } >> .env
+
+      - name: Subir o ambiente
+        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+
+      # O ClamAV leva minutos para carregar a base e o backend sobe sem esperar
+      # por ele (`service_started`), então o sinal de prontidão é o readiness do
+      # backend, que por DP-05 só responde OK depois da validação do schema.
+      - name: Aguardar readiness do backend
+        run: |
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://localhost:8080/actuator/health/readiness; then
+              echo
+              echo "backend pronto em ${i} tentativa(s)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "backend não ficou pronto em 5 minutos"
+          exit 1
+
+      # FR-089: o roteamento da SPA resolve qualquer rota no index. É o gate que
+      # pega a imagem do frontend servindo a página padrão do nginx.
+      - name: Smoke test do frontend
+        run: |
+          curl --fail --silent --show-error http://localhost:4200/dashboard | grep -q '<app-root'
+
+      # ART-085: endpoint protegido responde 401 sem sessão.
+      - name: Isolamento do endpoint protegido
+        run: |
+          codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/api/v1/clients)
+          test "$codigo" = "401" || { echo "esperado 401, recebido $codigo"; exit 1; }
+
+      - name: Logs em caso de falha
+        if: failure()
+        run: docker compose -f infra/docker-compose.yml --env-file .env logs --no-color
+
+      - name: Derrubar o ambiente
+        if: always()
+        run: docker compose -f infra/docker-compose.yml --env-file .env down -v

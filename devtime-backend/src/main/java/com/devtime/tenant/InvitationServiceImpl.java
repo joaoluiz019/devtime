@@ -191,11 +191,22 @@ public class InvitationServiceImpl implements InvitationService {
                 .orElseGet(
                         () ->
                                 userAccountService.create(
-                                        new NewAccount(
-                                                email,
-                                                UUID.randomUUID() + "-" + UUID.randomUUID(),
-                                                email,
-                                                null)));
+                                        new NewAccount(email, senhaInutilizavel(), email, null)));
+    }
+
+    /**
+     * Senha que ninguém conhece, para a conta criada pelo convite.
+     *
+     * <p>Quem é convidado ainda não escolheu senha: a conta nasce com um valor aleatório que jamais
+     * é exibido, e a senha real é definida no aceite. O valor precisa ter <b>no máximo 72 bytes</b>
+     * — limite do BCrypt, que rejeita entradas maiores com {@code IllegalArgumentException}. A
+     * versão anterior concatenava dois UUIDs com um hífen no meio (73 bytes) e estourava o limite
+     * por um caractere: <b>todo convite a quem ainda não tinha conta falhava</b>, e o convite é o
+     * único caminho de entrada numa organização. Dois UUIDs sem hífen dão 64 caracteres e mantêm os
+     * mesmos 256 bits de aleatoriedade.
+     */
+    private String senhaInutilizavel() {
+        return (UUID.randomUUID().toString() + UUID.randomUUID()).replace("-", "");
     }
 
     /**

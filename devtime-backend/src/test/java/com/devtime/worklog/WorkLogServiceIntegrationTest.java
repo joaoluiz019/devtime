@@ -3,6 +3,7 @@ package com.devtime.worklog;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.devtime.category.dto.CategoryRequests.CategoryCreateRequest;
 import com.devtime.contract.BalanceService;
 import com.devtime.shared.error.BusinessRuleException;
 import com.devtime.shared.error.EntityNotFoundException;
@@ -18,6 +19,7 @@ import com.devtime.worklog.dto.WorkLogResponses.WorkLogCreatedResponse;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -470,10 +472,10 @@ class WorkLogServiceIntegrationTest extends FeatureTestSupport {
     @DisplayName("RN-505 passo 4: excluir categoria com horas vinculadas sem substituta é 2603")
     void shouldRequireReplacementWhenCategoryHasWorkLogs() {
         var setup = asOwnerOfA(scenario::create);
-        asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+        UUID categoryId = asOwnerOfA(this::customCategory);
+        asOwnerOfA(() -> workLogService.create(request(setup, categoryId, 9, 0, 11, 0)));
 
-        assertThatThrownBy(
-                        () -> asOwnerOfA(() -> categoryService.delete(setup.category().id(), null)))
+        assertThatThrownBy(() -> asOwnerOfA(() -> categoryService.delete(categoryId, null)))
                 .isInstanceOf(BusinessRuleException.class)
                 .extracting(failure -> ((BusinessRuleException) failure).getErrorCode().getCode())
                 .isEqualTo("DEVTIME-2603");
@@ -483,33 +485,48 @@ class WorkLogServiceIntegrationTest extends FeatureTestSupport {
     @DisplayName("RN-505 passo 6: a exclusão migra os registros para a categoria substituta")
     void shouldMigrateWorkLogsToReplacementCategory() {
         var setup = asOwnerOfA(scenario::create);
+        UUID categoryId = asOwnerOfA(this::customCategory);
         WorkLogCreatedResponse created =
-                asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+                asOwnerOfA(() -> workLogService.create(request(setup, categoryId, 9, 0, 11, 0)));
         var replacement = asOwnerOfA(() -> categoryService.listActive().get(1));
 
-        var deletion =
-                asOwnerOfA(() -> categoryService.delete(setup.category().id(), replacement.id()));
+        var deletion = asOwnerOfA(() -> categoryService.delete(categoryId, replacement.id()));
 
         assertThat(deletion.migratedWorkLogs()).isEqualTo(1L);
         assertThat(deletion.migratedTo()).isEqualTo(replacement.id());
         assertThat(asOwnerOfA(() -> workLogService.getById(created.workLog().id())).category().id())
                 .as("INV-CAT-04: nenhum registro fica sem categoria válida")
                 .isEqualTo(replacement.id());
-        assertThat(asOwnerOfA(() -> workLogService.countByCategory(setup.category().id())))
-                .isZero();
+        assertThat(asOwnerOfA(() -> workLogService.countByCategory(categoryId))).isZero();
     }
 
     @Test
     @DisplayName("CX-04 de 012: o registro migrado ainda resolve o rótulo da categoria excluída")
     void deletedCategoryShouldRemainLabelableForReports() {
         var setup = asOwnerOfA(scenario::create);
-        asOwnerOfA(() -> workLogService.create(request(setup, 9, 0, 11, 0)));
+        UUID categoryId = asOwnerOfA(this::customCategory);
+        asOwnerOfA(() -> workLogService.create(request(setup, categoryId, 9, 0, 11, 0)));
         var replacement = asOwnerOfA(() -> categoryService.listActive().get(1));
-        asOwnerOfA(() -> categoryService.delete(setup.category().id(), replacement.id()));
+        asOwnerOfA(() -> categoryService.delete(categoryId, replacement.id()));
 
         assertThat(asOwnerOfA(() -> categoryService.getAllForReport()))
                 .extracting(category -> category.id())
-                .contains(setup.category().id());
+                .contains(categoryId);
+    }
+
+    /**
+     * Categoria própria do tenant, e não uma das nove semeadas por RN-501.
+     *
+     * <p>RN-504 protege a categoria de sistema da exclusão, então usar a do cenário fazia estes
+     * três testes pararem em {@code DEVTIME-2602} — antes de chegar ao passo de RN-505 que
+     * pretendiam verificar. A exclusão com migração só existe para categoria criada pelo tenant.
+     */
+    private UUID customCategory() {
+        return categoryService
+                .create(
+                        new CategoryCreateRequest(
+                                "Categoria própria", null, "#3366FF", null, true, null))
+                .id();
     }
 
     private WorkLogCreateRequest request(
@@ -522,6 +539,25 @@ class WorkLogServiceIntegrationTest extends FeatureTestSupport {
                 setup,
                 WorkLogScenario.at(startHour, startMinute),
                 WorkLogScenario.at(endHour, endMinute));
+    }
+
+    private WorkLogCreateRequest request(
+            WorkLogScenario.Scenario setup,
+            UUID categoryId,
+            int startHour,
+            int startMinute,
+            int endHour,
+            int endMinute) {
+        return new WorkLogCreateRequest(
+                setup.ticket().id(),
+                WorkLogScenario.at(startHour, startMinute),
+                WorkLogScenario.at(endHour, endMinute),
+                0,
+                "Implementação do fluxo de checkout",
+                categoryId,
+                true,
+                List.of(),
+                null);
     }
 
     private WorkLogCreateRequest request(

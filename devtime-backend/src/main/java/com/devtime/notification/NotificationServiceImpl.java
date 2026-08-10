@@ -62,7 +62,7 @@ public class NotificationServiceImpl implements NotificationService {
             // Passos 3 e 4 — inserção idempotente; a in-app é criada SEMPRE (RN-608).
             String dedupeKey = command.dedupeKeyFor().apply(recipientId);
             Notification notification =
-                    inserter.insertIgnoringDuplicate(command, recipientId, payload, dedupeKey);
+                    insertOrNullOnDuplicate(command, recipientId, payload, dedupeKey);
             if (notification == null) {
                 // RN-601: chave já existente. Comportamento normal, não erro (CP-02).
                 log.debug(
@@ -86,6 +86,27 @@ public class NotificationServiceImpl implements NotificationService {
             emailDispatchService.dispatch(notification);
         }
         return created;
+    }
+
+    /**
+     * RN-601: chave repetida devolve {@code null}, e não erro.
+     *
+     * <p>O tratamento fica <b>fora</b> da transação de inserção, e não dentro dela. Capturar a
+     * violação dentro do método {@code REQUIRES_NEW} não desfazia a marcação de {@code
+     * rollback-only} que o banco já havia imposto: o método retornava normalmente e o <i>commit</i>
+     * daquela transação estourava {@code UnexpectedRollbackException}, propagando para quem
+     * registrou as horas. Ou seja, a segunda avaliação do mesmo limiar — o caso que RN-601 define
+     * como normal — derrubava a operação inteira do usuário. Aqui a transação interna rola de volta
+     * sozinha, sem tocar na transação de quem chamou.
+     */
+    private Notification insertOrNullOnDuplicate(
+            NotificationCommand command, UUID recipientId, String payload, String dedupeKey) {
+        try {
+            return inserter.insertIgnoringDuplicate(command, recipientId, payload, dedupeKey);
+        } catch (DataIntegrityViolationException duplicate) {
+            // CP-03: é o índice único que decide, não uma verificação prévia.
+            return null;
+        }
     }
 
     /** O instante é do relógio injetado (BR-141); usado pelos testes de retenção. */
@@ -119,7 +140,12 @@ public class NotificationServiceImpl implements NotificationService {
         private final NotificationRepository repository;
 
         /**
-         * @return a notificação criada, ou {@code null} quando a chave já existia (RN-601)
+         * Insere e deixa a violação do índice único propagar.
+         *
+         * <p>A tradução de "chave repetida" para "nada a fazer" pertence ao chamador: aqui dentro,
+         * qualquer captura acontece com a transação já condenada pelo banco.
+         *
+         * @throws DataIntegrityViolationException quando a chave já existia (RN-601)
          */
         @Transactional(propagation = Propagation.REQUIRES_NEW)
         Notification insertIgnoringDuplicate(
@@ -135,13 +161,9 @@ public class NotificationServiceImpl implements NotificationService {
             notification.setEntityId(command.entityId());
             notification.setDedupeKey(dedupeKey);
             notification.setEmailAttempts((short) 0);
-            try {
-                return repository.saveAndFlush(notification);
-            } catch (DataIntegrityViolationException duplicate) {
-                // CP-03: é o índice único que decide, não uma verificação prévia. A exceção aqui é
-                // o caminho esperado, não um erro — RN-601 a define como sucesso silencioso.
-                return null;
-            }
+            // `saveAndFlush`: sem o flush, a violação só apareceria no commit, quando já não há
+            // como distinguir qual inserção a causou.
+            return repository.saveAndFlush(notification);
         }
     }
 }

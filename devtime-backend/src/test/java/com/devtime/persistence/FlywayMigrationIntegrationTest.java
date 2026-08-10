@@ -3,11 +3,17 @@ package com.devtime.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.devtime.support.IntegrationTestSupport;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 /**
@@ -27,35 +33,59 @@ class FlywayMigrationIntegrationTest extends IntegrationTestSupport {
     }
 
     @Test
-    @DisplayName("CA-05: todas as migrations aplicam em banco limpo, na ordem de database.md §8.1")
-    void allMigrationsMustApply() {
-        List<String> versions =
+    @DisplayName("CA-05: toda migration versionada aplica em banco limpo, sem exceção")
+    void allMigrationsMustApply() throws IOException {
+        List<String> aplicadas =
                 jdbc().queryForList(
                                 "SELECT version FROM flyway_schema_history WHERE success = true"
                                         + " ORDER BY installed_rank",
                                 String.class);
 
-        // A sequência acompanha database.md §8.1. `V021` permanece vago: era o número reservado a
-        // `report_executions`, mas quando `012-reports` foi implementada a sequência real já ia até
-        // `V031`, e preencher um vão exigiria `out-of-order` — que `validate-on-migrate: true`
-        // recusa em qualquer banco que já tenha aplicado de `V022` em diante. A tabela nasceu em
-        // `V032`. Um número de migration nunca é reaproveitado, então `V021` fica vago para sempre.
-        //
-        // V025 a V027 pertencem à feature 001 e vêm depois de V023/V024 (reservadas a
-        // `attachments` e aos índices de F4) porque `verification_tokens`, `rate_limit_counters` e
-        // `users.last_failed_login_at` não constavam de database.md §8.1 — a lacuna foi reportada e
-        // o documento atualizado com estas três entradas ao fim da sequência. `V028` é a migration
-        // incremental de `work_log_tags` (CE-O-03), e `V029` corrige o tipo de
-        // `period_snapshots.checksum` sem alterar `V020`, que já está mesclada (BR-035). `V030`
-        // acrescenta as colunas de cancelamento de organização, ausentes de database.md §7.1 —
-        // lacuna reportada na sprint de `002-users`. `V031` são os índices do painel e
-        // `V032`/`V033`
-        // a tabela e os índices de exportação.
-        assertThat(versions)
-                .containsExactly(
-                        "001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011",
-                        "012", "013", "014", "015", "016", "017", "018", "019", "020", "022", "023",
-                        "024", "025", "026", "027", "028", "029", "030", "031", "032", "033");
+        // A expectativa vem dos arquivos, não de uma lista escrita à mão. Uma lista literal precisa
+        // ser editada a cada migration nova e já quebrou o build duas vezes por estar desatualizada
+        // — falhando por manutenção esquecida, não por defeito. Derivá-la dos arquivos mantém a
+        // pergunta que importa ("alguma migration deixou de aplicar em banco limpo?") e elimina a
+        // única forma de esta suíte falhar sem que nada esteja errado.
+        List<String> declaradas = versoesDeclaradasNoClasspath();
+
+        assertThat(declaradas).as("nenhuma migration encontrada em db/migration").isNotEmpty();
+        assertThat(aplicadas)
+                .as("toda migration do classpath aplicou, e nada além delas foi aplicado")
+                .containsExactlyElementsOf(declaradas);
+    }
+
+    @Test
+    @DisplayName("BR-035: as migrations aplicam em ordem crescente de versão, sem out-of-order")
+    void migrationsMustApplyInAscendingVersionOrder() {
+        List<String> aplicadas =
+                jdbc().queryForList(
+                                "SELECT version FROM flyway_schema_history WHERE success = true"
+                                        + " ORDER BY installed_rank",
+                                String.class);
+
+        // `validate-on-migrate: true` recusa uma migration intercalada abaixo da maior versão já
+        // aplicada. É por isto que `V021` permanece vago para sempre: era o número reservado a
+        // `report_executions`, mas quando `012-reports` foi implementada a sequência real já ia
+        // além, e preencher o vão exigiria `out-of-order`. Um número de migration nunca é
+        // reaproveitado.
+        List<Integer> numeros = aplicadas.stream().map(Integer::valueOf).toList();
+
+        assertThat(numeros).as("ordem de aplicação = ordem de versão").isSorted();
+        assertThat(numeros).as("nenhuma versão aplicada duas vezes").doesNotHaveDuplicates();
+    }
+
+    /** Versões dos arquivos {@code V<n>__*.sql} do classpath, em ordem crescente. */
+    private List<String> versoesDeclaradasNoClasspath() throws IOException {
+        Resource[] arquivos =
+                new PathMatchingResourcePatternResolver()
+                        .getResources("classpath*:db/migration/V*__*.sql");
+
+        return Arrays.stream(arquivos)
+                .map(Resource::getFilename)
+                .filter(Objects::nonNull)
+                .map(nome -> nome.substring(1, nome.indexOf("__")))
+                .sorted(Comparator.comparingInt(Integer::valueOf))
+                .toList();
     }
 
     @Test

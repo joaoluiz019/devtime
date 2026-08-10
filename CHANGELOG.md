@@ -6,6 +6,149 @@ versão permanece `0.x.y` (VR-04).
 
 ## [Não publicado]
 
+### Corrigido — Sprint de finalização
+
+**A suíte de integração foi executada pela primeira vez.** Até aqui ela compilava e nunca havia
+rodado, por ausência de Docker no ambiente — o que estava registrado como pendência em quatro
+sprints seguidas. Com Docker disponível e JDK 21 instalado, a primeira execução real reprovou 18 dos
+1.119 casos. Nenhum dos defeitos abaixo era alcançável por teste unitário: todos dependem do
+PostgreSQL de verdade, das transações de verdade ou das restrições de verdade.
+
+- **`BusinessRuleException` transformava erro de negócio em `500`.** O construtor copiava os
+  detalhes com `Map.copyOf`, que lança `NullPointerException` diante de valor nulo. Detalhe nulo é
+  legítimo e informativo — `contractEndDate` é nulo em contrato sem data de fim, e RN-117 precisa
+  dizer isso. Quem registrasse horas fora da vigência de um contrato aberto recebia erro interno,
+  sem indicação do que corrigir. A cópia passa a preservar nulos e a ordem de inserção, que é o que
+  torna a resposta determinística.
+- **A purga de organizações canceladas nunca completava — por três motivos independentes.**
+  RN-008 promete que o dado some após 30 dias, e nada sumia. (1) A varredura roda sem sessão de
+  tenant, e a primeira ação auditada lançava `TenantContextNotInitializedException`; a correção é a
+  mesma sessão de plataforma já adotada em `NotificationJobs` na nota ¹⁵. (2) A anonimização
+  atribuía nulo a `preferences`, que é `JSONB NOT NULL` desde `V003`. (3) A exclusão chamava
+  `delete(entity)` — `DELETE` físico do JPA, não a exclusão lógica que o comentário ao lado
+  afirmava — e colidia com a chave estrangeira de `memberships`, além de violar P-03 e ART-051.
+- **A deduplicação de notificações derrubava a operação de quem estava trabalhando.**
+  `NotificationInserter` capturava a violação do índice único **dentro** do método `REQUIRES_NEW`.
+  O banco já havia marcado aquela transação como `rollback-only`: o método retornava normalmente e o
+  *commit* estourava `UnexpectedRollbackException`, que subia até o registro de horas. Ou seja, a
+  segunda avaliação do mesmo limiar — o caso que RN-601 define como **normal** — fazia o usuário
+  perder o lançamento. O tratamento passa a ficar fora da transação interna.
+- **O saldo devolvido pela criação de work log era o anterior ao próprio lançamento.**
+  `adjustConsumption` é `UPDATE` em massa e não atualiza a instância gerenciada; a resposta lia a
+  entidade em cache. Acrescentados `flushAutomatically` na consulta e `refresh` da entidade após o
+  incremento — sem `clearAutomatically`, que descartaria alterações pendentes de quem chamou.
+- **Nenhum snapshot de fechamento passava na verificação de integridade.** O checksum era SHA-256
+  sobre os bytes gravados, mas a coluna é `JSONB`: o PostgreSQL reparseia o documento e reordena as
+  chaves, então a string relida nunca é a gravada. `SnapshotIntegrityJob` reportaria adulteração em
+  **todos** os períodos fechados, todas as noites — e um alerta que sempre dispara é um alerta que
+  ninguém lê (CX-21). O checksum passa a ser calculado sobre a forma canônica do documento.
+
+- **RN-102 não valia sob concorrência: 10 registros idênticos persistidos em 16 tentativas.** A
+  verificação de sobreposição consulta e a transação insere; entre as duas há uma janela, e duas
+  requisições simultâneas da mesma pessoa passavam ambas pela consulta antes de qualquer uma
+  gravar. Um duplo clique no botão de salvar bastava para reproduzir, e o resultado é **a mesma
+  hora cobrada dez vezes** — o dano que RP-01 classifica como crítico e irrecuperável. Encontrado
+  pelo teste de concorrência T-008-36, escrito nesta sprint; a suíte comum só provava que uma
+  sobreposição **já persistida** é rejeitada. Corrigido por lock consultivo de transação por
+  usuário (`WorkLogWriteLock`), o mesmo mecanismo que `TicketNumberGenerator` usa para a numeração
+  atômica. `EXCLUDE USING gist` foi avaliado e recusado: além do conflito com a exclusão lógica já
+  documentado em V016, trocaria o `DEVTIME-2102` — que devolve o registro conflitante — por uma
+  violação de integridade genérica.
+- **Convidar alguém que ainda não tem conta falhava sempre.** A conta do convidado nasce com uma
+  senha aleatória que ninguém conhece, montada como dois UUIDs separados por hífen: 73 bytes, um a
+  mais que o limite de 72 do BCrypt, que recusa a entrada com `IllegalArgumentException`. Como o
+  convite é o **único** caminho de entrada numa organização, nenhuma equipe podia crescer. Dois
+  UUIDs sem hífen dão 64 caracteres e mantêm a mesma aleatoriedade.
+- **`AbandonedTimerCleanupJob` era o quarto job de plataforma sem sessão de tenant.** A primeira
+  ação auditada lançava `TenantContextNotInitializedException` e **nenhum** cronômetro abandonado
+  era descartado — a lista de recuperáveis crescia indefinidamente. Mesma correção já aplicada em
+  `NotificationJobs` e na purga de organização.
+
+**Testes que afirmavam verificar regras que não exercitavam.** Não são ajustes de conveniência: em
+cada caso o teste passaria mesmo com a regra removida.
+
+- RN-505 (migração de work logs na exclusão de categoria): os três testes usavam uma das nove
+  categorias semeadas por RN-501 e paravam em `DEVTIME-2602` (categoria de sistema), antes de
+  alcançar o passo que pretendiam verificar.
+- RN-305 e RN-307 (guardas de horas no ticket): simulavam horas incrementando o desnormalizado do
+  ticket. Funcionava enquanto `TicketWorkLogGate` não tinha fonte de contagem; com `008` entregue, a
+  guarda passou a contar work logs reais e o atalho deixou de produzir a condição sob teste.
+- Painel (`010`): a porcentagem era calculada sobre os 2.400 minutos do mês, ignorando que RN-217
+  torna o primeiro período proporcional — 80% pedidos produziam excedente, e a severidade saía
+  `CRITICAL` onde o teste esperava `WARNING`.
+- RN-602 (alerta de consumo): o teste procurava a notificação na caixa de quem registrou as horas —
+  que NT-05 exclui por definição. Passa a criar um segundo membro com papel de cobrança.
+- `FlywayMigrationIntegrationTest` comparava contra uma lista literal de versões que já havia
+  quebrado o build duas vezes por estar desatualizada. A expectativa passa a ser derivada dos
+  arquivos do classpath, mais uma verificação de que a ordem de aplicação é crescente — a pergunta
+  que importa continua respondida, e some a única forma de o teste falhar sem nada estar errado.
+- O relógio de teste deixou de ser `Clock.fixed`. Pausa e retomada do cronômetro caíam no mesmo
+  instante, violando `ck_timer_pauses_range` (`resumed_at > paused_at`) e tornando `pausedMinutes`
+  inverificável. `MutableTestClock` parte do mesmo instante de referência — todas as igualdades
+  exatas de BR-205 seguem válidas — e avança quando o teste manda. A alternativa seria relaxar a
+  restrição do banco para aceitar pausa de duração zero, trocando uma limitação de teste por uma
+  invariante mais fraca em produção.
+
+### Adicionado — Sprint de finalização
+
+**Pipeline CI** (`.github/workflows/ci.yml`) — pendência aberta desde S1.
+
+- Os seis gates de `architecture.md` §11. No backend eles vivem dentro de um único `mvn verify`
+  porque é o ciclo de vida do Maven que garante a ordem: `spotless:check` em `validate`, ArchUnit e
+  testes em `test`, `jacoco:check` em `verify`. Dividir em jobs repetiria a compilação e permitiria
+  medir cobertura sobre uma execução parcial da suíte.
+- Um job sobe o ambiente completo por Docker Compose e verifica readiness, roteamento da SPA
+  (FR-089) e `401` em endpoint protegido (ART-085). É o gate que teria pego a imagem do frontend
+  servindo a página padrão do nginx, corrigida em S1 depois de chegar ao ambiente.
+- A análise de dependências avisa — e não falha em silêncio — quando `NVD_API_KEY` não está
+  cadastrada: sem a chave o download da base leva horas, e uma etapa que expira registrada como
+  sucesso é pior que uma ausente.
+
+**Suíte de carga** (`-Pcarga`, `.github/workflows/carga.yml`) — T-008-36, T-008-43, T-010-24,
+T-012-35 e T-015-29, pendentes desde S5.
+
+- Fora do ciclo de PR por decisão explícita: povoam 100.000 registros e sobem MinIO e ClamAV. Um
+  gate lento em cada PR é desativado na primeira semana em que atrasa um merge; separado e noturno,
+  sobrevive.
+- T-008-36 dispara 16 criações **simultâneas** do mesmo intervalo. A suíte comum só provava que
+  `OverlapDetector` rejeita sobreposição já persistida — nada sobre a janela entre verificar e
+  inserir, que é onde a hora contada duas vezes nasce (RP-01).
+- T-008-43 e T-010-24 afirmam sobre o **plano de execução** além do tempo: com runner compartilhado,
+  um limite em milissegundos é instável, mas `Seq Scan on work_logs` com 100.000 registros é defeito
+  em qualquer máquina.
+- T-012-35 renderiza CSV e XLSX de 50.000 linhas para um fluxo que conta e descarta, com teto
+  absoluto de 16 MB de heap. Comparar o heap ao tamanho do arquivo não serviria: o XLSX é um ZIP e
+  50.000 linhas cabem em 2,7 MB comprimidos, de modo que um renderer que retivesse tudo passaria
+  por acidente da compressão. Medido: 2,3 MB (CSV) e 3,2 MB (XLSX).
+- **O povoamento em massa não persistia nada, e a medição parecia ótima por isso.** O pool está
+  configurado com `auto-commit: false`, e um `JdbcTemplate` fora de transação executa o `INSERT` e
+  devolve a conexão sem confirmar: o `batchUpdate` reportava 100.000 linhas afetadas e a tabela
+  ficava vazia. O painel media 66 ms de p95 "com 100.000 registros" sobre banco vazio. Com o
+  povoamento dentro de transação e conferido contra o banco, os números reais são **241 ms** de p95
+  no painel e **43 ms** na listagem, ambos dentro da meta.
+
+**Cobertura elevada de 70,9% para 80,3%**, atingindo o mínimo de ART-100 — que nunca havia sido
+medido, porque o build morria nos testes antes de chegar ao gate.
+
+- 57 testes de integração novos sobre o que estava descoberto: o ciclo de exportação inteiro
+  (solicitar, gerar, armazenar, assinar, listar, expirar), os três relatórios que faltavam, o ciclo
+  de convite, os quatro jobs de notificação, os cinco jobs de contrato, perfil e preferências,
+  gestão de membros e configurações da organização, validação prévia de work log e o ciclo de vida
+  do cronômetro fora do caminho feliz.
+- Foram esses testes que encontraram três dos defeitos listados acima. Os quatro pacotes menos
+  cobertos eram exatamente os que continham defeitos — a correlação não é coincidência.
+- `InMemoryStorageConfiguration` atende os testes que **usam** storage sem serem sobre ele. O
+  contrato do storage real continua verificado onde é o assunto: os testes de anexo rodam contra
+  MinIO, e é lá que DoD-06 se prova.
+
+**Verificação de FR-167 pela transferência real** (`devtime-frontend/scripts/check-bundle-budget.mjs`).
+
+- O orçamento de `angular.json` mede bytes crus e acusava 1,15 MB de pacote inicial; o que o
+  navegador baixa são **90,3 kB comprimidos**, contra o limite de 500 kB. Um aviso que dispara sem
+  o requisito estar violado ensina a ignorá-lo, e aí o requisito fica sem guardião. O script mede o
+  que FR-167 escreve e falha o build acima do limite; o orçamento em bytes crus permanece como rede
+  secundária, com o patamar corrigido.
+
 ### Adicionado
 
 **Sprint — Fechamento do frontend** · `specs/009-timer`, `014-comments`, `015-attachments` · P08

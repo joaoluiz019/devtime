@@ -273,6 +273,20 @@
                 </configuration>
             </plugin>
 
+            <!--
+              Os testes de carga (`@Tag("carga")`) ficam fora do ciclo padrão: povoam 100.000
+              registros e medem percentis, o que leva minutos e não cabe no retorno de um PR.
+              Excluí-los aqui é o que permite que existam de verdade, em vez de serem escritos
+              "para depois". Rodam com `-Pcarga`, no agendamento noturno do pipeline.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>carga</excludedGroups>
+                </configuration>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
@@ -378,5 +392,31 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+          `mvn verify -Pcarga` roda **apenas** os testes de carga. A cobertura não é verificada aqui:
+          medir cobertura sobre um recorte de cinco classes produziria um número sem significado e
+          reprovaria o build por um motivo que nada tem a ver com desempenho.
+        -->
+        <profile>
+            <id>carga</id>
+            <properties>
+                <jacoco.skip>true</jacoco.skip>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <excludedGroups combine.self="override"/>
+                            <groups>carga</groups>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>

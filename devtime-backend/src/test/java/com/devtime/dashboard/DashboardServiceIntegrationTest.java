@@ -49,6 +49,11 @@ class DashboardServiceIntegrationTest extends FeatureTestSupport {
     @Autowired private com.devtime.support.TicketScenario ticketScenario;
     @Autowired private DashboardChartCache chartCache;
 
+    /**
+     * Primeiro dia livre depois de {@code WORK_DAY} (15/01), compartilhado por {@link #consume}.
+     */
+    private int proximoDiaLivre = 16;
+
     private DashboardResponse loadJanuary() {
         return dashboardService.load(DashboardPeriodType.CUSTOM, JANUARY_START, JANUARY_END);
     }
@@ -95,11 +100,10 @@ class DashboardServiceIntegrationTest extends FeatureTestSupport {
                                         lowUsage.clientId(),
                                         ticketScenario.activeContract(lowUsage.clientId())));
 
-        // 8h no primeiro contrato (20% de 2400) e 32h no segundo (80%), em dias distintos para não
-        // esbarrar em RN-102.
-        asOwnerOfA(() -> workLogService.create(request(lowUsage, 9, 0, 17, 0)));
-        asOwnerOfA(() -> workLogService.create(requestOn(highUsage, 16, 0, 0, 16, 0)));
-        asOwnerOfA(() -> workLogService.create(requestOn(highUsage, 17, 0, 0, 16, 0)));
+        // 20% do saldo do período no primeiro contrato e 85% no segundo — a faixa de WARNING de
+        // §6.1 vai de 80% a 100%.
+        consume(lowUsage, 0.20);
+        consume(highUsage, 0.85);
 
         List<ContractStatusDto> contracts = asOwnerOfA(this::loadJanuary).contracts();
 
@@ -122,8 +126,7 @@ class DashboardServiceIntegrationTest extends FeatureTestSupport {
                 .as("sem consumo relevante não existe alerta a resolver")
                 .noneMatch(alert -> alert.type().startsWith("CONTRACT_USAGE"));
 
-        asOwnerOfA(() -> workLogService.create(requestOn(setup, 16, 0, 0, 16, 0)));
-        asOwnerOfA(() -> workLogService.create(requestOn(setup, 17, 0, 0, 16, 0)));
+        consume(setup, 0.85);
 
         assertThat(asOwnerOfA(this::loadJanuary).alerts())
                 .as("RN-603: o tipo carrega o limiar do contrato, como o dedupeKey da notificação")
@@ -312,6 +315,33 @@ class DashboardServiceIntegrationTest extends FeatureTestSupport {
                 setup,
                 WorkLogScenario.at(day, startHour, startMinute, 0),
                 WorkLogScenario.at(day, endHour, endMinute, 0));
+    }
+
+    /**
+     * Registra horas até atingir a fração pedida do saldo <b>do período</b>.
+     *
+     * <p>O contrato de teste contrata 2.400 minutos por mês, mas o primeiro período vai de 10/01 a
+     * 31/01 e RN-217 o torna <b>proporcional</b> — cerca de 1.700 minutos, não 2.400. Os testes que
+     * calculavam a porcentagem sobre 2.400 pediam 80% e produziam excedente, o que fazia a
+     * severidade sair {@code CRITICAL} onde esperavam {@code WARNING}. Derivar do próprio período
+     * mantém a asserção verdadeira mesmo que o calendário do cenário mude.
+     *
+     * <p>O total é dividido em dias distintos porque RN-102 rejeita sobreposição e nenhum registro
+     * único cobriria a fração pedida dentro de um dia. O dia avança <b>entre chamadas</b>: RN-102
+     * olha a pessoa e o horário, não o contrato, então dois contratos consumidos no mesmo dia pela
+     * mesma pessoa colidiriam.
+     */
+    private void consume(WorkLogScenario.Scenario setup, double fracaoDoPeriodo) {
+        int restante = (int) Math.round(setup.period().contractedMinutes() * fracaoDoPeriodo);
+        while (restante > 0) {
+            final int minutos = Math.min(restante, 8 * 60);
+            final int dia = proximoDiaLivre++;
+            asOwnerOfA(
+                    () ->
+                            workLogService.create(
+                                    requestOn(setup, dia, 8, 0, 8 + minutos / 60, minutos % 60)));
+            restante -= minutos;
+        }
     }
 
     private WorkLogCreateRequest build(

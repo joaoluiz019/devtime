@@ -1,5 +1,7 @@
 package com.devtime.shared.error;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.Getter;
 import org.springframework.http.HttpStatus;
@@ -30,7 +32,27 @@ public class BusinessRuleException extends RuntimeException {
         super(message);
         this.errorCode = errorCode;
         this.status = status;
-        this.details = details == null ? Map.of() : Map.copyOf(details);
+        this.details = immutableAllowingNulls(details);
+    }
+
+    /**
+     * Cópia imutável que aceita valor nulo, preservando a ordem de inserção.
+     *
+     * <p>{@code Map.copyOf} recusa valor nulo com {@link NullPointerException}. Detalhe ausente é
+     * legítimo e informativo — {@code contractEndDate} é nulo em contrato sem data de fim, e a
+     * resposta precisa dizer isso — mas a cópia transformava o erro de negócio em {@code
+     * NullPointerException}: o cliente recebia <b>500</b> no lugar do código de regra, sem
+     * indicação do que estava errado no que enviou. Encontrado pela primeira execução real da suíte
+     * de integração.
+     *
+     * <p>A ordem de inserção é preservada porque os detalhes aparecem na resposta e uma ordem que
+     * muda entre execuções torna a saída da API não determinística.
+     */
+    private static Map<String, Object> immutableAllowingNulls(Map<String, Object> details) {
+        if (details == null || details.isEmpty()) {
+            return Map.of();
+        }
+        return Collections.unmodifiableMap(new LinkedHashMap<>(details));
     }
 
     protected BusinessRuleException(

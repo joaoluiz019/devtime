@@ -76,7 +76,11 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
      * caminho mais quente do sistema. Ler-modificar-escrever perderia atualizações quando duas
      * pessoas registram horas no mesmo período ao mesmo tempo — o caso normal, não a exceção.
      */
-    @Modifying
+    // `flushAutomatically`: o UPDATE em massa vai direto ao banco. Sem descarregar antes, uma
+    // alteração pendente na mesma entidade seria escrita **depois** do incremento e o
+    // sobrescreveria
+    // com o valor lido no início da transação.
+    @Modifying(flushAutomatically = true)
     @Query(
             """
             UPDATE ContractPeriod p
@@ -90,7 +94,7 @@ public interface ContractPeriodRepository extends SoftDeleteRepository<ContractP
             @Param("nonBillableDelta") int nonBillableDelta);
 
     /** RN-237: soma dos ajustes é mantida desnormalizada em {@code adjustmentMinutes}. */
-    @Modifying
+    @Modifying(flushAutomatically = true)
     @Query(
             """
             UPDATE ContractPeriod p

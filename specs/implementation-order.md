@@ -252,23 +252,30 @@ Não entram na fila. Estão especificadas apenas na **fronteira**: o que precisa
 
 | Nº | Feature | Spec | Tasks | Aceite | Testes | Status |
 |:--:|---|:--:|:--:|:--:|:--:|---|
-| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁷ ¹⁸ |
-| 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁴ |
-| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹ ¹⁸ |
-| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ² ¹⁵ ¹⁸ |
-| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ³ ¹⁸ |
-| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁴ ¹⁸ |
-| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁵ ¹⁸ |
-| 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁸ |
-| 009 | Timer | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁹ |
-| 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁶ |
-| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁰ ¹⁸ · `FRONTEND_PARTIAL` ¹² |
-| 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹⁷ |
-| 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹¹ |
-| 014 | Comments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ⁶ |
-| 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `BACKEND_DONE` ¹³ |
+| 001 | Authentication | ✅ | ✅ | ✅ | ✅ | `DONE` ⁷ ¹⁸ ¹⁹ |
+| 002 | Users & Tenant | ✅ | ✅ | ✅ | ✅ | `DONE` ¹⁴ ¹⁹ · pendências abertas ²⁰ |
+| 003 | Clients | ✅ | ✅ | ✅ | ✅ | `DONE` ¹ ¹⁸ ¹⁹ |
+| 004 | Contracts & Periods | ✅ | ✅ | ✅ | ✅ | `DONE` ² ¹⁵ ¹⁸ ¹⁹ |
+| 005 | Categories | ✅ | ✅ | ✅ | ✅ | `DONE` ³ ¹⁸ ¹⁹ |
+| 006 | Tags | ✅ | ✅ | ✅ | ✅ | `DONE` ⁴ ¹⁸ ¹⁹ |
+| 007 | Tickets | ✅ | ✅ | ✅ | ✅ | `DONE` ⁵ ¹⁸ ¹⁹ |
+| 008 | Work Logs | ✅ | ✅ | ✅ | ✅ | `DONE` ⁸ ¹⁹ |
+| 009 | Timer | ✅ | ✅ | ✅ | ✅ | `DONE` ⁹ ¹⁹ |
+| 010 | Dashboard | ✅ | ✅ | ✅ | ✅ | `DONE` ¹⁶ ¹⁹ |
+| 011 | Bank Hours | ✅ | ✅ | ✅ | ✅ | `DONE` ¹⁰ ¹² ¹⁸ ¹⁹ · pendências abertas ²⁰ |
+| 012 | Reports & Export | ✅ | ✅ | ✅ | ✅ | `DONE` ¹⁷ ¹⁹ |
+| 013 | Notifications | ✅ | ✅ | ✅ | ✅ | `DONE` ¹¹ ¹⁹ |
+| 014 | Comments | ✅ | ✅ | ✅ | ✅ | `DONE` ⁶ ¹⁹ |
+| 015 | Attachments | ✅ | ✅ | ✅ | ✅ | `DONE` ¹³ ¹⁹ |
 
 > Atualizar a coluna **Status** é obrigatório no PR que conclui a feature (MN-03).
+
+**Nota da sprint de finalização (transversal):**
+
+| # | Nota |
+|:--:|---|
+| ¹⁹ | Frontend concluído nas 35 páginas de `05-ui/pages.md`; **cobertura de 80,3%**, atingindo o mínimo de ART-100 pela primeira vez (o gate nunca havia sido alcançado porque o build parava nos testes antes dele); e a **suíte de integração executada pela primeira vez** — até aqui ela compilava sem nunca ter rodado, por ausência de Docker no ambiente. A execução real reprovou 18 casos e expôs **dez defeitos de produção** que nenhum teste unitário alcançava: (a) `BusinessRuleException` copiava os detalhes com `Map.copyOf`, que recusa valor nulo — contrato sem data de fim transformava o erro de regra em `500`; (b) `TenantServiceImpl.purgeExpiredCancellations` rodava sem sessão de tenant e falhava na primeira ação auditada, de modo que **nenhuma organização era purgada** (mesma classe de defeito da nota ¹⁵ em `NotificationJobs`); (c) a mesma purga anonimizava `preferences` com nulo contra uma coluna `NOT NULL`, e (d) chamava `delete(entity)` — `DELETE` físico — contra a chave estrangeira de `memberships`, violando P-03; (e) `NotificationServiceImpl` capturava a violação do índice de deduplicação **dentro** da transação `REQUIRES_NEW`, que o banco já havia condenado: a segunda avaliação do mesmo limiar — o caso que RN-601 define como normal — derrubava o registro de horas de quem estava trabalhando; (f) `adjustConsumption` é `UPDATE` em massa e a instância gerenciada não era atualizada, então o saldo devolvido na resposta de `008` era o anterior ao próprio lançamento; (g) o checksum do snapshot era calculado sobre os bytes gravados, mas a coluna é `JSONB` e o PostgreSQL reordena as chaves — **todo** snapshot era reportado como adulterado, e o alerta de CX-21 dispararia todas as noites sobre corrupção inexistente; (h) **RN-102 não valia sob concorrência** — 16 criações simultâneas do mesmo intervalo persistiam 10 registros, isto é, a mesma hora cobrada dez vezes (RP-01), corrigido por lock consultivo por usuário em `WorkLogWriteLock`; (i) a conta criada pelo convite nascia com senha de 73 bytes contra o limite de 72 do BCrypt, de modo que **convidar quem ainda não tinha conta falhava sempre** — e o convite é o único caminho de entrada numa organização; e (j) `AbandonedTimerCleanupJob` era o quarto job de plataforma sem sessão de tenant, e nenhum cronômetro abandonado chegava a ser descartado. Também foram corrigidos testes que afirmavam verificar regras que não exercitavam: os de RN-505 usavam categoria de sistema e paravam em `DEVTIME-2602`; os de RN-305/RN-307 simulavam horas incrementando o desnormalizado, que a guarda deixou de consultar quando `008` passou a contar work logs reais; os do painel calculavam a porcentagem sobre o mês e não sobre o período proporcional de RN-217; e o de RN-602 procurava o alerta na caixa de quem, por NT-05, jamais o receberia. `FlywayMigrationIntegrationTest` passou a derivar a expectativa dos arquivos do classpath — a lista literal já havia quebrado o build duas vezes por estar desatualizada, e não por defeito. O relógio de teste deixou de ser `Clock.fixed`: pausa e retomada caíam no mesmo instante e violavam `ck_timer_pauses_range`, o que tornava `pausedMinutes` inverificável. **Entregue também:** pipeline CI com os seis gates de `architecture.md` §11 mais a subida do ambiente por Docker Compose; a suíte de carga de T-008-36, T-008-43, T-010-24, T-012-35 e T-015-29, sob a marcação `carga`, fora do ciclo de PR e em execução noturna — foi ela que revelou (h) e, de quebra, que o povoamento em massa não persistia por causa de `auto-commit: false` no pool, o que fazia o p95 do painel parecer excelente sobre banco vazio; 57 testes de integração novos, que levaram a cobertura de 70,9% a 80,3% e encontraram (h), (i) e (j); e a verificação de FR-167 pela **transferência comprimida** do pacote inicial (90 kB contra o limite de 500 kB), no lugar do orçamento em bytes crus de `angular.json`, que acusava violação inexistente |
+| ²⁰ | Pendências que dependem de decisão, não de implementação: **`GET /tenant/export`** permanece bloqueado pelo conflito documental da nota ¹⁸ (`users.md` §6.4 exige o mecanismo de `012`; `specs/012` §22.2 proíbe `012` de publicar qualquer coisa); **`dt-projection-chart`** (T-011-18) e a **prévia de fechamento** (T-011-29/T-011-31) exigem endpoints que a API não expõe; **redimensionamento de avatar para 256×256** exige escolher biblioteca de imagem, porque o JDK não decodifica WebP; e **`AuditArchiveJob`** exige definir o destino do arquivamento — desanexar partição sem destino torna a trilha inconsultável |
 
 **Notas da sprint S3 (backend):**
 

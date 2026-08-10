@@ -11,6 +11,7 @@ import com.devtime.timer.dto.TimerRequests.TimerStartRequest;
 import com.devtime.timer.dto.TimerRequests.TimerStopRequest;
 import com.devtime.timer.dto.TimerRequests.TimerUpdateRequest;
 import com.devtime.timer.dto.TimerResponses.TimerResponse;
+import java.time.Duration;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -108,13 +109,18 @@ class TimerServiceIntegrationTest extends FeatureTestSupport {
         var setup = asOwnerOfA(scenario::create);
         asOwnerOfA(() -> timerService.start(startRequest(setup), false));
 
+        clock.advance(Duration.ofMinutes(10)); // trecho ativo
         asOwnerOfA(() -> timerService.pause());
+        clock.advance(Duration.ofMinutes(5)); // pausa de verdade: INV-TMR-04 exige duração positiva
         TimerResponse resumed = asOwnerOfA(() -> timerService.resume());
 
         assertThat(resumed.status()).isEqualTo("RUNNING");
         assertThat(resumed.lastResumedAt())
                 .as("RN-156: a retomada reposiciona o início do trecho ativo")
-                .isEqualTo(NOW);
+                .isEqualTo(NOW.plus(Duration.ofMinutes(15)));
+        assertThat(resumed.pausedMinutes())
+                .as("RN-157: a pausa é somada pela duração real, e não estimada")
+                .isEqualTo(5);
     }
 
     @Test

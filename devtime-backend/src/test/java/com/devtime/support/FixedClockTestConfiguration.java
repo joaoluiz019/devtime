@@ -1,6 +1,5 @@
 package com.devtime.support;
 
-import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -21,9 +20,13 @@ public class FixedClockTestConfiguration {
     /** Instante de referência: 29/07/2026 14:32:10 UTC. */
     public static final Instant FIXED_INSTANT = Instant.parse("2026-07-29T14:32:10Z");
 
+    /**
+     * Parado em {@link #FIXED_INSTANT}, e não {@code Clock.fixed}: os testes de cronômetro precisam
+     * fazer o tempo passar entre pausa e retomada. Ver {@link MutableTestClock}.
+     */
     @Bean
     @Primary
-    Clock fixedClock() {
-        return Clock.fixed(FIXED_INSTANT, ZoneOffset.UTC);
+    MutableTestClock fixedClock() {
+        return new MutableTestClock(FIXED_INSTANT, ZoneOffset.UTC);
     }
 }

@@ -96,6 +96,7 @@ public class WorkLogServiceImpl implements WorkLogService {
     private final RoundingPolicy roundingPolicy;
     private final WorkDateResolver workDateResolver;
     private final OverlapDetector overlapDetector;
+    private final WorkLogWriteLock workLogWriteLock;
     private final WorkLogValidator validator;
     private final ContractValidityValidator contractValidityValidator;
     private final RetroactiveWindowPolicy retroactiveWindowPolicy;
@@ -713,6 +714,11 @@ public class WorkLogServiceImpl implements WorkLogService {
 
         // Passo 12 — RN-102. Precede o cálculo de propósito: usa apenas o que já está em mãos, e
         // a sobreposição é o problema mais difícil de o usuário perceber sozinho.
+        //
+        // O lock vem ANTES da verificação: consultar e depois gravar deixa uma janela em que duas
+        // requisições simultâneas do mesmo usuário passam ambas pela consulta. T-008-36 media 10
+        // registros idênticos persistidos em 16 tentativas concorrentes antes desta linha existir.
+        workLogWriteLock.acquireFor(ownerId);
         overlapDetector.assertNoOverlap(ownerId, interval, excludeId);
 
         // Passo 13 — RN-110 a RN-113.

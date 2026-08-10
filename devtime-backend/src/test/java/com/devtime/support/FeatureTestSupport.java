@@ -37,6 +37,7 @@ public abstract class FeatureTestSupport extends IntegrationTestSupport {
     @Autowired protected MembershipRepository membershipRepository;
     @Autowired protected TenantContext tenantContext;
     @Autowired protected TransactionTemplate transactionTemplate;
+    @Autowired protected MutableTestClock clock;
 
     protected UUID tenantAId;
     protected UUID tenantBId;
@@ -47,6 +48,9 @@ public abstract class FeatureTestSupport extends IntegrationTestSupport {
     void createTenants() {
         String suffix = UUID.randomUUID().toString().substring(0, 8);
         tenantContext.clear();
+        // O contexto Spring é compartilhado: sem o reset, um avanço de relógio feito por um teste
+        // de cronômetro faria outro teste falhar conforme a ordem de execução.
+        clock.reset();
 
         tenantAId =
                 inTransaction(

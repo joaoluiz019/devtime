@@ -9,6 +9,7 @@ import com.devtime.contract.dto.BalanceResponses.PeriodBalanceResponse;
 import com.devtime.contract.event.BalanceEvents.ConsumptionChangedEvent;
 import com.devtime.shared.error.EntityNotFoundException;
 import com.devtime.shared.event.DomainEventPublisher;
+import jakarta.persistence.EntityManager;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class BalanceServiceImpl implements BalanceService {
     private final ContractRepository contractRepository;
     private final BalanceCalculator calculator;
     private final DomainEventPublisher events;
+    private final EntityManager entityManager;
 
     @Override
     @PreAuthorize("hasPermission(null, 'PERIOD_VIEW')")
@@ -50,6 +52,11 @@ public class BalanceServiceImpl implements BalanceService {
         // afetaria linha alguma e o consumo se perderia em silêncio.
         ContractPeriod period = requirePeriod(periodId);
         periodRepository.adjustConsumption(period.getId(), billableDelta, nonBillableDelta);
+        // O UPDATE em massa não atualiza a instância gerenciada: sem o refresh, qualquer leitura
+        // seguinte na mesma transação — inclusive o saldo devolvido na resposta de `008` — enxerga
+        // o valor anterior ao próprio lançamento que acabou de ser feito. Quem registra horas via
+        // o saldo sem elas.
+        entityManager.refresh(period);
 
         // RN-602: os limiares são reavaliados a cada alteração de consumo. O evento é publicado
         // aqui, e não em 008, porque é este ponto que conhece o valor resultante.
