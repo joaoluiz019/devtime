@@ -97,7 +97,7 @@ services:
         condition: service_started
     environment:
       SPRING_PROFILES_ACTIVE: ${DEVTIME_PROFILE:-local}
-      STORAGE_ENDPOINT: http://minio:9000
+      STORAGE_ENDPOINT: arn:aws:s3:::devtime-cellentia
       STORAGE_BUCKET: ${STORAGE_BUCKET}
       STORAGE_REGION: ${STORAGE_REGION}
       STORAGE_ACCESS_KEY: ${STORAGE_ACCESS_KEY}
