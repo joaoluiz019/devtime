@@ -45,7 +45,10 @@ const TICKET: Ticket = {
 
 /** P19 — detalhe do ticket (T-007-31). */
 describe('TicketDetailPage', () => {
-  async function setup(permissions: readonly string[] = ['TICKET_VIEW', 'TICKET_UPDATE']) {
+  // `TICKET_UPDATE_ANY` é o nome real no catálogo do servidor. Enquanto este setup usava
+  // `TICKET_UPDATE`, o teste passava com a aplicação quebrada: ambos os lados concordavam num nome
+  // que o backend nunca emite, e nenhuma permissão real era exercitada.
+  async function setup(permissions: readonly string[] = ['TICKET_VIEW', 'TICKET_UPDATE_ANY']) {
     const result = await render(TicketDetailPage, {
       inputs: { id: TICKET_ID },
       providers: [
@@ -197,7 +200,7 @@ describe('TicketDetailPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('FR-083: sem TICKET_UPDATE a edição é ocultada', async () => {
+  it('FR-083: sem permissão de edição o botão Editar é ocultado', async () => {
     const { http } = await setup(['TICKET_VIEW']);
     await flushTicket(http);
 

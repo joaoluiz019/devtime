@@ -223,6 +223,17 @@ jobs:
           codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:8080/api/v1/clients)
           test "$codigo" = "401" || { echo "esperado 401, recebido $codigo"; exit 1; }
 
+      # A API precisa responder pela MESMA origem do aplicativo. Sem este gate, `/api` caía no
+      # roteamento da SPA e devolvia o index.html com 200 — nenhuma tela funcionava pela imagem, e
+      # nada no build acusava. Um 401 aqui é a resposta correta: prova que a chamada chegou ao
+      # backend, e não ao fallback do nginx.
+      - name: A API responde pela origem do frontend
+        run: |
+          corpo=$(curl --silent http://localhost:4200/api/v1/clients)
+          echo "$corpo" | grep -q '<app-root' && { echo "/api caiu no fallback da SPA"; exit 1; }
+          codigo=$(curl --silent --output /dev/null --write-out '%{http_code}' http://localhost:4200/api/v1/clients)
+          test "$codigo" = "401" || { echo "esperado 401 do backend, recebido $codigo"; exit 1; }
+
       - name: Logs em caso de falha
         if: failure()
         run: docker compose -f infra/docker-compose.yml --env-file .env logs --no-color

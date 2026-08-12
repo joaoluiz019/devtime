@@ -32,6 +32,8 @@ export const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   'DEVTIME-2455': $localize`:@@error.DEVTIME-2455:A organização precisa de ao menos um proprietário ativo.`,
   'DEVTIME-2456': $localize`:@@error.DEVTIME-2456:Você não pode alterar o próprio papel. Peça a outro proprietário.`,
   'DEVTIME-1101': $localize`:@@error.DEVTIME-1101:Você não tem permissão para esta ação.`,
+  // Separado de 1101 de propósito: falha de token CSRF não se resolve pedindo permissão a ninguém.
+  'DEVTIME-1105': $localize`:@@error.DEVTIME-1105:Sua sessão expirou ou a página está aberta há muito tempo. Recarregue e tente novamente.`,
   'DEVTIME-1102': $localize`:@@error.DEVTIME-1102:Seu acesso a esta organização foi revogado.`,
   'DEVTIME-1103': $localize`:@@error.DEVTIME-1103:Você só pode alterar seus próprios registros.`,
   'DEVTIME-1104': $localize`:@@error.DEVTIME-1104:Ação não permitida sobre um proprietário.`,

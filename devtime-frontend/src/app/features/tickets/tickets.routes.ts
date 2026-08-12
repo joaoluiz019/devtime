@@ -32,7 +32,9 @@ const ticketRoutes: Routes = [
   {
     path: ':id/edit',
     title: $localize`:@@ticket.form.editTitle:Editar ticket`,
-    canActivate: [permissionGuard(['TICKET_UPDATE'])],
+    // `permissions.md` §7 divide a edição em ANY e OWN; `TICKET_UPDATE` não existe no servidor e
+    // reprovava todo mundo, mandando a rota de edição para /forbidden sem nenhuma requisição.
+    canActivate: [permissionGuard(['TICKET_UPDATE_ANY', 'TICKET_UPDATE_OWN'])],
     canDeactivate: [unsavedChangesGuard],
     loadComponent: () => import('./pages/ticket-form.page').then((module) => module.TicketFormPage),
   },

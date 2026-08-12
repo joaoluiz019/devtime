@@ -44,7 +44,23 @@ public class ProblemDetailAuthenticationEntryPoint
             HttpServletResponse response,
             org.springframework.security.access.AccessDeniedException accessDeniedException)
             throws IOException {
-        write(request, response, ErrorCode.PERMISSION_DENIED);
+        write(request, response, codeFor(accessDeniedException));
+    }
+
+    /**
+     * Distingue falha de CSRF de falta de permissão.
+     *
+     * <p>As duas chegam aqui como {@code AccessDeniedException} e, até esta correção, produziam a
+     * mesma resposta: "Você não tem permissão para esta ação". A orientação que essa frase dá está
+     * errada para metade dos casos — quando o token CSRF não veio, não há papel a conceder nem
+     * administrador a procurar, e a pessoa fica presa relendo a tela de permissões. O sintoma é
+     * característico: toda leitura funciona e <b>toda</b> alteração falha, porque só as mutações
+     * passam pelo {@code CsrfFilter}.
+     */
+    private ErrorCode codeFor(org.springframework.security.access.AccessDeniedException exception) {
+        return exception instanceof org.springframework.security.web.csrf.CsrfException
+                ? ErrorCode.CSRF_TOKEN_INVALID
+                : ErrorCode.PERMISSION_DENIED;
     }
 
     private void write(

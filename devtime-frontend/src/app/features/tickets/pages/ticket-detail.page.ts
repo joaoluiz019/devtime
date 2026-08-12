@@ -298,7 +298,16 @@ export class TicketDetailPage {
    */
   protected readonly moveOptions = computed(() => [...this._moveOptions()]);
 
-  protected readonly canUpdate = computed(() => this.authStore.hasPermission('TICKET_UPDATE'));
+  /**
+   * `TICKET_UPDATE` não existe no catálogo do servidor — lá a permissão é dividida em
+   * `TICKET_UPDATE_ANY` e `TICKET_UPDATE_OWN` (`permissions.md` §7). O nome inexistente fazia esta
+   * verificação devolver **falso para todos os papéis, inclusive OWNER**: a edição do ticket ficava
+   * bloqueada na interface, sem nenhuma requisição sair — o tipo de falha que não aparece em log
+   * algum, porque nada chega ao backend.
+   */
+  protected readonly canUpdate = computed(() =>
+    this.authStore.hasAnyPermission(['TICKET_UPDATE_ANY', 'TICKET_UPDATE_OWN']),
+  );
 
   protected readonly canComment = computed(() => this.authStore.hasPermission('COMMENT_CREATE'));
 

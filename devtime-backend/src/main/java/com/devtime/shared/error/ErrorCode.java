@@ -61,6 +61,17 @@ public enum ErrorCode {
     OWNERSHIP_VIOLATION("DEVTIME-1103", HttpStatus.FORBIDDEN, "error.ownership.violation"),
     ADMIN_OVER_OWNER("DEVTIME-1104", HttpStatus.FORBIDDEN, "error.admin.overOwner"),
 
+    /**
+     * Token CSRF ausente ou inválido na requisição.
+     *
+     * <p>Código próprio, separado de {@link #PERMISSION_DENIED}: os dois nascem da mesma {@code
+     * AccessDeniedException} da cadeia de filtros, mas pedem ações opostas de quem os recebe. "Você
+     * não tem permissão" manda a pessoa procurar um administrador — e nenhum administrador resolve
+     * um cookie que o navegador não devolveu. O sintoma clássico é <b>toda leitura funcionar e toda
+     * alteração falhar</b>, exatamente o que a mensagem de permissão não sugere.
+     */
+    CSRF_TOKEN_INVALID("DEVTIME-1105", HttpStatus.FORBIDDEN, "error.csrf.invalid"),
+
     // ── Tenancy · DEVTIME-1200–1299 ──────────────────────────────────────────────────────────
     /** RN-001: operação fora do tenant do usuário autenticado. */
     CROSS_TENANT_OPERATION("DEVTIME-1200", HttpStatus.FORBIDDEN, "error.tenant.crossTenant"),
