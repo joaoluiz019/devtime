@@ -1,0 +1,46 @@
+# Override do ambiente local e da CI (ADR-021).
+#
+# O compose base (`docker-compose.yml`) é o arquivo do deploy e usa um PostgreSQL **externo**. Este
+# override devolve o banco em contêiner, para que o ambiente local continue subindo em um comando e
+# sem depender de nada fora da máquina — ver README.md.
+#
+# Use sempre junto do base, nesta ordem:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.local.yml --project-directory . ...
+
+services:
+  postgres:
+    # Versão fixada em 16 (architecture.md §11). `latest` faria o ambiente local divergir de produção
+    # a cada release do PostgreSQL, e o schema depende de recursos específicos da versão maior.
+    image: postgres:16-alpine
+    container_name: devtime-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DEVTIME_DB_NAME}
+      POSTGRES_USER: ${DEVTIME_DB_USERNAME}
+      POSTGRES_PASSWORD: ${DEVTIME_DB_PASSWORD}
+      # Locale pt-BR para que ordenação e comparação de texto no ambiente local coincidam com produção.
+      LANG: pt_BR.UTF-8
+      POSTGRES_INITDB_ARGS: '--encoding=UTF-8'
+    ports:
+      - '${DEVTIME_DB_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # O backend depende deste health check: iniciar antes do banco aceitar conexões faria o Flyway
+      # falhar e a aplicação encerrar, exigindo reinício manual.
+      test: ['CMD-SHELL', 'pg_isready -U ${DEVTIME_DB_USERNAME} -d ${DEVTIME_DB_NAME}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Sobrescreve o `DEVTIME_DB_URL` do base: aqui o banco é o contêiner acima, não o serviço externo.
+      DEVTIME_DB_URL: jdbc:postgresql://postgres:5432/${DEVTIME_DB_NAME}
+
+volumes:
+  postgres-data:
+    driver: local

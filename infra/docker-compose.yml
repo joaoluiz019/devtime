@@ -9,33 +9,12 @@ name: devtime
 # Os `build.context` abaixo são relativos à **raiz do repositório**, não a este arquivo. Suba sempre
 # com `--project-directory .` a partir da raiz (ver README.md): o Coolify força esse base dir no
 # deploy, e contexts relativos a `infra/` apontariam para fora do repositório clonado.
+#
+# Este arquivo é o alvo do deploy e **não** contém o banco: em produção o PostgreSQL é um serviço
+# externo, endereçado por `DEVTIME_DB_URL`. O ambiente local sobe o banco em contêiner pelo override
+# `docker-compose.local.yml` (ver README.md), que também é o arquivo usado pela CI.
 
 services:
-  postgres:
-    # Versão fixada em 16 (architecture.md §11). `latest` faria o ambiente local divergir de produção
-    # a cada release do PostgreSQL, e o schema depende de recursos específicos da versão maior.
-    image: postgres:16-alpine
-    container_name: devtime-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${DEVTIME_DB_NAME}
-      POSTGRES_USER: ${DEVTIME_DB_USERNAME}
-      POSTGRES_PASSWORD: ${DEVTIME_DB_PASSWORD}
-      # Locale pt-BR para que ordenação e comparação de texto no ambiente local coincidam com produção.
-      LANG: pt_BR.UTF-8
-      POSTGRES_INITDB_ARGS: '--encoding=UTF-8'
-    ports:
-      - '${DEVTIME_DB_PORT:-5432}:5432'
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-    healthcheck:
-      # O backend depende deste health check: iniciar antes do banco aceitar conexões faria o Flyway
-      # falhar e a aplicação encerrar, exigindo reinício manual.
-      test: ['CMD-SHELL', 'pg_isready -U ${DEVTIME_DB_USERNAME} -d ${DEVTIME_DB_NAME}']
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   # integrations.md §6.2: object storage. MinIO em desenvolvimento, S3 em produção — o mesmo
   # adapter atende os dois, e o modo de caminho é usado em ambos para que o ambiente local não
   # exercite um caminho de código diferente.
@@ -89,8 +68,6 @@ services:
     container_name: devtime-backend
     restart: unless-stopped
     depends_on:
-      postgres:
-        condition: service_healthy
       minio:
         condition: service_healthy
       # Deliberadamente `service_started`, e não `service_healthy`: a primeira carga da base de
@@ -108,7 +85,8 @@ services:
       STORAGE_SECRET_KEY: ${STORAGE_SECRET_KEY}
       ANTIVIRUS_HOST: clamav
       ANTIVIRUS_PORT: 3310
-      DEVTIME_DB_URL: jdbc:postgresql://postgres:5432/${DEVTIME_DB_NAME}
+      # Banco externo. O override local reescreve este valor para o contêiner `postgres`.
+      DEVTIME_DB_URL: ${DEVTIME_DB_URL}
       DEVTIME_DB_USERNAME: ${DEVTIME_DB_USERNAME}
       DEVTIME_DB_PASSWORD: ${DEVTIME_DB_PASSWORD}
       DEVTIME_JWT_SECRET: ${DEVTIME_JWT_SECRET}
@@ -130,8 +108,6 @@ services:
       - '${DEVTIME_WEB_PORT:-4200}:80'
 
 volumes:
-  postgres-data:
-    driver: local
   minio-data:
     driver: local
   # Persistir a base de assinaturas evita rebaixar o verificador a cada reinício: sem o volume,
