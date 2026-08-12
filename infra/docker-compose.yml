@@ -26,11 +26,12 @@ services:
     environment:
       MINIO_ROOT_USER: ${STORAGE_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${STORAGE_SECRET_KEY}
-    ports:
-      # SG-01: o bucket é privado. A porta exposta serve ao backend e ao console de operação; o
-      # bloqueio de acesso público é aplicado pela aplicação na inicialização, não pela rede.
-      - '${STORAGE_PORT:-9000}:9000'
-      - '${STORAGE_CONSOLE_PORT:-9001}:9001'
+    expose:
+      # SG-01: o bucket é privado. Nenhuma porta é publicada no host — o backend fala com o MinIO
+      # pela rede interna do projeto, e o console fica acessível só de dentro dela. O override local
+      # publica as duas portas para o desenvolvimento.
+      - '9000'
+      - '9001'
     volumes:
       - minio-data:/data
     healthcheck:
@@ -48,8 +49,8 @@ services:
     environment:
       # AV-04: base de assinaturas atualizada diariamente pelo freshclam do próprio contêiner.
       CLAMAV_NO_FRESHCLAMD: 'false'
-    ports:
-      - '${ANTIVIRUS_PORT:-3310}:3310'
+    expose:
+      - '3310'
     volumes:
       - clamav-signatures:/var/lib/clamav
     healthcheck:
@@ -93,8 +94,11 @@ services:
       DEVTIME_JWT_ISSUER: ${DEVTIME_JWT_ISSUER}
       DEVTIME_JWT_AUDIENCE: ${DEVTIME_JWT_AUDIENCE}
       DEVTIME_CORS_ALLOWED_ORIGINS: ${DEVTIME_CORS_ALLOWED_ORIGINS}
-    ports:
-      - '${DEVTIME_SERVER_PORT:-8080}:8080'
+    expose:
+      # Publicar 8080 no host colidia com o dashboard do proxy no servidor de deploy. O proxy do
+      # Coolify roteia pela rede interna, e o nginx do frontend encaminha `/api` para cá pelo nome do
+      # serviço — nenhuma das duas rotas precisa de porta no host.
+      - '8080'
 
   frontend:
     build:
@@ -104,8 +108,9 @@ services:
     restart: unless-stopped
     depends_on:
       - backend
-    ports:
-      - '${DEVTIME_WEB_PORT:-4200}:80'
+    expose:
+      # Este é o serviço que recebe o domínio no Coolify: o proxy publica 80 daqui para o FQDN.
+      - '80'
 
 volumes:
   minio-data:
