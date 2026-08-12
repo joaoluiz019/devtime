@@ -6,6 +6,10 @@
 
 name: devtime
 
+# Os `build.context` abaixo são relativos à **raiz do repositório**, não a este arquivo. Suba sempre
+# com `--project-directory .` a partir da raiz (ver README.md): o Coolify força esse base dir no
+# deploy, e contexts relativos a `infra/` apontariam para fora do repositório clonado.
+
 services:
   postgres:
     # Versão fixada em 16 (architecture.md §11). `latest` faria o ambiente local divergir de produção
@@ -80,7 +84,7 @@ services:
 
   backend:
     build:
-      context: ../devtime-backend
+      context: ./devtime-backend
       dockerfile: Dockerfile
     container_name: devtime-backend
     restart: unless-stopped
@@ -116,7 +120,7 @@ services:
 
   frontend:
     build:
-      context: ../devtime-frontend
+      context: ./devtime-frontend
       dockerfile: Dockerfile
     container_name: devtime-frontend
     restart: unless-stopped

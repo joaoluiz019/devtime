@@ -193,7 +193,7 @@ jobs:
           } >> .env
 
       - name: Subir o ambiente
-        run: docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+        run: docker compose -f infra/docker-compose.yml --project-directory . --env-file .env up -d --build
 
       # O ClamAV leva minutos para carregar a base e o backend sobe sem esperar
       # por ele (`service_started`), então o sinal de prontidão é o readiness do
@@ -236,8 +236,8 @@ jobs:
 
       - name: Logs em caso de falha
         if: failure()
-        run: docker compose -f infra/docker-compose.yml --env-file .env logs --no-color
+        run: docker compose -f infra/docker-compose.yml --project-directory . --env-file .env logs --no-color
 
       - name: Derrubar o ambiente
         if: always()
-        run: docker compose -f infra/docker-compose.yml --env-file .env down -v
+        run: docker compose -f infra/docker-compose.yml --project-directory . --env-file .env down -v

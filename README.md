@@ -46,7 +46,7 @@ printf 'DEVTIME_JWT_SECRET=%s\n' "$(openssl rand -base64 48)" >> .env
 ```
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file .env up --build
+docker compose -f infra/docker-compose.yml --project-directory . --env-file .env up --build
 ```
 
 | Serviço | Endereço |
@@ -66,7 +66,7 @@ docker compose -f infra/docker-compose.yml --env-file .env up --build
 Rodando apenas o banco em contêiner e a aplicação na máquina:
 
 ```bash
-docker compose -f infra/docker-compose.yml --env-file .env up -d postgres
+docker compose -f infra/docker-compose.yml --project-directory . --env-file .env up -d postgres
 ```
 
 ```bash
