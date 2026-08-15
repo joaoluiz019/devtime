@@ -46,5 +46,11 @@ ENV DEVTIME_API_HOST="backend"
 
 EXPOSE 80
 
+# O endereço é 127.0.0.1, e não `localhost`: o nome resolve `::1` primeiro, mas o nginx só escuta em
+# IPv4. Quem decide isso é o próprio entrypoint da imagem — o script 10-listen-on-ipv6-by-default.sh
+# acrescenta `listen [::]:80` apenas quando a configuração é a que veio no pacote, e a nossa não é
+# ("differs from the packaged version" nos logs). O resultado era um healthcheck recusado por
+# ninguém estar escutando no endereço consultado, com o servidor no ar e servindo normalmente em
+# IPv4 — e o Coolify revertendo o deploy por isso.
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
-    CMD wget -qO- http://localhost/ >/dev/null || exit 1
+    CMD wget -qO- http://127.0.0.1/ >/dev/null || exit 1
