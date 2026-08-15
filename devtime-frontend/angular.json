@@ -23,7 +23,10 @@
       "sourceRoot": "src",
       "prefix": "dt",
       "i18n": {
-        "sourceLocale": "pt-BR"
+        "sourceLocale": {
+          "code": "pt-BR",
+          "baseHref": ""
+        }
       },
       "architect": {
         "build": {
