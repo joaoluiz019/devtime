@@ -44,6 +44,7 @@ public class SecurityConfig {
     private final TenantContextFilter tenantContextFilter;
     private final ProblemDetailAuthenticationEntryPoint problemDetailHandler;
     private final CsrfCookieFilter csrfCookieFilter;
+    private final SpaCsrfTokenRequestHandler spaCsrfTokenRequestHandler;
     private final DevTimeProperties properties;
 
     @Bean
@@ -57,6 +58,10 @@ public class SecurityConfig {
                                         // nativamente).
                                         .csrfTokenRepository(
                                                 CookieCsrfTokenRepository.withHttpOnlyFalse())
+                                        // Sem isto vale o XorCsrfTokenRequestAttributeHandler
+                                        // padrão, que exige o token mascarado no header — mas o
+                                        // cookie carrega o valor cru, e a SPA devolve o cru.
+                                        .csrfTokenRequestHandler(spaCsrfTokenRequestHandler)
                                         .ignoringRequestMatchers(csrfExemptEndpoints()))
                 .sessionManagement(
                         session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

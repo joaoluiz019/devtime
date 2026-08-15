@@ -160,6 +160,36 @@ class SecurityContractIntegrationTest extends IntegrationTestSupport {
                 .andExpect(jsonPath("$.errors[0].message").value(not(emptyString())));
     }
 
+    /**
+     * O {@code csrf()} do Spring Security Test injeta o token já resolvido no request e, por isso,
+     * nunca exercita a resolução real — foi o que deixou passar o {@code 403} (DEVTIME-1105) em
+     * toda escrita da SPA. Aqui o valor percorre o mesmo caminho do navegador: sai no cookie e
+     * volta cru no header.
+     */
+    @Test
+    @DisplayName("CSRF: o valor cru do cookie XSRF-TOKEN é aceito de volta no header")
+    void rawCookieValueMustBeAcceptedInHeader() throws Exception {
+        var cookie =
+                mockMvc.perform(get("/actuator/health"))
+                        .andExpect(status().isOk())
+                        .andReturn()
+                        .getResponse()
+                        .getCookie("XSRF-TOKEN");
+
+        org.assertj.core.api.Assertions.assertThat(cookie).isNotNull();
+
+        mockMvc.perform(
+                        post(PROBE + "/validated")
+                                .header("Authorization", bearer(Role.OWNER))
+                                .cookie(cookie)
+                                .header("X-XSRF-TOKEN", cookie.getValue())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"name\":\"a\"}"))
+                // 400 de validação, não 403: o CSRF passou.
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("DEVTIME-2000"));
+    }
+
     @Test
     @DisplayName("security.md §8.2: os cabeçalhos de segurança estão presentes")
     void securityHeadersMustBePresent() throws Exception {

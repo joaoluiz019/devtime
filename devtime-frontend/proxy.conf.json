@@ -1,12 +1,12 @@
 {
   "/api": {
-    "target": "http://localhost:8080",
+    "target": "https://api.devtime.cellentia.com.br",
     "secure": false,
     "changeOrigin": false,
     "logLevel": "warn"
   },
   "/actuator": {
-    "target": "http://localhost:8080",
+    "target": "https://api.devtime.cellentia.com.br",
     "secure": false,
     "logLevel": "warn"
   }
