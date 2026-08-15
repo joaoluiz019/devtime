@@ -10,9 +10,15 @@ name: devtime
 # com `--project-directory .` a partir da raiz (ver README.md): o Coolify força esse base dir no
 # deploy, e contexts relativos a `infra/` apontariam para fora do repositório clonado.
 #
-# Este arquivo é o alvo do deploy e **não** contém o banco: em produção o PostgreSQL é um serviço
-# externo, endereçado por `DEVTIME_DB_URL`. O ambiente local sobe o banco em contêiner pelo override
+# Este arquivo **não** contém o banco: o PostgreSQL é um serviço externo, endereçado por
+# `DEVTIME_DB_URL`. O ambiente local sobe o banco em contêiner pelo override
 # `docker-compose.local.yml` (ver README.md), que também é o arquivo usado pela CI.
+#
+# O deploy **não** usa este arquivo: backend e frontend são duas aplicações independentes no
+# Coolify, cada uma construída a partir do seu próprio Dockerfile e em redes separadas. Por isso o
+# frontend endereça a API pelo domínio público em produção e pelo nome de serviço aqui — a
+# diferença está nas variáveis `DEVTIME_API_ORIGIN` / `DEVTIME_API_HOST` (ver
+# devtime-frontend/Dockerfile), cujos padrões já são os valores deste compose.
 
 services:
   # integrations.md §6.2: object storage. MinIO em desenvolvimento, S3 em produção — o mesmo
@@ -96,8 +102,9 @@ services:
       DEVTIME_CORS_ALLOWED_ORIGINS: ${DEVTIME_CORS_ALLOWED_ORIGINS}
     expose:
       # Publicar 8080 no host colidia com o dashboard do proxy no servidor de deploy. O proxy do
-      # Coolify roteia pela rede interna, e o nginx do frontend encaminha `/api` para cá pelo nome do
-      # serviço — nenhuma das duas rotas precisa de porta no host.
+      # Coolify roteia pela rede interna e o nginx do frontend alcança a API pelo nome do serviço
+      # aqui — nenhuma das duas rotas precisa de porta no host. É também por isso que a API pública
+      # responde em 443, e não em 8080: essa porta nunca sai do contêiner.
       - '8080'
 
   frontend:

@@ -1,13 +1,14 @@
 {
   "/api": {
-    "target": "https://api.devtime.cellentia.com.br:8082",
-    "secure": false,
-    "changeOrigin": false,
+    "target": "https://api.devtime.cellentia.com.br",
+    "secure": true,
+    "changeOrigin": true,
     "logLevel": "warn"
   },
   "/actuator": {
-    "target": "https://api.devtime.cellentia.com.br:8082",
-    "secure": false,
+    "target": "https://api.devtime.cellentia.com.br",
+    "secure": true,
+    "changeOrigin": true,
     "logLevel": "warn"
   }
 }

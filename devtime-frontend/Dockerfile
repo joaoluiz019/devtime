@@ -27,8 +27,22 @@ FROM nginx:1.27-alpine
 # em F6, isto passa a exigir uma estratégia de roteamento por locale no nginx — e falhar aqui de
 # forma visível é melhor que servir silenciosamente o idioma errado.
 COPY --from=build /build/dist/devtime-frontend/browser/pt-BR /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# O entrypoint da imagem oficial expande os templates deste diretório em /etc/nginx/conf.d/ na
+# subida, trocando `default.conf.template` por `default.conf`.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 COPY security-headers.conf /etc/nginx/security-headers.conf
+
+# Sem o filtro, o envsubst do entrypoint substituiria **todas** as variáveis do ambiente — inclusive
+# `$host`, `$uri` e `$remote_addr`, que são do nginx e não do shell. Como elas não existem no
+# ambiente, virariam string vazia e a configuração deixaria de funcionar de formas silenciosas.
+# Restringindo ao prefixo do projeto, apenas os dois parâmetros abaixo são expandidos.
+ENV NGINX_ENVSUBST_FILTER="^DEVTIME_"
+
+# Destino do proxy de /api. O padrão é o ambiente local do compose, onde o backend é um serviço na
+# mesma rede; o deploy sobrescreve os dois valores com o domínio público da API. O `Host` vai
+# separado porque o proxy do Coolify roteia por ele, e o cabeçalho não aceita esquema nem porta.
+ENV DEVTIME_API_ORIGIN="http://backend:8080"
+ENV DEVTIME_API_HOST="backend"
 
 EXPOSE 80
 

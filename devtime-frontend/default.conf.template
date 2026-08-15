@@ -1,0 +1,100 @@
+# Servidor de conteúdo estático da SPA.
+#
+# Este arquivo é um **template**: o entrypoint da imagem nginx expande as variáveis `DEVTIME_*` em
+# /etc/nginx/conf.d/default.conf antes de subir o servidor (ver Dockerfile). Só esse prefixo é
+# expandido — as variáveis do próprio nginx (`$host`, `$uri`, ...) passam intactas.
+
+server {
+    listen 80;
+    server_name _;
+
+    # Em produção, frontend e backend são aplicações separadas no Coolify e portanto vivem em redes
+    # Docker distintas: o nome de serviço `backend` não resolve daqui, e o upstream é o domínio
+    # público da API. No ambiente local do compose vale o oposto, e por isso o destino é parâmetro
+    # de execução em vez de valor fixo — sem isso o `docker compose up` local encaminharia `/api`
+    # para a API de produção.
+    #
+    # `resolver` é obrigatório junto com o upstream em variável. Sem ele o nginx resolve o nome uma
+    # única vez, na carga da configuração, e **aborta o processo** quando a resolução falha
+    # (`[emerg] host not found in upstream`). Isso derrubava o frontend inteiro — um servidor de
+    # conteúdo estático indisponível por causa de um proxy que só atende parte das rotas. Resolvendo
+    # por requisição, a SPA sobe normalmente e apenas `/api` responde 502 enquanto a API não estiver
+    # de pé. O 127.0.0.11 é o DNS embutido do Docker, que também encaminha nomes públicos ao
+    # resolver do host.
+    resolver 127.0.0.11 valid=30s ipv6=off;
+    resolver_timeout 5s;
+    set $api_origin "${DEVTIME_API_ORIGIN}";
+    set $api_host "${DEVTIME_API_HOST}";
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    include /etc/nginx/security-headers.conf;
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # Arquivos com hash no nome são imutáveis por definição (outputHashing: all).
+    location ~* \.(?:js|css|woff2?|png|jpg|svg|ico)$ {
+        include /etc/nginx/security-headers.conf;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # O index nunca é cacheado: é ele que aponta para os arquivos com hash, e uma versão em cache
+    # manteria o usuário preso ao deploy anterior.
+    location = /index.html {
+        include /etc/nginx/security-headers.conf;
+        add_header Cache-Control "no-store";
+    }
+
+    # A API é servida pela MESMA origem do aplicativo, e isso não é preferência de layout.
+    #
+    # O cliente chama `/api/v1/...` relativo (environment.apiBaseUrl). Sem este bloco, a chamada caía
+    # no roteamento da SPA logo abaixo e recebia o `index.html` com status 200 — nenhum endpoint
+    # funcionava pela imagem. E apontar o cliente direto para o domínio da API **não** é alternativa,
+    # mesmo agora que ele existe: em origem distinta o HttpClient do Angular não envia o cabeçalho
+    # `X-XSRF-TOKEN`, e o cookie `dt_refresh` (`SameSite=Strict`) deixa de acompanhar a renovação.
+    # Toda leitura continuaria funcionando, toda alteração passaria a responder 403 e a sessão
+    # cairia ao expirar o access token — três sintomas sem relação aparente entre si.
+    location /api/ {
+        include /etc/nginx/security-headers.conf;
+        proxy_pass $api_origin;
+        proxy_http_version 1.1;
+        # O `Host` é o do backend, não o do frontend: é por ele que o proxy do Coolify decide para
+        # qual aplicação a requisição vai. O domínio original segue em X-Forwarded-Host.
+        #
+        # Isso não desloca os cookies: nem `dt_refresh` nem `XSRF-TOKEN` declaram `Domain`, então o
+        # navegador os associa ao host de quem entregou a resposta — o frontend.
+        proxy_set_header Host $api_host;
+        # SNI. Sem isto o handshake TLS vai sem nome de servidor e o proxy responde com o
+        # certificado padrão, que não corresponde ao domínio da API.
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # Exportação e anexos podem levar mais que o padrão de 60s.
+        proxy_read_timeout 120s;
+        # O fluxo de notificações é SSE: sem desligar o buffer, os eventos ficam retidos.
+        proxy_buffering off;
+    }
+
+    location /actuator/ {
+        include /etc/nginx/security-headers.conf;
+        proxy_pass $api_origin;
+        proxy_set_header Host $api_host;
+        proxy_ssl_server_name on;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Roteamento da SPA: qualquer caminho não encontrado volta ao index, para que o Angular Router
+    # resolva a rota no cliente (FR-089). Sem isto, recarregar em /dashboard retornaria 404.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
