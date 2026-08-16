@@ -6,6 +6,29 @@ versão permanece `0.x.y` (VR-04).
 
 ## [Não publicado]
 
+### Alterado — Tema escuro e moldura da aplicação
+
+**O tema escuro passou a usar a paleta Nocturne.** A escala slate/indigo do tema claro foi desenhada
+para tinta sobre papel; invertida, produzia um azul que vibra sobre fundo escuro. Entra uma escala
+própria gerada em OKLCH — `ink` para os fundos, `mist` para o texto, `blurple` para a primária e
+quatro tons de severidade retonalizados — declarada em `_tokens.scss` e documentada em
+`design-system.md` §5.1.1. O tema claro não mudou: trocar os dois de uma vez exigiria revalidar
+contraste em uma superfície que ninguém pediu para mudar. Contrastes medidos e registrados em §15;
+o par mais apertado, primária sobre cartão, ficou em 4.6:1.
+
+- **Barra lateral e barra superior deixaram o tom de cartão e adotaram o da página.** Painel e
+  conteúdo compartilham o mesmo chão, separados só pela divisória. O cartão volta a ser a única
+  superfície elevada, em vez de disputar destaque com a moldura que o cerca.
+- **Os sete itens de navegação foram agrupados em "Operação" e "Análise".** Lista corrida se lê
+  inteira a cada consulta. Dashboard abre sem rótulo — um título sobre um item só é ruído — e
+  Configurações continua no grupo inferior, empurrado pelo espaçador. Grupo cujos itens foram todos
+  ocultados por permissão não renderiza o rótulo (SB-06, nova): uma seção "Análise" vazia anuncia
+  telas que aquele papel não pode abrir.
+- **O avatar deixou de ser preenchido com a primária sólida.** Ele aparece em toda tela e, cheio da
+  cor da marca, roubava o destaque da ação primária da página, que usa a mesma cor. Entra o par de
+  tokens `--dt-color-primary-soft` / `-soft-contrast`, com contraste de texto garantido nos dois
+  temas — o que `color-mix` sobre transparente não entrega.
+
 ### Corrigido — Sprint de finalização
 
 **A suíte de integração foi executada pela primeira vez.** Até aqui ela compilava e nunca havia

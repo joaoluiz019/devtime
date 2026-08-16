@@ -5,15 +5,22 @@
   gap: var(--dt-space-3);
   /* layouts.md §6.1: altura fixa de 56px. */
   height: var(--dt-topbar-height);
-  padding-inline: var(--dt-space-4);
+  padding-inline: var(--dt-space-6);
   border-bottom: 1px solid var(--dt-border);
-  background-color: var(--dt-surface-card);
+  /* Mesmo chão da barra lateral e do conteúdo (ver `sidebar.component.scss`). */
+  background-color: var(--dt-surface-page);
 }
 
+/* A organização vira um selo contornado: como texto solto ela se confundia com o título da página
+   logo abaixo, que fica na mesma coluna. */
 .dt-topbar__tenant {
+  padding: var(--dt-space-1) var(--dt-space-3);
+  border: 1px solid var(--dt-border);
+  border-radius: var(--dt-radius-full);
   color: var(--dt-text-secondary);
-  font-size: var(--dt-text-sm);
+  font-size: var(--dt-text-xs);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .dt-topbar__spacer {
@@ -26,15 +33,20 @@
   gap: var(--dt-space-2);
 }
 
-/* §17 do design system: substituto com iniciais quando não há avatar. */
+/**
+ * §17 do design system: substituto com iniciais quando não há avatar.
+ *
+ * Preenchimento suave em vez da primária sólida: o avatar aparece em toda tela e, cheio da cor da
+ * marca, roubava o destaque da ação primária da página, que usa a mesma cor.
+ */
 .dt-topbar__avatar {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   border-radius: var(--dt-radius-full);
-  background-color: var(--dt-color-primary);
-  color: var(--dt-color-primary-contrast);
+  background-color: var(--dt-color-primary-soft);
+  color: var(--dt-color-primary-soft-contrast);
   font-size: var(--dt-text-xs);
   font-weight: 600;
 }

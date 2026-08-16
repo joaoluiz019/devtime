@@ -55,23 +55,39 @@ Definir a linguagem visual e de interação do DevTime: tokens de design, tipogr
 | **Red** (crítico) | `#FEF2F2` | `#FEE2E2` | `#FCA5A5` | `#EF4444` | `#B91C1C` | `#7F1D1D` |
 | **Sky** (informação) | `#F0F9FF` | `#E0F2FE` | `#7DD3FC` | `#0EA5E9` | `#0369A1` | `#0C4A6E` |
 
+As escalas acima alimentam o **tema claro**. O tema escuro usa a paleta Nocturne de §5.1.1: uma escala de luminosidade só dela, gerada em OKLCH, porque as escalas Tailwind acima foram desenhadas para tinta sobre papel e, invertidas, produzem um azul que vibra sobre fundo escuro.
+
+### 5.1.1 Tokens primitivos Nocturne — exclusivos do tema escuro
+
+| Escala | Passos |
+|---|---|
+| **Ink** (fundos) | `950 #161826` · `800 #232532` · `700 #2B2E3D` · `600 #3F424D` · `500 #595D6C` |
+| **Mist** (texto) | `100 #E9E9ED` · `300 #B2B6CA` · `500 #75798C` |
+| **Blurple** (primária) | `50 #F5F4FF` · `100 #E7E5FE` · `300 #D2CEFD` · `400 #B5ABFC` · `500 #9184D9` · `700 #5D5294` · `800 #423A6A` · `900 #2B2741` |
+| **Severidade** | `sage-300 #7FD0A5` (sucesso) · `honey-300 #E0B57F` (atenção) · `clay-300 #E0A1A1` (crítico) · `steel-300 #8FA8E0` (informação) |
+
 ### 5.2 Tokens semânticos
 
 | Token | Tema claro | Tema escuro | Uso |
 |---|---|---|---|
-| `--dt-color-primary` | `indigo-500` | `indigo-300` | Ação principal, links, foco |
-| `--dt-color-primary-hover` | `indigo-700` | `indigo-100` | Estado de hover |
-| `--dt-surface-page` | `slate-50` | `slate-900` | Fundo da página |
-| `--dt-surface-card` | `#FFFFFF` | `#1E293B` | Cartões e painéis |
-| `--dt-surface-raised` | `#FFFFFF` | `#293548` | Diálogos e menus |
-| `--dt-border` | `slate-300` | `#334155` | Bordas e divisores |
-| `--dt-text-primary` | `slate-900` | `slate-50` | Texto principal |
-| `--dt-text-secondary` | `slate-500` | `slate-300` | Texto de apoio |
-| `--dt-text-disabled` | `#94A3B8` | `#64748B` | Desabilitado |
-| `--dt-color-success` | `emerald-500` | `emerald-300` | Saldo saudável |
-| `--dt-color-warning` | `amber-500` | `amber-300` | Saldo em atenção |
-| `--dt-color-danger` | `red-500` | `red-300` | Excedente, erro |
-| `--dt-color-info` | `sky-500` | `sky-300` | Informação neutra |
+| `--dt-color-primary` | `indigo-500` | `blurple-500` | Ação principal, links, foco |
+| `--dt-color-primary-hover` | `indigo-700` | `blurple-300` | Estado de hover |
+| `--dt-color-primary-contrast` | `#FFFFFF` | `ink-950` | Texto sobre preenchimento primário |
+| `--dt-color-primary-soft` | `indigo-100` | `blurple-800` | Preenchimento de identificação (avatar, selo) |
+| `--dt-color-primary-soft-contrast` | `indigo-700` | `blurple-100` | Texto sobre o preenchimento suave |
+| `--dt-surface-page` | `slate-50` | `ink-950` | Fundo da página, da barra lateral e da barra superior |
+| `--dt-surface-card` | `#FFFFFF` | `ink-800` | Cartões e painéis |
+| `--dt-surface-raised` | `#FFFFFF` | `ink-700` | Diálogos e menus |
+| `--dt-border` | `slate-300` | `ink-600` | Bordas e divisores |
+| `--dt-text-primary` | `slate-900` | `mist-100` | Texto principal |
+| `--dt-text-secondary` | `slate-500` | `mist-300` | Texto de apoio |
+| `--dt-text-disabled` | `#94A3B8` | `mist-500` | Desabilitado |
+| `--dt-color-success` | `emerald-500` | `sage-300` | Saldo saudável |
+| `--dt-color-warning` | `amber-500` | `honey-300` | Saldo em atenção |
+| `--dt-color-danger` | `red-500` | `clay-300` | Excedente, erro |
+| `--dt-color-info` | `sky-500` | `steel-300` | Informação neutra |
+
+> **Barra lateral e barra superior usam `--dt-surface-page`, não `--dt-surface-card`.** Painel e conteúdo compartilham o mesmo chão, separados apenas pela divisória; assim o cartão é a única superfície que se eleva, e a moldura da aplicação para de competir com ele por atenção.
 
 ### 5.3 Semântica de severidade — regra fixa
 
@@ -324,12 +340,14 @@ Todo código `DEVTIME-XXXX` possui uma mensagem em linguagem natural, com ação
 | # | Regra |
 |---|---|
 | DK-01 | Ativado por preferência do usuário ou pelo sistema operacional |
-| DK-02 | Nenhum fundo preto puro; usar `slate-900` para reduzir fadiga |
-| DK-03 | Cores semânticas usam o tom `300` no tema escuro, preservando o contraste |
+| DK-02 | Nenhum fundo preto puro; usar `ink-950` (azul-tinta) para reduzir fadiga |
+| DK-03 | Cores semânticas usam o tom `300` da paleta Nocturne, preservando o contraste |
 | DK-04 | Elevação é expressa por diferença de superfície, não por sombra |
 | DK-05 | Cores de cliente e categoria são exibidas com opacidade reduzida sobre fundo escuro |
 | DK-06 | Gráficos ajustam eixos, grades e rótulos ao tema |
 | DK-07 | Todo componente é validado por contraste nos dois temas |
+
+**Contraste medido no tema escuro.** `--dt-color-primary` sobre `--dt-surface-page` 5.3:1; texto secundário sobre a mesma superfície 8.7:1. O par mais apertado da paleta é `--dt-color-primary` sobre `--dt-surface-card`, em 4.6:1 — acima do mínimo AA de 4.5:1, mas sem folga: é o primeiro a revalidar se qualquer um dos dois tokens mudar.
 
 ---
 

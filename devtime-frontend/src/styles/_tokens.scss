@@ -50,6 +50,42 @@
   --dt-sky-700: #0369a1;
   --dt-sky-900: #0c4a6e;
 
+  /* ── Primitivos Nocturne · exclusivos do tema escuro ────────────────────────────────────────
+   *
+   * Paleta importada do projeto de design "Nocturne". Existe apenas para o tema escuro: no claro a
+   * família slate/indigo continua valendo, e trocar as duas de uma vez exigiria revalidar contraste
+   * em uma superfície que ninguém pediu para mudar.
+   *
+   * As rampas foram geradas em OKLCH sobre uma única escala de luminosidade — o mesmo passo de
+   * papéis diferentes tem o mesmo valor visual, o que é o que permite trocar `blurple-500` por
+   * `sage-300` num mesmo lugar sem a interface mudar de peso.
+   */
+  --dt-ink-950: #161826;
+  --dt-ink-800: #232532;
+  --dt-ink-700: #2b2e3d;
+  --dt-ink-600: #3f424d;
+  --dt-ink-500: #595d6c;
+
+  --dt-mist-100: #e9e9ed;
+  --dt-mist-300: #b2b6ca;
+  --dt-mist-500: #75798c;
+
+  --dt-blurple-50: #f5f4ff;
+  --dt-blurple-100: #e7e5fe;
+  --dt-blurple-300: #d2cefd;
+  --dt-blurple-400: #b5abfc;
+  --dt-blurple-500: #9184d9;
+  --dt-blurple-700: #5d5294;
+  --dt-blurple-800: #423a6a;
+  --dt-blurple-900: #2b2741;
+
+  /* Severidade retonalizada para o escuro: o croma baixo impede que vermelho e âmbar vibrem sobre
+     `--dt-ink-950`, sem perder a distância de matiz que DS-04 exige entre os quatro estados. */
+  --dt-sage-300: #7fd0a5;
+  --dt-honey-300: #e0b57f;
+  --dt-clay-300: #e0a1a1;
+  --dt-steel-300: #8fa8e0;
+
   /* ── Tipografia · design-system.md §6 ───────────────────────────────────────────────────── */
   --dt-font-sans: Inter, system-ui, -apple-system, 'Segoe UI', sans-serif;
   /* Durações e horários em monoespaçada: em listas longas, o alinhamento vertical dos dígitos
@@ -105,6 +141,11 @@
   --dt-color-primary: var(--dt-indigo-500);
   --dt-color-primary-hover: var(--dt-indigo-700);
   --dt-color-primary-contrast: #ffffff;
+  /* Par "primária suave": preenchimento de identificação (avatar, selo) que precisa da cor da marca
+     sem o peso do preenchimento sólido, que a `color-mix` sobre transparente não entrega com
+     contraste garantido de texto. */
+  --dt-color-primary-soft: var(--dt-indigo-100);
+  --dt-color-primary-soft-contrast: var(--dt-indigo-700);
   --dt-surface-page: var(--dt-slate-50);
   --dt-surface-card: #ffffff;
   --dt-surface-raised: #ffffff;
@@ -123,27 +164,33 @@
 }
 
 /**
- * Tema escuro (design-system.md §15).
+ * Tema escuro (design-system.md §15) — paleta Nocturne.
  *
- * DK-02: nenhum fundo preto puro — `slate-900` reduz fadiga. DK-03: as cores semânticas usam o tom
- * 300, preservando o contraste sobre fundo escuro. DK-04: a elevação é expressa por diferença de
- * superfície, não por sombra, que é praticamente invisível no escuro.
+ * DK-02: nenhum fundo preto puro — `ink-950` é um azul-tinta, não preto. DK-03: as semânticas usam o
+ * tom 300 da própria paleta, medido sobre `ink-950` e sobre `ink-800`. DK-04: a elevação continua
+ * sendo diferença de superfície, não sombra — por isso as três sombras seguem anuladas.
+ *
+ * Contraste sobre `--dt-surface-page`: primária 5.3:1, texto secundário 8.7:1. A primária sobre
+ * `--dt-surface-card` cai para 4.6:1, ainda acima do mínimo AA de 4.5:1 — é o par mais apertado da
+ * paleta e o primeiro a revalidar se qualquer um dos dois tokens mudar (DK-07).
  */
 :root[data-theme='dark'] {
-  --dt-color-primary: var(--dt-indigo-300);
-  --dt-color-primary-hover: var(--dt-indigo-100);
-  --dt-color-primary-contrast: var(--dt-slate-900);
-  --dt-surface-page: var(--dt-slate-900);
-  --dt-surface-card: #1e293b;
-  --dt-surface-raised: #293548;
-  --dt-border: #334155;
-  --dt-text-primary: var(--dt-slate-50);
-  --dt-text-secondary: var(--dt-slate-300);
-  --dt-text-disabled: #64748b;
-  --dt-color-success: var(--dt-emerald-300);
-  --dt-color-warning: var(--dt-amber-300);
-  --dt-color-danger: var(--dt-red-300);
-  --dt-color-info: var(--dt-sky-300);
+  --dt-color-primary: var(--dt-blurple-500);
+  --dt-color-primary-hover: var(--dt-blurple-300);
+  --dt-color-primary-contrast: var(--dt-ink-950);
+  --dt-color-primary-soft: var(--dt-blurple-800);
+  --dt-color-primary-soft-contrast: var(--dt-blurple-100);
+  --dt-surface-page: var(--dt-ink-950);
+  --dt-surface-card: var(--dt-ink-800);
+  --dt-surface-raised: var(--dt-ink-700);
+  --dt-border: var(--dt-ink-600);
+  --dt-text-primary: var(--dt-mist-100);
+  --dt-text-secondary: var(--dt-mist-300);
+  --dt-text-disabled: var(--dt-mist-500);
+  --dt-color-success: var(--dt-sage-300);
+  --dt-color-warning: var(--dt-honey-300);
+  --dt-color-danger: var(--dt-clay-300);
+  --dt-color-info: var(--dt-steel-300);
 
   --dt-shadow-sm: none;
   --dt-shadow-md: none;
@@ -153,20 +200,22 @@
 /* DK-01: sem escolha explícita do usuário, segue a preferência do sistema operacional. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
-    --dt-color-primary: var(--dt-indigo-300);
-    --dt-color-primary-hover: var(--dt-indigo-100);
-    --dt-color-primary-contrast: var(--dt-slate-900);
-    --dt-surface-page: var(--dt-slate-900);
-    --dt-surface-card: #1e293b;
-    --dt-surface-raised: #293548;
-    --dt-border: #334155;
-    --dt-text-primary: var(--dt-slate-50);
-    --dt-text-secondary: var(--dt-slate-300);
-    --dt-text-disabled: #64748b;
-    --dt-color-success: var(--dt-emerald-300);
-    --dt-color-warning: var(--dt-amber-300);
-    --dt-color-danger: var(--dt-red-300);
-    --dt-color-info: var(--dt-sky-300);
+    --dt-color-primary: var(--dt-blurple-500);
+    --dt-color-primary-hover: var(--dt-blurple-300);
+    --dt-color-primary-contrast: var(--dt-ink-950);
+    --dt-color-primary-soft: var(--dt-blurple-800);
+    --dt-color-primary-soft-contrast: var(--dt-blurple-100);
+    --dt-surface-page: var(--dt-ink-950);
+    --dt-surface-card: var(--dt-ink-800);
+    --dt-surface-raised: var(--dt-ink-700);
+    --dt-border: var(--dt-ink-600);
+    --dt-text-primary: var(--dt-mist-100);
+    --dt-text-secondary: var(--dt-mist-300);
+    --dt-text-disabled: var(--dt-mist-500);
+    --dt-color-success: var(--dt-sage-300);
+    --dt-color-warning: var(--dt-honey-300);
+    --dt-color-danger: var(--dt-clay-300);
+    --dt-color-info: var(--dt-steel-300);
 
     --dt-shadow-sm: none;
     --dt-shadow-md: none;

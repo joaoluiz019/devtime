@@ -135,14 +135,19 @@ Especificar as estruturas de layout da aplicação: o shell principal, os layout
 
 ### 6.4 Barra lateral
 
-| Grupo | Itens | Visibilidade |
-|---|---|---|
-| Principal | Dashboard, Clientes, Contratos, Tickets, Registro de horas, Relatórios | Conforme permissão |
-| Inferior | Configurações, Ajuda | Configurações apenas com `TENANT_UPDATE` |
+| Grupo | Rótulo de seção | Itens | Visibilidade |
+|---|---|---|---|
+| Abertura | — | Dashboard | Conforme permissão |
+| Operação | "Operação" | Clientes, Contratos, Tickets, Registro de horas | Conforme permissão |
+| Análise | "Análise" | Relatórios | Conforme permissão |
+| Inferior | — | Configurações, Ajuda | Configurações apenas com `TENANT_UPDATE` |
+
+Sete itens em lista corrida se leem inteiros a cada consulta. Os grupos separam o trabalho do dia do que se olha depois. O grupo de abertura não leva rótulo: um título sobre um item só é ruído. O grupo inferior é separado pelo espaçador, não por rótulo.
 
 | # | Regra |
 |---|---|
 | SB-01 | Item sem permissão é **ocultado**, não desabilitado |
+| SB-06 | Grupo cujos itens foram todos ocultados por permissão não renderiza o rótulo — uma seção vazia anuncia telas que aquele papel não pode abrir |
 | SB-02 | Item ativo é destacado por cor e barra lateral esquerda |
 | SB-03 | No modo recolhido, apenas ícones, com tooltip |
 | SB-04 | O estado (expandida/recolhida) persiste nas preferências do usuário |
